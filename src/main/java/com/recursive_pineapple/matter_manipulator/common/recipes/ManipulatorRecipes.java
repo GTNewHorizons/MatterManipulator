@@ -7,7 +7,6 @@ import static gregtech.api.util.GTModHandler.getModItem;
 import static gregtech.api.util.GTRecipeBuilder.*;
 import static gregtech.api.util.GTRecipeConstants.*;
 
-import gregtech.api.util.recipe.Scanning;
 import net.minecraft.item.ItemStack;
 
 import net.minecraftforge.fluids.Fluid;
@@ -22,6 +21,7 @@ import gregtech.api.enums.TierEU;
 import gregtech.api.recipe.RecipeMaps;
 import gregtech.api.util.GTOreDictUnificator;
 import gregtech.api.util.GTUtility;
+import gregtech.api.util.recipe.Scanning;
 
 import appeng.api.AEApi;
 
