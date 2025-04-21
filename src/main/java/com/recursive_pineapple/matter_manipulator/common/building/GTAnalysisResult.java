@@ -496,7 +496,8 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                 gte.updateAttachedCover(
                     target.coverID,
                     cover.getSide(),
-                    target.coverData);
+                    target.coverData
+                );
             }
         }
     }

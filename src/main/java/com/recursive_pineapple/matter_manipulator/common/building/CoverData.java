@@ -1,8 +1,8 @@
 package com.recursive_pineapple.matter_manipulator.common.building;
 
 import net.minecraft.item.ItemStack;
-
 import net.minecraft.nbt.NBTTagCompound;
+
 import net.minecraftforge.common.util.ForgeDirection;
 
 import gregtech.api.interfaces.tileentity.ICoverable;
