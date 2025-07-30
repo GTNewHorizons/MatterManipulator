@@ -1217,10 +1217,6 @@ public class BlockPropertyRegistry {
             }
 
             setValue(tag, value);
-
-            if (tag.hasNoTags()) {
-                stack.setTagCompound(null);
-            }
         }
 
         public abstract JsonElement getValue(NBTTagCompound itemTag);
