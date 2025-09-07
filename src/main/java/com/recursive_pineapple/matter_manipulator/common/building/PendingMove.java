@@ -17,6 +17,8 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.common.MinecraftForge;
 
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
+import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.IIC2Enet;
@@ -214,6 +216,14 @@ public class PendingMove extends AbstractBuildable {
         Location startB = state.config.coordB;
         Location dest = state.config.coordC;
 
+        MMConfig.VoxelAABB cut = new MMConfig.VoxelAABB(startA.toVec(), startB.toVec());
+        MMConfig.VoxelAABB paste = cut.clone().moveOrigin(dest.toVec());
+
+        if (cut.toBoundingBox().intersectsWith(paste.toBoundingBox())) {
+            MMUtils.sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.move_overlapping"));
+            return;
+        }
+
         int x1 = startA.x;
         int y1 = startA.y;
         int z1 = startA.z;
@@ -337,7 +347,7 @@ public class PendingMove extends AbstractBuildable {
         return true;
     }
 
-    @Optional(Names.GREG_TECH)
+    @Optional(Names.GREG_TECH_NH)
     private static void updateGTIfNeeded(TileEntity te) {
         if (te instanceof IGregTechTileEntity igte) {
             if (igte instanceof BaseMetaTileEntity bmte) {

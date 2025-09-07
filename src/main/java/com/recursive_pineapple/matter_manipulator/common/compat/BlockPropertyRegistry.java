@@ -1061,7 +1061,7 @@ public class BlockPropertyRegistry {
 
     // #region GT5u
 
-    @Optional(Names.GREG_TECH)
+    @Optional(Names.GREG_TECH_NH)
     private static void initGT5u() {
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCapacityProperty<>(MTEHatchOutputBusME.class));
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCapacityProperty<>(MTEHatchOutputME.class));
@@ -1368,6 +1368,13 @@ public class BlockPropertyRegistry {
         @Override
         public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
             throw new UnsupportedOperationException("hub status is fixed and cannot be changed");
+        }
+
+        @Override
+        public void getItemDetails(List<String> details, JsonElement value) {
+            if (value.getAsBoolean()) {
+                details.add("Hub");
+            }
         }
     }
 

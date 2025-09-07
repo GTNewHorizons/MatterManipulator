@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Function;
@@ -274,18 +275,20 @@ public class MMUtils {
      * Gets the 'location' that the player is looking at.
      */
     public static Vector3i getLookingAtLocation(EntityPlayer player) {
-        double reachDistance = player instanceof EntityPlayerMP mp ?
+        double dist = player instanceof EntityPlayerMP mp ?
             mp.theItemInWorldManager.getBlockReachDistance() :
             Minecraft.getMinecraft().playerController.getBlockReachDistance();
 
-        Vec3 posVec = Vec3.createVectorHelper(player.posX, player.posY + player.getEyeHeight(), player.posZ);
+        Vec3 start = player.getPosition(0);
+        Vec3 look = player.getLookVec();
 
-        Vec3 lookVec = player.getLook(1);
+        if (player instanceof EntityPlayerMP) {
+            start.yCoord += player.getEyeHeight();
+        }
 
-        Vec3 modifiedPosVec = posVec
-            .addVector(lookVec.xCoord * reachDistance, lookVec.yCoord * reachDistance, lookVec.zCoord * reachDistance);
+        Vec3 end = Vec3.createVectorHelper(start.xCoord + look.xCoord * dist, start.yCoord + look.yCoord * dist, start.zCoord + look.zCoord * dist);
 
-        MovingObjectPosition hit = player.worldObj.rayTraceBlocks(posVec, modifiedPosVec);
+        MovingObjectPosition hit = player.worldObj.rayTraceBlocks(start, end);
 
         Vector3i target;
 
@@ -298,9 +301,9 @@ public class MMUtils {
             }
         } else {
             target = new Vector3i(
-                MathHelper.floor_double(modifiedPosVec.xCoord),
-                MathHelper.floor_double(modifiedPosVec.yCoord),
-                MathHelper.floor_double(modifiedPosVec.zCoord)
+                MathHelper.floor_double(end.xCoord),
+                MathHelper.floor_double(end.yCoord),
+                MathHelper.floor_double(end.zCoord)
             );
         }
 
@@ -733,7 +736,7 @@ public class MMUtils {
         }
     }
 
-    @Optional(Names.GREG_TECH)
+    @Optional(Names.GREG_TECH_NH)
     public static boolean isStockingBus(IInventory inv) {
         if (inv instanceof BaseMetaTileEntity base && base.getMetaTileEntity() instanceof MTEHatchInputBusME) {
             return true;
@@ -742,7 +745,7 @@ public class MMUtils {
         }
     }
 
-    @Optional(Names.GREG_TECH)
+    @Optional(Names.GREG_TECH_NH)
     public static boolean isStockingHatch(IFluidHandler tank) {
         if (tank instanceof BaseMetaTileEntity base && base.getMetaTileEntity() instanceof MTEHatchInputME) {
             return true;
@@ -1007,9 +1010,7 @@ public class MMUtils {
     public static NBTBase toNbt(JsonElement jsonElement) {
         if (jsonElement == null || jsonElement == JsonNull.INSTANCE) { return null; }
 
-        if (jsonElement instanceof JsonPrimitive) {
-            final JsonPrimitive jsonPrimitive = (JsonPrimitive) jsonElement;
-
+        if (jsonElement instanceof JsonPrimitive jsonPrimitive) {
             if (jsonPrimitive.isNumber()) {
                 if (jsonPrimitive.getAsBigDecimal().remainder(BigDecimal.ONE).equals(BigDecimal.ZERO)) {
                     long lval = jsonPrimitive.getAsLong();
@@ -1229,6 +1230,41 @@ public class MMUtils {
         throw new IllegalArgumentException("Unhandled element " + jsonElement);
     }
 
+    private static final Pattern INTEGER = Pattern.compile("\\d+");
+    private static final Pattern FLOAT = Pattern.compile("\\d+\\.\\d+");
+
+    /**
+     * A helper for checking if an arbitrary JsonElement is truthy according to the standard JS rules, with some
+     * modifications. This is useful for situations where you have an arbitrary deserialized JsonElement that's supposed
+     * to have a boolean in it.
+     */
+    public static boolean isTruthy(JsonElement element) {
+        if (element.isJsonPrimitive()) {
+            JsonPrimitive primitive = (JsonPrimitive) element;
+
+            if (primitive.isBoolean()) return primitive.getAsBoolean();
+
+            if (primitive.isNumber()) return primitive.getAsNumber().doubleValue() != 0;
+
+            String value = primitive.getAsString();
+
+            if ("true".equals(value)) return true;
+            if ("false".equals(value)) return false;
+
+            if (INTEGER.matcher(value).matches()) return Long.parseLong(value) != 0;
+
+            if (FLOAT.matcher(value).matches()) return Double.parseDouble(value) != 0;
+
+            return !value.isEmpty();
+        }
+
+        if (element.isJsonArray()) return ((JsonArray) element).size() > 0;
+
+        if (element.isJsonObject()) return !((JsonObject) element).entrySet().isEmpty();
+
+        return false;
+    }
+
     public static boolean areStacksBasicallyEqual(ItemStack a, ItemStack b) {
         if (a == null || b == null) { return a == null && b == null; }
 
@@ -1431,22 +1467,18 @@ public class MMUtils {
     public static Block getBlockFromItem(Item item, int metadata) {
         if (item == null) return Blocks.air;
 
-        Block block = null;
-
         if (item == Items.redstone) {
-            block = Blocks.redstone_wire;
+            return Blocks.redstone_wire;
         } else if (item instanceof ItemReed specialPlacing) {
-            block = specialPlacing.field_150935_a;
+            return specialPlacing.field_150935_a;
         } else if (AppliedEnergistics2.isModLoaded() && isAECable(item, metadata)) {
-            block = InteropConstants.AE_BLOCK_CABLE.getBlock();
+            return InteropConstants.AE_BLOCK_CABLE.getBlock();
         } else {
-            block = Block.getBlockFromItem(item);
+            return Block.getBlockFromItem(item);
         }
-
-        return block;
     }
 
-    @Optional(Names.GREG_TECH)
+    @Optional(Names.GREG_TECH_NH)
     public static boolean isGTMachine(ImmutableBlockSpec spec) {
         if (spec.getBlock() instanceof BlockMachines) {
             if (getIndexSafe(GregTechAPI.METATILEENTITIES, spec.getItemMeta()) != null) { return true; }
@@ -1455,7 +1487,7 @@ public class MMUtils {
         return false;
     }
 
-    @Optional(Names.GREG_TECH)
+    @Optional(Names.GREG_TECH_NH)
     public static boolean isGTCable(ImmutableBlockSpec spec) {
         if (spec.getBlock() instanceof BlockMachines) {
             if (getIndexSafe(GregTechAPI.METATILEENTITIES, spec.getItemMeta()) instanceof IConnectable) { return true; }
@@ -1492,7 +1524,7 @@ public class MMUtils {
         return false;
     }
 
-    @Optional(Names.GREG_TECH)
+    @Optional(Names.GREG_TECH_NH)
     public static boolean getGTCable(BlockSpec spec, World world, int x, int y, int z) {
         if (world.getTileEntity(x, y, z) instanceof IGregTechTileEntity igte && igte.getMetaTileEntity() instanceof IConnectable) {
             spec.setObject(Item.getItemFromBlock(world.getBlock(x, y, z)), igte.getMetaTileID());
@@ -1517,5 +1549,20 @@ public class MMUtils {
             case UP -> "Up";
             case WEST -> "West";
         };
+    }
+
+    public static <K, V> boolean areMapsEqual(Map<K, V> left, Map<K, V> right) {
+        if (left == null || right == null) return left == right;
+
+        HashSet<K> keys = new HashSet<>(left.size() + right.size());
+
+        keys.addAll(left.keySet());
+        keys.addAll(right.keySet());
+
+        for (K key : keys) {
+            if (!Objects.equals(left.get(key), right.get(key))) return false;
+        }
+
+        return true;
     }
 }
