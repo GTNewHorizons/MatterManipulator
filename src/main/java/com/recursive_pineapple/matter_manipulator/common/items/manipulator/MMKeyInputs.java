@@ -21,11 +21,11 @@ import org.lwjgl.input.Keyboard;
 @EventBusSubscriber
 public class MMKeyInputs {
 
-    public static final KeyBinding CONTROL = new KeyBinding("key.mm-ctrl", Keyboard.KEY_LCONTROL, "key.mm");
-    public static final KeyBinding CUT = new KeyBinding("key.mm-cut", Keyboard.KEY_X, "key.mm");
-    public static final KeyBinding COPY = new KeyBinding("key.mm-copy", Keyboard.KEY_C, "key.mm");
-    public static final KeyBinding PASTE = new KeyBinding("key.mm-paste", Keyboard.KEY_V, "key.mm");
-    public static final KeyBinding RESET = new KeyBinding("key.mm-reset", Keyboard.KEY_Z, "key.mm");
+    public static final KeyBinding CONTROL = new KeyBinding("key.mm-ctrl", Keyboard.KEY_NONE, "key.mm");
+    public static final KeyBinding CUT = new KeyBinding("key.mm-cut", Keyboard.KEY_NONE, "key.mm");
+    public static final KeyBinding COPY = new KeyBinding("key.mm-copy", Keyboard.KEY_NONE, "key.mm");
+    public static final KeyBinding PASTE = new KeyBinding("key.mm-paste", Keyboard.KEY_NONE, "key.mm");
+    public static final KeyBinding RESET = new KeyBinding("key.mm-reset", Keyboard.KEY_NONE, "key.mm");
 
     public static void init() {
         ClientRegistry.registerKeyBinding(CONTROL);
