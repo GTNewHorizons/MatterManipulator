@@ -26,7 +26,7 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.relauncher.Side;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
-import com.gtnewhorizon.gtnhlib.client.renderer.quad.QuadView;
+import com.gtnewhorizon.gtnhlib.client.renderer.cel.model.quad.ModelQuadView;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormat;
 import com.gtnewhorizon.gtnhlib.eventbus.EventBusSubscriber;
@@ -116,7 +116,7 @@ public class RenderHints {
                 hints.get(i).draw(tes, xd, yd, zd, xi, yi, zi);
             }
 
-            List<QuadView> quads = TessellatorManager.stopCapturingToPooledQuads();
+            final List<ModelQuadView> quads = TessellatorManager.stopCapturingToPooledQuads();
 
             long expectedSize = (long) DefaultVertexFormat.POSITION_TEXTURE_COLOR.getVertexSize() * quads.size() * 4;
 

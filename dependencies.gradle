@@ -38,7 +38,7 @@ def asmVersion = "9.7"
 
 dependencies {
     implementation("com.github.GTNewHorizons:StructureLib:1.4.23:dev")
-    implementation("com.github.GTNewHorizons:GTNHLib:0.7.0:dev")
+    implementation("com.github.GTNewHorizons:GTNHLib:99.0.0:dev")
     implementation("com.github.GTNewHorizons:ModularUI:1.2.20:dev")
     implementation("com.github.GTNewHorizons:ModularUI2:2.2.18-1.7.10:dev")
 
