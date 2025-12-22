@@ -13,6 +13,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 
@@ -27,6 +29,7 @@ import com.recursive_pineapple.matter_manipulator.common.compat.BlockPropertyReg
 import com.recursive_pineapple.matter_manipulator.common.compat.Orientation;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
+import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.mixin.BlockCaptureDrops;
 
@@ -196,6 +199,12 @@ public class PendingBlock extends Location {
         return getStack().getDisplayName() + getItemDetails();
     }
 
+    public IChatComponent getDisplayNameComponent() {
+        // TODO: localize it
+        String details = getItemDetails();
+        return MMUtils.getItemDisplayNameComponent(getStack()).appendText(details);
+    }
+
     public boolean isFree() {
         return spec.isFree();
     }
@@ -323,7 +332,13 @@ public class PendingBlock extends Location {
                 try {
                     prop.setValueFromText(world, x, y, z, value);
                 } catch (Exception e) {
-                    context.error("Could not apply property " + property + ": " + e.getMessage());
+                    context.error(
+                        new ChatComponentTranslation(
+                            "mm.info.error.could_not_apply_property",
+                            new ChatComponentTranslation(property.getUnlocalizedName()),
+                            e.getMessage()
+                        )
+                    );
                 }
             }
         }

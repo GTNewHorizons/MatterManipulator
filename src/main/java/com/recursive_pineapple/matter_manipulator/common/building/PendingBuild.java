@@ -20,6 +20,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
@@ -176,7 +177,7 @@ public class PendingBuild extends AbstractBuildable {
                 }
 
                 if (!tryConsumePower(stack, world, x, y, z, existing.spec)) {
-                    sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.out_of_eu"));
+                    sendErrorToPlayer(player, "mm.info.error.out_of_eu");
                     break;
                 }
             }
@@ -200,7 +201,7 @@ public class PendingBuild extends AbstractBuildable {
             }
 
             if (!tryConsumePower(stack, world, x, y, z, next.spec)) {
-                sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.out_of_eu"));
+                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
                 break;
             }
 
@@ -220,10 +221,8 @@ public class PendingBuild extends AbstractBuildable {
             if (!pendingBlocks.isEmpty()) {
                 sendErrorToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.error.could_not_place",
-                        pendingBlocks.size()
-                    )
+                    "mm.info.error.could_not_place",
+                    pendingBlocks.size()
                 );
             } else {
                 sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.finished_placing"));
@@ -251,18 +250,14 @@ public class PendingBuild extends AbstractBuildable {
             if (extracted == null) {
                 sendWarningToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.warning.could_not_find",
-                        toPlace.size()
-                    )
+                    "mm.info.warning.could_not_find",
+                    toPlace.size()
                 );
                 sendWarningToPlayer(
                     player,
-                    String.format(
-                        "  %s x %d",
-                        first.getDisplayName(),
-                        total
-                    )
+                    "mm.info.warning.of_item",
+                    first.getDisplayNameComponent(),
+                    total
                 );
 
                 for (PendingBlock pending : toPlace) {
@@ -358,11 +353,9 @@ public class PendingBuild extends AbstractBuildable {
             );
             sendWarningToPlayer(
                 player,
-                String.format(
-                    "  %s x %d",
-                    first.getDisplayName(),
-                    total - (toPlace.size() - i) * perBlock.stackSize
-                )
+                "mm.info.warning.of_item",
+                first.getDisplayNameComponent(),
+                total - (toPlace.size() - i) * perBlock.stackSize
             );
         }
 
@@ -499,7 +492,8 @@ public class PendingBuild extends AbstractBuildable {
         }
 
         @Override
-        public void warn(String message) {
+        public void warn(IChatComponent message) {
+            // TODO: localize blockName
             String blockName = null;
 
             if (pendingBlock.isInWorld(player.worldObj)) {
@@ -516,24 +510,33 @@ public class PendingBuild extends AbstractBuildable {
                 }
             }
 
-            sendWarningToPlayer(
-                player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.warning",
+            if (blockName != null) {
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.with_block",
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
-                    blockName != null ? " (" + blockName + ")" : "",
+                    blockName,
                     message
-                )
-            );
+                );
+            } else {
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.only_message",
+                    pendingBlock.x,
+                    pendingBlock.y,
+                    pendingBlock.z,
+                    message
+                );
+            }
 
             PendingBuild.this.warnings.add(CoordinatePacker.pack(pendingBlock.x, pendingBlock.y, pendingBlock.z));
         }
 
         @Override
-        public void error(String message) {
-
+        public void error(IChatComponent message) {
+            // TODO: localize blockName
             String blockName = null;
 
             if (pendingBlock.isInWorld(player.worldObj)) {
@@ -548,17 +551,26 @@ public class PendingBuild extends AbstractBuildable {
                 }
             }
 
-            sendErrorToPlayer(
-                player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.error",
+            if (blockName != null) {
+                sendErrorToPlayer(
+                    player,
+                    "mm.info.error.with_block",
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
-                    blockName != null ? " (" + blockName + ")" : "",
+                    blockName,
                     message
-                )
-            );
+                );
+            } else {
+                sendErrorToPlayer(
+                    player,
+                    "mm.info.error.only_message",
+                    pendingBlock.x,
+                    pendingBlock.y,
+                    pendingBlock.z,
+                    message
+                );
+            }
 
             PendingBuild.this.errors.add(CoordinatePacker.pack(pendingBlock.x, pendingBlock.y, pendingBlock.z));
         }

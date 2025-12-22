@@ -48,6 +48,7 @@ public class BlockStateCommand extends CommandBase {
         String value = MMUtils.getIndexSafe(args, 2);
 
         if (action == null || "set".equals(action) && name != null && value == null) {
+            // TODO: localize it
             sendErrorToPlayer(player, getCommandUsage(sender));
             return;
         }
@@ -55,7 +56,7 @@ public class BlockStateCommand extends CommandBase {
         var hit = MMUtils.getHitResult(player, true);
 
         if (hit == null || hit.typeOfHit != MovingObjectType.BLOCK) {
-            sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.must_look_at_block"));
+            sendErrorToPlayer(player, "mm.info.error.must_look_at_block");
             return;
         }
 
@@ -81,7 +82,7 @@ public class BlockStateCommand extends CommandBase {
                     return;
                 }
 
-                sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.property_not_found"));
+                sendErrorToPlayer(player, "mm.info.error.property_not_found");
             } else {
                 if (properties.isEmpty() && intrinsicProps.isEmpty()) {
                     sendChatToPlayer(player, StatCollector.translateToLocal("mm.info.properties"));
@@ -120,10 +121,8 @@ public class BlockStateCommand extends CommandBase {
                 } catch (Throwable t) {
                     sendErrorToPlayer(
                         player,
-                        StatCollector.translateToLocalFormatted(
-                            "mm.info.error.error_setting_property",
-                            t.getMessage()
-                        )
+                        "mm.info.error.error_setting_property",
+                        t.getMessage()
                     );
                 }
 
@@ -138,17 +137,15 @@ public class BlockStateCommand extends CommandBase {
                 } catch (Throwable t) {
                     sendErrorToPlayer(
                         player,
-                        StatCollector.translateToLocalFormatted(
-                            "mm.info.error.error_setting_property",
-                            t.getMessage()
-                        )
+                        "mm.info.error.error_setting_property",
+                        t.getMessage()
                     );
                 }
 
                 return;
             }
 
-            sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.property_not_found"));
+            sendErrorToPlayer(player, "mm.info.error.property_not_found");
         }
     }
 }

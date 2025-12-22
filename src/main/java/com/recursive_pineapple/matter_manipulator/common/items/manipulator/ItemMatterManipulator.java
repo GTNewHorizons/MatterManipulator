@@ -953,13 +953,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
 
         if (!Location.areCompatible(state.config.coordA, state.config.coordB)) {
-            sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.cannot_mark_copy"));
+            sendErrorToPlayer(player, "mm.info.error.cannot_mark_copy");
             state.config.arraySpan = null;
             return;
         }
 
         if (state.config.coordC == null || !state.config.coordC.isInWorld(world)) {
-            sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.cannot_mark_paste"));
+            sendErrorToPlayer(player, "mm.info.error.cannot_mark_paste");
             state.config.arraySpan = null;
             return;
         }
@@ -1037,7 +1037,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     MMMod.LOG.error("Could not place blocks", t);
                     sendErrorToPlayer(
                         player,
-                        "Could not place blocks due to a crash. Check the logs for more info."
+                        "mm.info.error.could_not_place_blocks"
                     );
                 }
             }

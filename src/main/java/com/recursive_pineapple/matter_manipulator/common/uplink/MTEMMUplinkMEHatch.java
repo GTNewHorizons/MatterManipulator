@@ -158,10 +158,9 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 if (player != null) {
                     sendErrorToPlayer(
                         player,
-                        StatCollector.translateToLocalFormatted(
-                            "mm.info.error.craft_failed",
-                            request.requestName
-                        )
+                        "mm.info.error.craft_failed",
+                        // TODO: check
+                        request.requestName
                     );
                 }
                 iter.remove();
