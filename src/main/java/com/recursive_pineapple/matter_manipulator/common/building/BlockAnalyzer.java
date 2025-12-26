@@ -11,7 +11,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.StatCollector;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
@@ -105,9 +105,9 @@ public class BlockAnalyzer {
 
         public boolean tryApplyAction(double complexity);
 
-        public void warn(String message);
+        public void warn(IChatComponent message);
 
-        public void error(String message);
+        public void error(IChatComponent message);
     }
 
     /**
@@ -261,30 +261,26 @@ public class BlockAnalyzer {
         }
 
         @Override
-        public void warn(String message) {
+        public void warn(IChatComponent message) {
             sendWarningToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.warning",
-                    x,
-                    y,
-                    z,
-                    message
-                )
+                "mm.info.warning.only_message",
+                x,
+                y,
+                z,
+                message
             );
         }
 
         @Override
-        public void error(String message) {
+        public void error(IChatComponent message) {
             sendErrorToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.error",
-                    x,
-                    y,
-                    z,
-                    message
-                )
+                "mm.info.error.only_message",
+                x,
+                y,
+                z,
+                message
             );
         }
     }

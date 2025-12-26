@@ -82,13 +82,11 @@ public class PendingMove extends AbstractBuildable {
             if (!isEditable(world, s.x, s.y, s.z) || !isEditable(world, d.x, d.y, d.z)) {
                 sendErrorToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.error.could_not_move_protected_block",
-                        s.x,
-                        s.y,
-                        s.z,
-                        source.getDisplayName()
-                    )
+                    "mm.info.error.could_not_move_protected_block.new",
+                    s.x,
+                    s.y,
+                    s.z,
+                    source.getChatComponent()
                 );
                 iter.remove();
                 continue;
@@ -104,13 +102,11 @@ public class PendingMove extends AbstractBuildable {
             if (source.getBlock().getBlockHardness(world, s.x, s.y, s.z) < 0) {
                 sendErrorToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.error.could_not_move_invulnerable_block",
-                        s.x,
-                        s.y,
-                        s.z,
-                        source.getDisplayName()
-                    )
+                    "mm.info.error.could_not_move_invulnerable_block.new",
+                    s.x,
+                    s.y,
+                    s.z,
+                    source.getChatComponent()
                 );
                 iter.remove();
                 continue;
@@ -130,13 +126,11 @@ public class PendingMove extends AbstractBuildable {
             if (!canPlace) {
                 sendErrorToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.error.could_not_move_blocked_block",
-                        d.x,
-                        d.y,
-                        d.z,
-                        source.getDisplayName()
-                    )
+                    "mm.info.error.could_not_move_blocked_block.new",
+                    d.x,
+                    d.y,
+                    d.z,
+                    source.getChatComponent()
                 );
                 iter.remove();
                 continue;
@@ -145,7 +139,7 @@ public class PendingMove extends AbstractBuildable {
             // remove the existing block if needed
             if (!target.getBlock().isAir(world, d.x, d.y, d.z)) {
                 if (!tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
-                    sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.out_of_eu"));
+                    sendErrorToPlayer(player, "mm.info.error.out_of_eu");
                     break;
                 }
 
@@ -160,7 +154,7 @@ public class PendingMove extends AbstractBuildable {
             }
 
             if (!tryConsumePower(stack, world, s.x, s.y, s.z, source)) {
-                sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.out_of_eu"));
+                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
                 break;
             }
 
@@ -169,11 +163,11 @@ public class PendingMove extends AbstractBuildable {
                 sendErrorToPlayer(
                     player,
                     StatCollector.translateToLocalFormatted(
-                        "mm.info.error.could_not_move_block",
+                        "mm.info.error.could_not_move_block.new",
                         s.x,
                         s.y,
                         s.z,
-                        source.getDisplayName()
+                        source.getChatComponent()
                     )
                 );
             }
@@ -193,16 +187,14 @@ public class PendingMove extends AbstractBuildable {
         if (ops > 0) {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.process_move",
-                    ops,
-                    moves.size()
-                )
+                "mm.info.process_move",
+                ops,
+                moves.size()
             );
         } else {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocal("mm.info.finished_move")
+                "mm.info.finished_move"
             );
         }
     }
@@ -223,7 +215,7 @@ public class PendingMove extends AbstractBuildable {
         MMConfig.VoxelAABB paste = cut.clone().moveOrigin(dest.toVec());
 
         if (cut.toBoundingBox().intersectsWith(paste.toBoundingBox())) {
-            MMUtils.sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.move_overlapping"));
+            MMUtils.sendErrorToPlayer(player, "mm.info.error.move_overlapping");
             return;
         }
 

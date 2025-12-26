@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.ChatComponentTranslation;
 
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.AECellItemProvider;
@@ -80,7 +81,7 @@ public class InventoryAnalysis {
         if (!adapter.validate(context, inv)) return false;
 
         if (adapter.getSizeInventory(inv) != mItems.length) {
-            context.warn("Inventory was the wrong size (expected " + mItems.length + ", was " + adapter.getSizeInventory(inv) + ")");
+            context.warn(new ChatComponentTranslation("mm.info.warning.inventory_was_the_wrong_size", mItems.length, adapter.getSizeInventory(inv)));
             return false;
         }
 
@@ -97,7 +98,9 @@ public class InventoryAnalysis {
                 ItemStack stack = inv.getStackInSlot(slot);
                 if (stack != null) {
                     if (!adapter.canExtract(inv, slot)) {
-                        context.warn("Could not extract item in slot " + slot + ": " + MMUtils.stripFormat(stack.getDisplayName()));
+                        context.warn(
+                            new ChatComponentTranslation("mm.info.warning.could_not_extract_item_in_slot", slot, MMUtils.getItemDisplayNameComponent(stack))
+                        );
                         continue;
                     }
 
@@ -111,14 +114,25 @@ public class InventoryAnalysis {
 
                 if (target != null) {
                     if (!adapter.canInsert(inv, slot, target.getStack(null, false))) {
-                        context.warn("Invalid item for slot " + slot + ": " + MMUtils.stripFormat(target.describe()));
+                        context.warn(
+                            new ChatComponentTranslation(
+                                "mm.info.warning.invalid_item_for_slot",
+                                slot,
+                                MMUtils.getItemDisplayNameComponent(target.getStack(null, false))
+                            )
+                        );
                         continue;
                     }
 
                     ItemStack toInsert = target.getStack(context, consume);
 
                     if (toInsert == null) {
-                        context.warn("Could not gather item for inventory: " + MMUtils.stripFormat(target.describe()));
+                        context.warn(
+                            new ChatComponentTranslation(
+                                "mm.info.warning.could_not_gather_item_for_inventory",
+                                MMUtils.getItemDisplayNameComponent(target.getStack(null, false))
+                            )
+                        );
                         success = false;
                     } else {
                         if (!simulate) {

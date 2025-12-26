@@ -60,14 +60,8 @@ import net.minecraft.nbt.NBTTagLong;
 import net.minecraft.nbt.NBTTagShort;
 import net.minecraft.nbt.NBTTagString;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.AxisAlignedBB;
-import net.minecraft.util.ChatComponentText;
-import net.minecraft.util.EnumChatFormatting;
-import net.minecraft.util.MathHelper;
-import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.*;
 import net.minecraft.util.MovingObjectPosition.MovingObjectType;
-import net.minecraft.util.StatCollector;
-import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.Constants;
@@ -413,28 +407,48 @@ public class MMUtils {
         return blocks;
     }
 
-    public static void sendErrorToPlayer(EntityPlayer aPlayer, String aChatMessage) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessage != null) {
-            aPlayer.addChatComponentMessage(new ChatComponentText(RED + aChatMessage));
+    public static IChatComponent getItemDisplayNameComponent(ItemStack stack) {
+        if (stack == null) return new ChatComponentText("");
+
+        // if stack's name has been set
+        if (stack.hasDisplayName()) {
+            return new ChatComponentText(stack.getDisplayName());
+        } else {
+            return new ChatComponentTranslation(stack.getUnlocalizedName() + ".name");
         }
     }
 
-    public static void sendWarningToPlayer(EntityPlayer aPlayer, String aChatMessage) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessage != null) {
-            aPlayer.addChatComponentMessage(new ChatComponentText(GOLD + aChatMessage));
+    public static void sendChatToPlayerWithColor(EntityPlayer aPlayer, IChatComponent aChat, EnumChatFormatting color) {
+        if (aPlayer instanceof EntityPlayerMP && aChat != null) {
+            if (color != null) {
+                aChat.setChatStyle(new ChatStyle().setColor(color));
+            }
+            aPlayer.addChatComponentMessage(aChat);
         }
     }
 
-    public static void sendInfoToPlayer(EntityPlayer aPlayer, String aChatMessage) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessage != null) {
-            aPlayer.addChatComponentMessage(new ChatComponentText(GRAY + aChatMessage));
-        }
+    public static void sendErrorToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
+        sendChatToPlayerWithColor(aPlayer, new ChatComponentTranslation(aChatMessageKey, args), EnumChatFormatting.RED);
     }
 
-    public static void sendChatToPlayer(EntityPlayer aPlayer, String aChatMessage) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessage != null) {
-            aPlayer.addChatComponentMessage(new ChatComponentText(aChatMessage));
-        }
+    public static void sendWarningToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
+        sendChatToPlayerWithColor(aPlayer, new ChatComponentTranslation(aChatMessageKey, args), EnumChatFormatting.GOLD);
+    }
+
+    public static void sendInfoToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
+        sendInfoToPlayer(aPlayer, new ChatComponentTranslation(aChatMessageKey, args));
+    }
+
+    public static void sendInfoToPlayer(EntityPlayer aPlayer, IChatComponent aChat) {
+        sendChatToPlayerWithColor(aPlayer, aChat, EnumChatFormatting.GRAY);
+    }
+
+    public static void sendChatToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
+        sendChatToPlayer(aPlayer, new ChatComponentTranslation(aChatMessageKey, args));
+    }
+
+    public static void sendChatToPlayer(EntityPlayer aPlayer, IChatComponent aChat) {
+        sendChatToPlayerWithColor(aPlayer, aChat, null);
     }
 
     public static String stripFormat(String text) {
@@ -870,7 +884,12 @@ public class MMUtils {
             if (src instanceof IBlockApplyContext ctx) {
                 for (BigItemStack wanted : toInstallBig) {
                     if (wanted.stackSize > 0) {
-                        ctx.warn("Could not find upgrade: " + wanted.getItemStack().getDisplayName() + " x " + wanted.stackSize);
+                        ctx.warn(
+                            new ChatComponentTranslation(
+                                "mm.info.warning.could_not_find_upgrade" + MMUtils.getItemDisplayNameComponent(wanted.getItemStack()),
+                                wanted.stackSize
+                            )
+                        );
                         success = false;
                     }
                 }
@@ -914,7 +933,7 @@ public class MMUtils {
                             );
 
                             if (src instanceof IBlockApplyContext ctx) {
-                                ctx.error("Tried to install too many upgrades: voiding the rest (this is a bug, please report it)");
+                                ctx.error(new ChatComponentTranslation("mm.info.error.too_many_upgrades"));
                             }
                             break outer;
                         }
@@ -1310,7 +1329,7 @@ public class MMUtils {
         state = state.clone();
 
         if (!Location.areCompatible(state.config.coordA, state.config.coordB)) {
-            sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.must_have_copy_region"));
+            sendErrorToPlayer(player, "mm.info.error.must_have_copy_region");
             return;
         }
 
@@ -1320,7 +1339,7 @@ public class MMUtils {
             }
         } else {
             if (!Location.areCompatible(state.config.coordA, state.config.coordC)) {
-                sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.must_have_paste_region"));
+                sendErrorToPlayer(player, "mm.info.error.must_have_paste_region");
                 return;
             }
         }
@@ -1343,7 +1362,7 @@ public class MMUtils {
 
         List<BigItemStack> availableItems = extractResult.right() == null ? new ArrayList<>() : extractResult.right();
 
-        sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.required_items"));
+        sendInfoToPlayer(player, "mm.info.required_items");
 
         if (!requiredItems.isEmpty()) {
             requiredItems.stream()
@@ -1354,10 +1373,9 @@ public class MMUtils {
                         .sum();
 
                     if (stack.getStackSize() - available > 0) {
-                        return String.format(
-                            "%s%s: %s%d%s (%s%d%s missing)",
-                            stack.getItemStack()
-                                .getDisplayName(),
+                        return new ChatComponentTranslation(
+                            "mm.info.missing",
+                            MMUtils.getItemDisplayNameComponent(stack.getItemStack()),
                             GRAY,
                             GOLD,
                             stack.getStackSize(),
@@ -1367,10 +1385,9 @@ public class MMUtils {
                             GRAY
                         );
                     } else {
-                        return String.format(
-                            "%s%s: %s%d%s",
-                            stack.getItemStack()
-                                .getDisplayName(),
+                        return new ChatComponentTranslation(
+                            "%s%s: %s%s%s",
+                            MMUtils.getItemDisplayNameComponent(stack.getItemStack()),
                             GRAY,
                             GOLD,
                             stack.getStackSize(),
@@ -1381,7 +1398,7 @@ public class MMUtils {
                 .sorted()
                 .forEach(message -> { sendInfoToPlayer(player, message); });
         } else {
-            sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.none"));
+            sendInfoToPlayer(player, "mm.info.none");
         }
 
         if (!requiredItems.isEmpty()) {
@@ -1413,10 +1430,10 @@ public class MMUtils {
                         (flags & PLAN_AUTO_SUBMIT) != 0
                     );
                 } else {
-                    sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.not_need_creating_pattern"));
+                    sendInfoToPlayer(player, "mm.info.not_need_creating_pattern");
                 }
             } else {
-                sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.not_connected"));
+                sendErrorToPlayer(player, "mm.info.error.not_connected");
             }
         }
     }
@@ -1564,6 +1581,18 @@ public class MMUtils {
             case UNKNOWN -> unknownIsCentre ? "Center" : "Unknown";
             case UP -> "Up";
             case WEST -> "West";
+        };
+    }
+
+    public static String getDirectionUnlocalizedName(ForgeDirection dir, boolean unknownIsCentre) {
+        return switch (dir) {
+            case DOWN -> "mm.direction.down";
+            case EAST -> "mm.direction.east";
+            case NORTH -> "mm.direction.north";
+            case SOUTH -> "mm.direction.south";
+            case UNKNOWN -> unknownIsCentre ? "mm.direction.center" : "mm.direction.unknown";
+            case UP -> "mm.direction.up";
+            case WEST -> "mm.direction.west";
         };
     }
 
