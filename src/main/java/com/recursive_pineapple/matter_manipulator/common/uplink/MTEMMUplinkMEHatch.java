@@ -22,7 +22,6 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
-import net.minecraft.util.StatCollector;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
@@ -159,7 +158,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                     sendErrorToPlayer(
                         player,
                         "mm.info.error.craft_failed",
-                        // TODO: check
+                        // FIXME: localize it
                         request.requestName
                     );
                 }
@@ -448,10 +447,9 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                     if (player != null) {
                         sendInfoToPlayer(
                             player,
-                            StatCollector.translateToLocalFormatted(
-                                "mm.info.craft_finished",
-                                request.requestName
-                            )
+                            "mm.info.craft_finished",
+                            // FIXME: localize it
+                            request.requestName
                         );
                     }
                 }
@@ -550,7 +548,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
         onRequestsChanged();
 
-        sendInfoToPlayer(aPlayer, StatCollector.translateToLocal("mm.info.cleared_all_plans_and_pending_jobs"));
+        sendInfoToPlayer(aPlayer, "mm.info.cleared_all_plans_and_pending_jobs");
     }
 
     public void clearManualPlans(EntityPlayer player) {
@@ -563,7 +561,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
         onRequestsChanged();
 
-        sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.cleared_your_manual_plans"));
+        sendInfoToPlayer(player, "mm.info.cleared_your_manual_plans");
     }
 
     public void cancelAutoPlans(EntityPlayer player) {
@@ -589,7 +587,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
         onRequestsChanged();
 
-        sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.cleared_your_plans_and_craft"));
+        sendInfoToPlayer(player, "mm.info.cleared_your_plans_and_craft");
     }
 
     private void onRequestsChanged() {
@@ -748,10 +746,9 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                     if (player != null) {
                         sendInfoToPlayer(
                             player,
-                            StatCollector.translateToLocalFormatted(
-                                "mm.info.submitted_job",
-                                requestName
-                            )
+                            "mm.info.submitted_job",
+                            // FIXME: localize it
+                            requestName
                         );
                     }
                 }

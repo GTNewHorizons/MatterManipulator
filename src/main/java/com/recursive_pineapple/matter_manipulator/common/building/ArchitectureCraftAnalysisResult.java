@@ -144,7 +144,6 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
     public void getItemDetails(List<String> details) {
         Shape shape = Shape.forId(this.shape);
 
-        // TODO: localize shape title
         if (shape != null) details.add(shape.title);
 
         ItemStack stack = material == null ? null : material.toStack();

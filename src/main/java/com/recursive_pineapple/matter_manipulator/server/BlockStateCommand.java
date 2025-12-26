@@ -11,7 +11,6 @@ import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.MovingObjectPosition.MovingObjectType;
-import net.minecraft.util.StatCollector;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -48,7 +47,6 @@ public class BlockStateCommand extends CommandBase {
         String value = MMUtils.getIndexSafe(args, 2);
 
         if (action == null || "set".equals(action) && name != null && value == null) {
-            // TODO: localize it
             sendErrorToPlayer(player, getCommandUsage(sender));
             return;
         }
@@ -85,13 +83,13 @@ public class BlockStateCommand extends CommandBase {
                 sendErrorToPlayer(player, "mm.info.error.property_not_found");
             } else {
                 if (properties.isEmpty() && intrinsicProps.isEmpty()) {
-                    sendChatToPlayer(player, StatCollector.translateToLocal("mm.info.properties"));
-                    sendChatToPlayer(player, StatCollector.translateToLocal("mm.info.none"));
+                    sendChatToPlayer(player, "mm.info.properties");
+                    sendChatToPlayer(player, "mm.info.none");
                     return;
                 }
 
                 if (!properties.isEmpty()) {
-                    sendChatToPlayer(player, StatCollector.translateToLocal("mm.info.properties"));
+                    sendChatToPlayer(player, "mm.info.properties");
 
                     for (var e : properties.entrySet()) {
                         sendChatToPlayer(
@@ -102,7 +100,7 @@ public class BlockStateCommand extends CommandBase {
                 }
 
                 if (!intrinsicProps.isEmpty()) {
-                    sendChatToPlayer(player, StatCollector.translateToLocal("mm.info.intrinsic_properties"));
+                    sendChatToPlayer(player, "mm.info.intrinsic_properties");
 
                     intrinsicProps.forEach((s, intrinsicProperty) -> {
                         sendChatToPlayer(

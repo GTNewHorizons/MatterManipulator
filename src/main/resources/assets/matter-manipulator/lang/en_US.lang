@@ -164,6 +164,7 @@ mm.info.error.qc_rack_is_too_hot=QC Rack is too hot to extract or insert items
 mm.info.error.cannot_extract_while_qc_on=Cannot extract or insert items from/into QC Rack while the QC is on
 mm.info.error.too_many_upgrades=Tried to install too many upgrades: voiding the rest (this is a bug, please report it)
 mm.info.error.could_not_place_blocks=Could not place blocks due to a crash. Check the logs for more info.
+mm.info.missing=%s%s: %s%s%s (%s%s%s missing)
 
 mm.direction.down=Down
 mm.direction.east=East
@@ -192,6 +193,12 @@ mm.enum.uplink_status.ok=Ok
 mm.enum.uplink_status.no_plasma=Insufficient plasma
 mm.enum.uplink_status.ae_offline=Could not connect to the ME system
 mm.enum.uplink_status.no_hatch=Missing ME hatch
+
+mm.enum.what.corners=corners
+mm.enum.what.edges=edges
+mm.enum.what.faces=faces
+mm.enum.what.volumes=volumes
+mm.enum.what.all=all blocks
 
 # Transform
 mm.transform.info=Flip: %s\nUp: %s\nForward: %s

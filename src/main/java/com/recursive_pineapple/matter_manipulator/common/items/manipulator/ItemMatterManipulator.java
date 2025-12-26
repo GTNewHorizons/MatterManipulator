@@ -35,6 +35,7 @@ import net.minecraft.item.EnumRarity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.MovingObjectPosition;
@@ -796,7 +797,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         BlockSpec block = BlockSpec.fromPickBlock(world, player, hit);
 
-        String what = null;
+        String whatKey = null;
 
         boolean add = player.isSneaking();
 
@@ -804,25 +805,25 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             case CORNERS: {
                 if (state.config.corners == null || !add) state.config.corners = new WeightedSpecList();
                 state.config.corners.add(block);
-                what = "corners";
+                whatKey = "mm.enum.what.corners";
                 break;
             }
             case EDGES: {
                 if (state.config.edges == null || !add) state.config.edges = new WeightedSpecList();
                 state.config.edges.add(block);
-                what = "edges";
+                whatKey = "mm.enum.what.edges";
                 break;
             }
             case FACES: {
                 if (state.config.faces == null || !add) state.config.faces = new WeightedSpecList();
                 state.config.faces.add(block);
-                what = "faces";
+                whatKey = "mm.enum.what.faces";
                 break;
             }
             case VOLUMES: {
                 if (state.config.volumes == null || !add) state.config.volumes = new WeightedSpecList();
                 state.config.volumes.add(block);
-                what = "volumes";
+                whatKey = "mm.enum.what.volumes";
                 break;
             }
             case ALL: {
@@ -834,7 +835,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 state.config.edges.add(block);
                 state.config.faces.add(block);
                 state.config.volumes.add(block);
-                what = "all blocks";
+                whatKey = "mm.enum.what.all";
                 break;
             }
         }
@@ -842,12 +843,16 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         if (add) {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted("mm.info.added", block.getDisplayName(), what)
+                "mm.info.added",
+                block.getChatComponent(),
+                new ChatComponentTranslation(whatKey)
             );
         } else {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted("mm.info.set", what, block.getDisplayName())
+                "mm.info.set",
+                new ChatComponentTranslation(whatKey),
+                block.getChatComponent()
             );
         }
     }
@@ -869,10 +874,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.set_block_to_replace_with",
-                block.getDisplayName()
-            )
+            "mm.info.set_block_to_replace_with",
+            block.getChatComponent()
         );
     }
 
@@ -896,10 +899,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.added_block_to_exchange_whitelist",
-                block.getDisplayName()
-            )
+            "mm.info.added_block_to_exchange_whitelist",
+            block.getChatComponent()
         );
     }
 
@@ -913,10 +914,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.set_exchange_whitelist_to_only_contain",
-                block.getDisplayName()
-            )
+            "mm.info.set_exchange_whitelist_to_only_contain",
+            block.getChatComponent()
         );
     }
 
@@ -937,7 +936,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted("mm.info.set_cable", cable.getDisplayName())
+            "mm.info.set_cable",
+            cable.getChatComponent()
         );
     }
 

@@ -200,9 +200,8 @@ public class PendingBlock extends Location {
     }
 
     public IChatComponent getDisplayNameComponent() {
-        // TODO: localize it
-        String details = getItemDetails();
-        return MMUtils.getItemDisplayNameComponent(getStack()).appendText(details);
+        // FIXME: localize it
+        return MMUtils.getItemDisplayNameComponent(getStack()).appendText(getItemDetails());
     }
 
     public boolean isFree() {

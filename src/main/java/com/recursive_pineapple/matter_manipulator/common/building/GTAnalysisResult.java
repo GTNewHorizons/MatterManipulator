@@ -354,7 +354,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                         ctx.error(
                             new ChatComponentTranslation(
                                 "mm.info.error.could_not_set_direction_to",
-                                // TODO: should have a method like `facing.getUnlocalizedName`
+                                // FIXME: should have a method like `facing.getUnlocalizedName()`
                                 new ChatComponentTranslation("structurelib.facing." + facing.getIndex())
                             )
                         );

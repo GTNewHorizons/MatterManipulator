@@ -20,6 +20,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
@@ -225,7 +226,7 @@ public class PendingBuild extends AbstractBuildable {
                     pendingBlocks.size()
                 );
             } else {
-                sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.finished_placing"));
+                sendInfoToPlayer(player, "mm.info.finished_placing");
             }
 
             actuallyGivePlayerStuff();
@@ -361,11 +362,9 @@ public class PendingBuild extends AbstractBuildable {
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.placed_remaining",
-                i,
-                pendingBlocks.size()
-            )
+            "mm.info.placed_remaining",
+            i,
+            pendingBlocks.size()
         );
 
         if (extracted != null && extracted.stackSize >= perBlock.stackSize) {
@@ -493,31 +492,31 @@ public class PendingBuild extends AbstractBuildable {
 
         @Override
         public void warn(IChatComponent message) {
-            // TODO: localize blockName
-            String blockName = null;
-
+            IChatComponent blockNameComponent = null;
             if (pendingBlock.isInWorld(player.worldObj)) {
-                if (GregTech.isModLoaded()) blockName = getGTBlockName(pendingBlock);
+                String gtBlockNameKey = null;
+                if (GregTech.isModLoaded()) gtBlockNameKey = getGTBlockUnlocalizedName(pendingBlock);
 
-                if (blockName == null) {
+                if (gtBlockNameKey == null) {
                     BlockSpec spec = BlockSpec.fromBlock(null, player.worldObj, pendingBlock.x, pendingBlock.y, pendingBlock.z);
-
                     if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
-                        blockName = InteropConstants.AE_BLOCK_CABLE.toSpec().getDisplayName();
+                        blockNameComponent = InteropConstants.AE_BLOCK_CABLE.toSpec().getChatComponent();
                     } else {
-                        blockName = spec.getDisplayName();
+                        blockNameComponent = spec.getChatComponent();
                     }
+                } else {
+                    blockNameComponent = new ChatComponentText(gtBlockNameKey);
                 }
             }
 
-            if (blockName != null) {
+            if (blockNameComponent != null) {
                 sendWarningToPlayer(
                     player,
                     "mm.info.warning.with_block",
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
-                    blockName,
+                    blockNameComponent,
                     message
                 );
             } else {
@@ -536,29 +535,33 @@ public class PendingBuild extends AbstractBuildable {
 
         @Override
         public void error(IChatComponent message) {
-            // TODO: localize blockName
-            String blockName = null;
-
+            IChatComponent blockNameComponent = null;
             if (pendingBlock.isInWorld(player.worldObj)) {
-                if (GregTech.isModLoaded()) blockName = getGTBlockName(pendingBlock);
+                String gtBlockNameKey = null;
+
+                if (GregTech.isModLoaded()) gtBlockNameKey = getGTBlockUnlocalizedName(pendingBlock);
 
                 BlockSpec spec = BlockSpec.fromBlock(null, player.worldObj, pendingBlock.x, pendingBlock.y, pendingBlock.z);
 
-                if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
-                    blockName = InteropConstants.AE_BLOCK_CABLE.toSpec().getDisplayName();
+                if (gtBlockNameKey == null) {
+                    if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
+                        blockNameComponent = InteropConstants.AE_BLOCK_CABLE.toSpec().getChatComponent();
+                    } else {
+                        blockNameComponent = spec.getChatComponent();
+                    }
                 } else {
-                    blockName = spec.getDisplayName();
+                    blockNameComponent = new ChatComponentText(gtBlockNameKey);
                 }
             }
 
-            if (blockName != null) {
+            if (blockNameComponent != null) {
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.with_block",
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
-                    blockName,
+                    blockNameComponent,
                     message
                 );
             } else {
@@ -577,10 +580,13 @@ public class PendingBuild extends AbstractBuildable {
     }
 
     @Optional(Names.GREG_TECH_NH)
-    private String getGTBlockName(PendingBlock pendingBlock) {
+    private String getGTBlockUnlocalizedName(PendingBlock pendingBlock) {
         if (player.worldObj.getTileEntity(pendingBlock.x, pendingBlock.y, pendingBlock.z) instanceof IGregTechTileEntity igte) {
             IMetaTileEntity imte = igte.getMetaTileEntity();
-            if (imte != null) { return imte.getLocalName(); }
+            if (imte != null) {
+                // FIXME: should use more robust method to get unlocalized name
+                return "gt.blockmachines." + imte.getMetaName() + ".name";
+            }
         }
 
         return null;

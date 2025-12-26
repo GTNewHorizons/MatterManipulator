@@ -418,31 +418,37 @@ public class MMUtils {
         }
     }
 
-    public static void sendErrorToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessageKey != null) {
-            aPlayer.addChatComponentMessage(new ChatComponentTranslation(aChatMessageKey, args).setChatStyle(new ChatStyle().setColor(EnumChatFormatting.RED)));
+    public static void sendChatToPlayerWithColor(EntityPlayer aPlayer, IChatComponent aChat, EnumChatFormatting color) {
+        if (aPlayer instanceof EntityPlayerMP && aChat != null) {
+            if (color != null) {
+                aChat.setChatStyle(new ChatStyle().setColor(color));
+            }
+            aPlayer.addChatComponentMessage(aChat);
         }
+    }
+
+    public static void sendErrorToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
+        sendChatToPlayerWithColor(aPlayer, new ChatComponentTranslation(aChatMessageKey, args), EnumChatFormatting.RED);
     }
 
     public static void sendWarningToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessageKey != null) {
-            aPlayer
-                .addChatComponentMessage(new ChatComponentTranslation(aChatMessageKey, args).setChatStyle(new ChatStyle().setColor(EnumChatFormatting.GOLD)));
-        }
+        sendChatToPlayerWithColor(aPlayer, new ChatComponentTranslation(aChatMessageKey, args), EnumChatFormatting.GOLD);
     }
 
-    // TODO: localize it
-    public static void sendInfoToPlayer(EntityPlayer aPlayer, String aChatMessage) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessage != null) {
-            aPlayer.addChatComponentMessage(new ChatComponentText(GRAY + aChatMessage));
-        }
+    public static void sendInfoToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
+        sendInfoToPlayer(aPlayer, new ChatComponentTranslation(aChatMessageKey, args));
     }
 
-    // TODO: localize it
-    public static void sendChatToPlayer(EntityPlayer aPlayer, String aChatMessage) {
-        if (aPlayer instanceof EntityPlayerMP && aChatMessage != null) {
-            aPlayer.addChatComponentMessage(new ChatComponentText(aChatMessage));
-        }
+    public static void sendInfoToPlayer(EntityPlayer aPlayer, IChatComponent aChat) {
+        sendChatToPlayerWithColor(aPlayer, aChat, EnumChatFormatting.GRAY);
+    }
+
+    public static void sendChatToPlayer(EntityPlayer aPlayer, String aChatMessageKey, Object... args) {
+        sendChatToPlayer(aPlayer, new ChatComponentTranslation(aChatMessageKey, args));
+    }
+
+    public static void sendChatToPlayer(EntityPlayer aPlayer, IChatComponent aChat) {
+        sendChatToPlayerWithColor(aPlayer, aChat, null);
     }
 
     public static String stripFormat(String text) {
@@ -1356,7 +1362,7 @@ public class MMUtils {
 
         List<BigItemStack> availableItems = extractResult.right() == null ? new ArrayList<>() : extractResult.right();
 
-        sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.required_items"));
+        sendInfoToPlayer(player, "mm.info.required_items");
 
         if (!requiredItems.isEmpty()) {
             requiredItems.stream()
@@ -1367,10 +1373,9 @@ public class MMUtils {
                         .sum();
 
                     if (stack.getStackSize() - available > 0) {
-                        return String.format(
-                            "%s%s: %s%d%s (%s%d%s missing)",
-                            stack.getItemStack()
-                                .getDisplayName(),
+                        return new ChatComponentTranslation(
+                            "mm.info.missing",
+                            MMUtils.getItemDisplayNameComponent(stack.getItemStack()),
                             GRAY,
                             GOLD,
                             stack.getStackSize(),
@@ -1380,10 +1385,9 @@ public class MMUtils {
                             GRAY
                         );
                     } else {
-                        return String.format(
-                            "%s%s: %s%d%s",
-                            stack.getItemStack()
-                                .getDisplayName(),
+                        return new ChatComponentTranslation(
+                            "%s%s: %s%s%s",
+                            MMUtils.getItemDisplayNameComponent(stack.getItemStack()),
                             GRAY,
                             GOLD,
                             stack.getStackSize(),
@@ -1394,7 +1398,7 @@ public class MMUtils {
                 .sorted()
                 .forEach(message -> { sendInfoToPlayer(player, message); });
         } else {
-            sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.none"));
+            sendInfoToPlayer(player, "mm.info.none");
         }
 
         if (!requiredItems.isEmpty()) {
@@ -1426,7 +1430,7 @@ public class MMUtils {
                         (flags & PLAN_AUTO_SUBMIT) != 0
                     );
                 } else {
-                    sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.not_need_creating_pattern"));
+                    sendInfoToPlayer(player, "mm.info.not_need_creating_pattern");
                 }
             } else {
                 sendErrorToPlayer(player, "mm.info.error.not_connected");

@@ -17,7 +17,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.MovingObjectPosition.MovingObjectType;
@@ -332,8 +332,15 @@ public class BlockSpec implements ImmutableBlockSpec {
     }
 
     public IChatComponent getChatComponent() {
-        // TODO
-        return new ChatComponentText("");
+        ItemStack stack = toStack(1);
+        IChatComponent chatComponent = null;
+        if (stack == null) {
+            chatComponent = new ChatComponentTranslation(Blocks.air.getUnlocalizedName() + ".name");
+        } else {
+            chatComponent = MMUtils.getItemDisplayNameComponent(stack);
+        }
+        // FIXME: localize item details
+        return chatComponent.appendText(getItemDetails());
     }
 
     @Override

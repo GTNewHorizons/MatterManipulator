@@ -187,16 +187,14 @@ public class PendingMove extends AbstractBuildable {
         if (ops > 0) {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.process_move",
-                    ops,
-                    moves.size()
-                )
+                "mm.info.process_move",
+                ops,
+                moves.size()
             );
         } else {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocal("mm.info.finished_move")
+                "mm.info.finished_move"
             );
         }
     }
