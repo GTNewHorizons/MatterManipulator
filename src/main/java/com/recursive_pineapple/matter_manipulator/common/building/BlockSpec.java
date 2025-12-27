@@ -19,6 +19,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.MovingObjectPosition.MovingObjectType;
+import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import cpw.mods.fml.common.registry.GameRegistry;
@@ -374,6 +375,12 @@ public class BlockSpec implements ImmutableBlockSpec {
             + ", stack="
             + stack
             + "]";
+    }
+
+    public String toDisplayString() {
+        return ArchitectureCraft.isModLoaded() ?
+            StatCollector.translateToLocalFormatted("mm.blockspec.display.2", isBlock, objectId, metadata, properties, arch, block, item, itemId, stack) :
+            StatCollector.translateToLocalFormatted("mm.blockspec.display.1", isBlock, objectId, metadata, properties, block, item, itemId, stack);
     }
 
     public static BlockSpec fromPickBlock(World world, EntityPlayer player, MovingObjectPosition hit) {
