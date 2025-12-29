@@ -18,7 +18,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
@@ -451,7 +450,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
             if (!printedProtectedBlockWarning) {
                 sendWarningToPlayer(
                     player,
-                    StatCollector.translateToLocal("mm.info.warning.protected_area")
+                    "mm.info.warning.protected_area"
                 );
                 printedProtectedBlockWarning = true;
             }

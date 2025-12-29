@@ -10,6 +10,7 @@ import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
@@ -358,7 +359,13 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                         gte.setFrontFacing(facing.getDirection());
                         alignment.toolSetExtendedFacing(facing);
                     } else {
-                        ctx.error("Could not set direction to '" + facing.getLocalizedName() + "'");
+                        ctx.error(
+                            new ChatComponentTranslation(
+                                "mm.info.error.could_not_set_direction_to",
+                                // FIXME: should have a method like `facing.getUnlocalizedName()`
+                                new ChatComponentTranslation("structurelib.facing." + facing.getIndex())
+                            )
+                        );
                     }
                 }
             } else {
@@ -529,12 +536,23 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         ItemStack stack = cover.getCoverStack();
 
         if (!canPlace(gte, side, cover)) {
-            context.error("Was not allowed to put cover on " + side.name().toLowerCase() + "side: " + stack.getDisplayName());
+            context.error(
+                new ChatComponentTranslation(
+                    "mm.info.error.was_not_allowed_to_put_cover_on",
+                    new ChatComponentTranslation(MMUtils.getDirectionUnlocalizedName(side, true)),
+                    MMUtils.getItemDisplayNameComponent(stack)
+                )
+            );
             return;
         }
 
         if (!context.tryConsumeItems(stack)) {
-            context.error("Could not find cover: " + stack.getDisplayName());
+            context.error(
+                new ChatComponentTranslation(
+                    "mm.info.error.could_not_find_cover",
+                    MMUtils.getItemDisplayNameComponent(stack)
+                )
+            );
             return;
         }
 
