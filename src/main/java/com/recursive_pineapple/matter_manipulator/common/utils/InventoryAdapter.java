@@ -3,6 +3,7 @@ package com.recursive_pineapple.matter_manipulator.common.utils;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.ISidedInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.ChatComponentTranslation;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
@@ -57,12 +58,12 @@ public enum InventoryAdapter {
             MTEHatchRack rack = (MTEHatchRack) igte.getMetaTileEntity();
 
             if (rack.heat > 2000) {
-                context.error("QC Rack is too hot to extract or insert items");
+                context.error(new ChatComponentTranslation("mm.info.error.qc_rack_is_too_hot"));
                 return false;
             }
 
             if (igte.isActive()) {
-                context.error("Cannot extract or insert items from/into QC Rack while the QC is on");
+                context.error(new ChatComponentTranslation("mm.info.error.cannot_extract_while_qc_on"));
                 return false;
             }
 

@@ -20,6 +20,8 @@ import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
@@ -176,7 +178,7 @@ public class PendingBuild extends AbstractBuildable {
                 }
 
                 if (!tryConsumePower(stack, world, x, y, z, existing.spec)) {
-                    sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.out_of_eu"));
+                    sendErrorToPlayer(player, "mm.info.error.out_of_eu");
                     break;
                 }
             }
@@ -200,7 +202,7 @@ public class PendingBuild extends AbstractBuildable {
             }
 
             if (!tryConsumePower(stack, world, x, y, z, next.spec)) {
-                sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.out_of_eu"));
+                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
                 break;
             }
 
@@ -220,13 +222,11 @@ public class PendingBuild extends AbstractBuildable {
             if (!pendingBlocks.isEmpty()) {
                 sendErrorToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.error.could_not_place",
-                        pendingBlocks.size()
-                    )
+                    "mm.info.error.could_not_place",
+                    pendingBlocks.size()
                 );
             } else {
-                sendInfoToPlayer(player, StatCollector.translateToLocal("mm.info.finished_placing"));
+                sendInfoToPlayer(player, "mm.info.finished_placing");
             }
 
             actuallyGivePlayerStuff();
@@ -251,18 +251,14 @@ public class PendingBuild extends AbstractBuildable {
             if (extracted == null) {
                 sendWarningToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.warning.could_not_find",
-                        toPlace.size()
-                    )
+                    "mm.info.warning.could_not_find",
+                    toPlace.size()
                 );
                 sendWarningToPlayer(
                     player,
-                    String.format(
-                        "  %s x %d",
-                        first.getDisplayName(),
-                        total
-                    )
+                    "mm.info.warning.of_item",
+                    first.getDisplayNameComponent(),
+                    total
                 );
 
                 for (PendingBlock pending : toPlace) {
@@ -358,21 +354,17 @@ public class PendingBuild extends AbstractBuildable {
             );
             sendWarningToPlayer(
                 player,
-                String.format(
-                    "  %s x %d",
-                    first.getDisplayName(),
-                    total - (toPlace.size() - i) * perBlock.stackSize
-                )
+                "mm.info.warning.of_item",
+                first.getDisplayNameComponent(),
+                total - (toPlace.size() - i) * perBlock.stackSize
             );
         }
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.placed_remaining",
-                i,
-                pendingBlocks.size()
-            )
+            "mm.info.placed_remaining",
+            i,
+            pendingBlocks.size()
         );
 
         if (extracted != null && extracted.stackSize >= perBlock.stackSize) {
@@ -499,76 +491,102 @@ public class PendingBuild extends AbstractBuildable {
         }
 
         @Override
-        public void warn(String message) {
-            String blockName = null;
-
+        public void warn(IChatComponent message) {
+            IChatComponent blockNameComponent = null;
             if (pendingBlock.isInWorld(player.worldObj)) {
-                if (GregTech.isModLoaded()) blockName = getGTBlockName(pendingBlock);
+                String gtBlockNameKey = null;
+                if (GregTech.isModLoaded()) gtBlockNameKey = getGTBlockUnlocalizedName(pendingBlock);
 
-                if (blockName == null) {
+                if (gtBlockNameKey == null) {
                     BlockSpec spec = BlockSpec.fromBlock(null, player.worldObj, pendingBlock.x, pendingBlock.y, pendingBlock.z);
-
                     if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
-                        blockName = InteropConstants.AE_BLOCK_CABLE.toSpec().getDisplayName();
+                        blockNameComponent = InteropConstants.AE_BLOCK_CABLE.toSpec().getChatComponent();
                     } else {
-                        blockName = spec.getDisplayName();
+                        blockNameComponent = spec.getChatComponent();
                     }
+                } else {
+                    blockNameComponent = new ChatComponentText(gtBlockNameKey);
                 }
             }
 
-            sendWarningToPlayer(
-                player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.warning",
+            if (blockNameComponent != null) {
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.with_block",
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
-                    blockName != null ? " (" + blockName + ")" : "",
+                    blockNameComponent,
                     message
-                )
-            );
+                );
+            } else {
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.only_message",
+                    pendingBlock.x,
+                    pendingBlock.y,
+                    pendingBlock.z,
+                    message
+                );
+            }
 
             PendingBuild.this.warnings.add(CoordinatePacker.pack(pendingBlock.x, pendingBlock.y, pendingBlock.z));
         }
 
         @Override
-        public void error(String message) {
-
-            String blockName = null;
-
+        public void error(IChatComponent message) {
+            IChatComponent blockNameComponent = null;
             if (pendingBlock.isInWorld(player.worldObj)) {
-                if (GregTech.isModLoaded()) blockName = getGTBlockName(pendingBlock);
+                String gtBlockNameKey = null;
+
+                if (GregTech.isModLoaded()) gtBlockNameKey = getGTBlockUnlocalizedName(pendingBlock);
 
                 BlockSpec spec = BlockSpec.fromBlock(null, player.worldObj, pendingBlock.x, pendingBlock.y, pendingBlock.z);
 
-                if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
-                    blockName = InteropConstants.AE_BLOCK_CABLE.toSpec().getDisplayName();
+                if (gtBlockNameKey == null) {
+                    if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
+                        blockNameComponent = InteropConstants.AE_BLOCK_CABLE.toSpec().getChatComponent();
+                    } else {
+                        blockNameComponent = spec.getChatComponent();
+                    }
                 } else {
-                    blockName = spec.getDisplayName();
+                    blockNameComponent = new ChatComponentText(gtBlockNameKey);
                 }
             }
 
-            sendErrorToPlayer(
-                player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.error",
+            if (blockNameComponent != null) {
+                sendErrorToPlayer(
+                    player,
+                    "mm.info.error.with_block",
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
-                    blockName != null ? " (" + blockName + ")" : "",
+                    blockNameComponent,
                     message
-                )
-            );
+                );
+            } else {
+                sendErrorToPlayer(
+                    player,
+                    "mm.info.error.only_message",
+                    pendingBlock.x,
+                    pendingBlock.y,
+                    pendingBlock.z,
+                    message
+                );
+            }
 
             PendingBuild.this.errors.add(CoordinatePacker.pack(pendingBlock.x, pendingBlock.y, pendingBlock.z));
         }
     }
 
     @Optional(Names.GREG_TECH_NH)
-    private String getGTBlockName(PendingBlock pendingBlock) {
+    private String getGTBlockUnlocalizedName(PendingBlock pendingBlock) {
         if (player.worldObj.getTileEntity(pendingBlock.x, pendingBlock.y, pendingBlock.z) instanceof IGregTechTileEntity igte) {
             IMetaTileEntity imte = igte.getMetaTileEntity();
-            if (imte != null) { return imte.getLocalName(); }
+            if (imte != null) {
+                // FIXME: should use more robust method to get unlocalized name
+                return "gt.blockmachines." + imte.getMetaName() + ".name";
+            }
         }
 
         return null;

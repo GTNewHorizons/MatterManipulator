@@ -11,6 +11,7 @@ import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentTranslation;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
@@ -198,7 +199,9 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                             var result = ctx.tryConsumeItems(Arrays.asList(BigItemStack.create(expectedStack)), IPseudoInventory.CONSUME_SIMULATED);
 
                             if (!result.leftBoolean()) {
-                                ctx.warn("Could not extract item: " + expectedStack.getDisplayName());
+                                ctx.warn(
+                                    new ChatComponentTranslation("mm.info.warning.could_not_extract_item", MMUtils.getItemDisplayNameComponent(expectedStack))
+                                );
                                 continue;
                             }
                         }
@@ -210,7 +213,11 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                     if (actualItem == null && expectedItem != null) {
                         if (expectedStack != null && !partHost.canAddPart(expectedStack, dir)) {
                             ctx.error(
-                                "Invalid location (" + MMUtils.getDirectionDisplayName(dir, true) + ") for part (" + expectedStack.getDisplayName() + ")"
+                                new ChatComponentTranslation(
+                                    "mm.info.error.invalid_location",
+                                    new ChatComponentTranslation(MMUtils.getDirectionUnlocalizedName(dir, true)),
+                                    MMUtils.getItemDisplayNameComponent(expectedStack)
+                                )
                             );
                             continue;
                         }
@@ -251,7 +258,9 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                         var result = ctx.tryConsumeItems(Arrays.asList(BigItemStack.create(expectedStack)), IPseudoInventory.CONSUME_SIMULATED);
 
                         if (!result.leftBoolean()) {
-                            ctx.warn("Could not extract item: " + expectedStack.getDisplayName());
+                            ctx.warn(
+                                new ChatComponentTranslation("mm.info.warning.could_not_extract_item", MMUtils.getItemDisplayNameComponent(expectedStack))
+                            );
                             continue;
                         }
                     }
@@ -270,7 +279,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                     if (newPart == null) continue;
 
                     if (!ctx.tryConsumeItems(expectedStack)) {
-                        ctx.warn("Could not extract item: " + expectedStack.getDisplayName());
+                        ctx.warn(new ChatComponentTranslation("mm.info.warning.could_not_extract_item", MMUtils.getItemDisplayNameComponent(expectedStack)));
                         continue;
                     }
 
@@ -328,7 +337,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         if (!partHost.canAddPart(partStack, side)) { return false; }
 
         if (!context.tryConsumeItems(partStack)) {
-            context.warn("Could not find " + partStack.getDisplayName());
+            context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_item", MMUtils.getItemDisplayNameComponent(partStack)));
             return false;
         }
 

@@ -6,10 +6,12 @@ import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentTranslation;
 
 import com.google.gson.annotations.SerializedName;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
+import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 
 import gcewing.architecture.ArchitectureCraft;
 import gcewing.architecture.common.shape.Shape;
@@ -118,7 +120,7 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
 
         if (!context.tryConsumeItems(claddingStack)) {
             if (!simulate) {
-                context.warn("Could not find cladding: " + claddingStack.getDisplayName());
+                context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_cladding", MMUtils.getItemDisplayNameComponent(claddingStack)));
             }
             return false;
         }

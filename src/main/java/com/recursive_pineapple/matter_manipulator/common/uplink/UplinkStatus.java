@@ -16,4 +16,13 @@ public enum UplinkStatus {
             case NO_HATCH -> "Missing ME hatch";
         };
     }
+
+    public String toUnlocalizedString() {
+        return switch (this) {
+            case OK -> "mm.enum.uplink_status.ok";
+            case NO_PLASMA -> "mm.enum.uplink_status.no_plasma";
+            case AE_OFFLINE -> "mm.enum.uplink_status.ae_offline";
+            case NO_HATCH -> "mm.enum.uplink_status.no_hatch";
+        };
+    }
 }
