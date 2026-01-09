@@ -378,9 +378,7 @@ public class BlockSpec implements ImmutableBlockSpec {
     }
 
     public String toDisplayString() {
-        return ArchitectureCraft.isModLoaded() ?
-            StatCollector.translateToLocalFormatted("mm.blockspec.display.2", isBlock, objectId, metadata, properties, arch, block, item, itemId, stack) :
-            StatCollector.translateToLocalFormatted("mm.blockspec.display.1", isBlock, objectId, metadata, properties, block, item, itemId, stack);
+        return toStack(1).getDisplayName();
     }
 
     public static BlockSpec fromPickBlock(World world, EntityPlayer player, MovingObjectPosition hit) {

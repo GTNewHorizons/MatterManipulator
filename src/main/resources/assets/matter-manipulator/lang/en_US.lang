@@ -179,9 +179,6 @@ building=Building
 # NEI
 mm.recipe.upgrades=Manipulator Upgrades
 
-mm.blockspec.display.1=BlockSpec [isBlock=%s, objectId=%s, metadata=%s, properties=%s, block=%s, item=%s, itemId=%s, stack=%s]
-mm.blockspec.display.2=BlockSpec [isBlock=%s, objectId=%s, metadata=%s, properties=%s, arch=%s, block=%s, item=%s, itemId=%s, stack=%s]
-
 # tooltip
 mm.tooltip.none=None
 mm.tooltip.hold_shift=Hold shift for more information.
