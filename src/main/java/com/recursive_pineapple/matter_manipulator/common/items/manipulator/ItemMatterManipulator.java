@@ -441,7 +441,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         // spotless:off
         if (!GuiScreen.isShiftKeyDown()) {
-            desc.add("Hold shift for more information.");
+            desc.add(StatCollector.translateToLocal("mm.tooltip.hold_shift"));
         } else {
             if (state.hasCap(CONNECTS_TO_AE) || state.hasCap(CONNECTS_TO_UPLINK)) {
                 long time = System.currentTimeMillis();
@@ -468,88 +468,88 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (state.hasCap(CONNECTS_TO_AE)) {
                 if (state.encKey != null) {
                     if (ttAEWorks) {
-                        desc.add("Has an ME connection. (Can interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.me_conn.can_interact"));
                     } else {
-                        desc.add("Has an ME connection. (Cannot interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.me_conn.cannot_interact"));
                     }
                 } else {
-                    desc.add("Does not have an ME connection.");
+                    desc.add(StatCollector.translateToLocal("mm.tooltip.me_conn.no_conn"));
                 }
             }
 
             if (state.hasCap(CONNECTS_TO_UPLINK)) {
                 if (state.uplinkAddress != null) {
                     if (ttUplinkWorks) {
-                        desc.add("Has an Uplink connection. (Can interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.uplink_conn.can_interact"));
                     } else {
-                        desc.add("Has an Uplink connection. (Cannot interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.uplink_conn.cannot_interact"));
                     }
-                    addInfoLine(desc, "Uplink address: %s", state.uplinkAddress, Long::toHexString);
+                    addInfoLine(desc, "mm.tooltip.uplink_conn.address", state.uplinkAddress, Long::toHexString);
                 } else {
-                    desc.add("Does not have an Uplink connection.");
+                    desc.add(StatCollector.translateToLocal("mm.tooltip.uplink_conn.no_conn"));
                 }
             }
 
             if (state.config.action != null) {
-                addInfoLine(desc, "Pending Action: %s", switch (state.config.action) {
-                    case MOVING_COORDS -> "Moving coordinates";
-                    case GEOM_SELECTING_BLOCK -> "Selecting blocks to place";
-                    case MARK_COPY_A -> "Marking first copy corner";
-                    case MARK_COPY_B -> "Marking second copy corner";
-                    case MARK_CUT_A -> "Marking first cut corner";
-                    case MARK_CUT_B -> "Marking second cut corner";
-                    case MARK_PASTE -> "Marking paste location";
-                    case EXCH_ADD_REPLACE -> "Adding block to replace whitelist";
-                    case EXCH_SET_REPLACE -> "Setting block in replace whitelist";
-                    case EXCH_SET_TARGET -> "Setting block to replace with";
-                    case PICK_CABLE -> "Picking cable";
-                    case MARK_ARRAY -> "Marking array bounds";
-                });
+                addInfoLine(desc, "mm.tooltip.pending_action", StatCollector.translateToLocal(switch (state.config.action) {
+                    case MOVING_COORDS -> "mm.tooltip.pending_action.moving_coords";
+                    case GEOM_SELECTING_BLOCK -> "mm.tooltip.pending_action.geom_selecting_block";
+                    case MARK_COPY_A -> "mm.tooltip.pending_action.mark_copy_a";
+                    case MARK_COPY_B -> "mm.tooltip.pending_action.mark_copy_b";
+                    case MARK_CUT_A -> "mm.tooltip.pending_action.mark_cut_a";
+                    case MARK_CUT_B -> "mm.tooltip.pending_action.mark_cut_b";
+                    case MARK_PASTE -> "mm.tooltip.pending_action.mark_paste";
+                    case EXCH_ADD_REPLACE -> "mm.tooltip.pending_action.exch_add_replace";
+                    case EXCH_SET_REPLACE -> "mm.tooltip.pending_action.exch_set_replace";
+                    case EXCH_SET_TARGET -> "mm.tooltip.pending_action.exch_set_target";
+                    case PICK_CABLE -> "mm.tooltip.pending_action.pick_cable";
+                    case MARK_ARRAY -> "mm.tooltip.pending_action.mark_array";
+                }));
             }
 
             if (Integer.bitCount(tier.capabilities & ALL_MODES) > 1) {
-                addInfoLine(desc, "Mode: %s", switch (state.config.placeMode) {
-                    case GEOMETRY -> "Geometry";
-                    case MOVING -> "Moving";
-                    case COPYING -> "Copying";
-                    case EXCHANGING -> "Exchanging";
-                    case CABLES -> "Cables";
-                });
+                addInfoLine(desc, "mm.tooltip.mode", StatCollector.translateToLocal(switch (state.config.placeMode) {
+                    case GEOMETRY -> "mm.tooltip.mode.geometry";
+                    case MOVING -> "mm.tooltip.mode.moving";
+                    case COPYING -> "mm.tooltip.mode.copying";
+                    case EXCHANGING -> "mm.tooltip.mode.exchanging";
+                    case CABLES -> "mm.tooltip.mode.cables";
+                }));
             }
 
             if (state.hasCap(ALLOW_REMOVING)) {
-                addInfoLine(desc, "Removing: %s", switch (state.config.removeMode) {
-                    case ALL -> "All blocks";
-                    case REPLACEABLE -> "Replaceable blocks";
-                    case NONE -> "No blocks";
-                });
+                addInfoLine(desc, "mm.tooltip.removing", StatCollector.translateToLocal(switch (state.config.removeMode) {
+                    case ALL -> "mm.tooltip.removing.all";
+                    case REPLACEABLE -> "mm.tooltip.removing.replaceable";
+                    case NONE -> "mm.tooltip.removing.none";
+                }));
             }
 
             if (state.config.placeMode == PlaceMode.GEOMETRY) {
-                addInfoLine(desc, "Shape: %s", switch (state.config.shape) {
-                    case LINE -> "Line";
-                    case CUBE -> "Cube";
-                    case SPHERE -> "Sphere";
-                    case CYLINDER -> "Cylinder";
-                });
+                addInfoLine(desc, "mm.tooltip.shape", StatCollector.translateToLocal(switch (state.config.shape) {
+                    case LINE -> "mm.tooltip.shape.line";
+                    case CUBE -> "mm.tooltip.shape.cube";
+                    case SPHERE -> "mm.tooltip.shape.sphere";
+                    case CYLINDER -> "mm.tooltip.shape.cylinder";
+                }));
 
-                addInfoLine(desc, "Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.coord_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.coord_b", state.config.coordB);
 
-                addInfoLine(desc, "Corner block: %s", state.config.corners);
-                addInfoLine(desc, "Edge block: %s", state.config.edges);
-                addInfoLine(desc, "Face block: %s", state.config.faces);
-                addInfoLine(desc, "Volume block: %s", state.config.volumes);
+                addInfoLine(desc, "mm.tooltip.corner_block", state.config.corners);
+                addInfoLine(desc, "mm.tooltip.edge_block", state.config.edges);
+                addInfoLine(desc, "mm.tooltip.face_block", state.config.faces);
+                addInfoLine(desc, "mm.tooltip.volume_block", state.config.volumes);
             }
 
             if (state.config.placeMode == PlaceMode.COPYING) {
-                addInfoLine(desc, "Copy Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Copy Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.copying.copy_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.copying.copy_b", state.config.coordB);
 
-                addInfoLine(desc, "Paste Coordinate: %s", state.config.coordC);
+                addInfoLine(desc, "mm.tooltip.paste", state.config.coordC);
 
                 addInfoLine(desc,
-                    "Stack: %s",
+                    "mm.tooltip.copying.stack",
                     state.config.arraySpan,
                     span -> String.format(
                         "X: %dx, Y: %dx, Z: %dx",
@@ -559,22 +559,22 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {
-                addInfoLine(desc, "Cut Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Cut Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.moving.cut_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.moving.cut_b", state.config.coordB);
 
-                addInfoLine(desc, "Paste Coordinate: %s", state.config.coordC);
+                addInfoLine(desc, "mm.tooltip.paste", state.config.coordC);
             }
 
             if (state.config.placeMode == PlaceMode.EXCHANGING) {
-                addInfoLine(desc, "Removable blocks: %s", state.config.replaceWhitelist);
-                addInfoLine(desc, "Replacing blocks with: %s", state.config.replaceWith);
+                addInfoLine(desc, "mm.tooltip.exchanging.removable", state.config.replaceWhitelist);
+                addInfoLine(desc, "mm.tooltip.exchanging.replacing", state.config.replaceWith);
             }
 
             if (state.config.placeMode == PlaceMode.CABLES) {
-                addInfoLine(desc, "Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.coord_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.coord_b", state.config.coordB);
 
-                addInfoLine(desc, "Cable: %s", state.config.cables);
+                addInfoLine(desc, "mm.tooltip.cable", state.config.cables, BlockSpec::toDisplayString);
             }
 
             List<MMUpgrades> upgrades = new ArrayList<>(state.getInstalledUpgrades());
@@ -601,22 +601,24 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         // spotless:on
     }
 
-    private <T> void addInfoLine(List<String> desc, String format, T value) {
-        addInfoLine(desc, format, value, T::toString);
+    private <T> void addInfoLine(List<String> desc, String formatKey, T value) {
+        addInfoLine(desc, formatKey, value, T::toString);
     }
 
-    private <T> void addInfoLine(List<String> desc, String format, T value, Function<T, String> toString) {
+    private <T> void addInfoLine(List<String> desc, String formatKey, T value, Function<T, String> toString) {
         if (value != null) {
             desc.add(
-                String.format(
-                    format,
-                    EnumChatFormatting.BLUE.toString() + toString.apply(value) + EnumChatFormatting.RESET.toString()
+                StatCollector.translateToLocalFormatted(
+                    formatKey,
+                    EnumChatFormatting.BLUE + toString.apply(value) + EnumChatFormatting.RESET
                 )
             );
         } else {
             desc.add(
-                String
-                    .format(format, EnumChatFormatting.GRAY.toString() + "None" + EnumChatFormatting.RESET.toString())
+                StatCollector.translateToLocalFormatted(
+                    formatKey,
+                    EnumChatFormatting.GRAY + StatCollector.translateToLocal("mm.tooltip.none") + EnumChatFormatting.RESET
+                )
             );
         }
     }

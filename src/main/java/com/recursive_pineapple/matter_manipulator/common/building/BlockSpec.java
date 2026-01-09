@@ -19,6 +19,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.MovingObjectPosition.MovingObjectType;
+import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import cpw.mods.fml.common.registry.GameRegistry;
@@ -374,6 +375,10 @@ public class BlockSpec implements ImmutableBlockSpec {
             + ", stack="
             + stack
             + "]";
+    }
+
+    public String toDisplayString() {
+        return toStack(1).getDisplayName();
     }
 
     public static BlockSpec fromPickBlock(World world, EntityPlayer player, MovingObjectPosition hit) {
