@@ -1,9 +1,9 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.BLUE;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.GREEN;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.RED;
-import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.formatNumbers;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMValues.V;
@@ -593,9 +593,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             EnumChatFormatting.AQUA
                 + I18n.format(
                     "mm.tooltip.voltage",
-                    formatNumbers(MMUtils.clamp(Math.round(state.charge), 0, tier.maxCharge)),
-                    formatNumbers(tier.maxCharge),
-                    formatNumbers(V[tier.voltageTier]))
+                    formatNumber(MMUtils.clamp(Math.round(state.charge), 0, tier.maxCharge)),
+                    formatNumber(tier.maxCharge),
+                    formatNumber(V[tier.voltageTier]))
                 + EnumChatFormatting.GRAY);
 
         // spotless:on
