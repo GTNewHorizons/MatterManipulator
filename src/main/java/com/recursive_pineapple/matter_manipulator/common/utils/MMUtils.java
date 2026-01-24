@@ -13,7 +13,6 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -452,18 +451,6 @@ public class MMUtils {
             numberFormat.setDecimalFormatSymbols(decimalFormatSymbols);
             return numberFormat;
         });
-    }
-
-    public static String formatNumbers(BigInteger aNumber) {
-        return getDecimalFormat().format(aNumber);
-    }
-
-    public static String formatNumbers(long aNumber) {
-        return getDecimalFormat().format(aNumber);
-    }
-
-    public static String formatNumbers(double aNumber) {
-        return getDecimalFormat().format(aNumber);
     }
 
     public static EntityPlayer getPlayerById(UUID playerId) {

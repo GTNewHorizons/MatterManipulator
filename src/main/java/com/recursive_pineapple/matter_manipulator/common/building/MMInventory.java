@@ -1,5 +1,6 @@
 package com.recursive_pineapple.matter_manipulator.common.building;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatFluid;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendWarningToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.AppliedEnergistics2;
@@ -237,7 +238,7 @@ public class MMInventory implements IPseudoInventory {
 
             if (stack.amount > 0 && !player.capabilities.isCreativeMode) {
                 sendWarningToPlayer(player, StatCollector.translateToLocal("mm.info.warning.not_find_container_for_fluid"));
-                sendWarningToPlayer(player, String.format("  %sL of %s", MMUtils.formatNumbers(stack.amount), stack.getFluidStack().getLocalizedName()));
+                sendWarningToPlayer(player, String.format("  %s of %s", formatFluid(stack.amount), stack.getFluidStack().getLocalizedName()));
             }
         }
 
