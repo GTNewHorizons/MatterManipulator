@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.function.Function;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -34,8 +33,8 @@ import gregtech.api.interfaces.tileentity.ICoverable;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.IRedstoneEmitter;
 import gregtech.api.util.GTUtility;
-import gregtech.common.tileentities.machines.MTEHatchOutputBusME;
-import gregtech.common.tileentities.machines.MTEHatchOutputME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 import gregtech.common.tileentities.storage.MTEDigitalChestBase;
 
 import appeng.api.config.Actionable;
@@ -47,7 +46,6 @@ import appeng.api.parts.IPartHost;
 import appeng.api.parts.PartItemStack;
 import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.api.storage.data.IItemList;
 import appeng.api.util.AEColor;
 import appeng.helpers.ICustomNameObject;
 import appeng.parts.AEBasePart;
@@ -227,23 +225,15 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
         }
     }
 
-    private static class MEOutputCaches {
-
-        private static final Function<MTEHatchOutputBusME, IItemList<IAEItemStack>> GET_ITEM_STACK_LIST = MMUtils
-            .exposeFieldGetterLambda(MTEHatchOutputBusME.class, "itemCache");
-        private static final Function<MTEHatchOutputME, IItemList<IAEFluidStack>> GET_FLUID_STACK_LIST = MMUtils
-            .exposeFieldGetterLambda(MTEHatchOutputME.class, "fluidCache");
-    }
-
     @Optional({
         Names.GREG_TECH_NH, Names.APPLIED_ENERGISTICS2
     })
     protected void emptyMEOutput(TileEntity te) {
         if (te instanceof IGregTechTileEntity igte) {
             if (igte.getMetaTileEntity() instanceof MTEHatchOutputBusME bus) {
-                IItemList<IAEItemStack> items = MEOutputCaches.GET_ITEM_STACK_LIST.apply(bus);
+                var provider = bus.getProvider();
 
-                for (IAEItemStack item : items) {
+                for (IAEItemStack item : provider.getCacheList()) {
                     if (item.getStackSize() == 0) continue;
 
                     givePlayerItems(Arrays.asList(BigItemStack.create(item)));
@@ -251,9 +241,9 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
             }
 
             if (igte.getMetaTileEntity() instanceof MTEHatchOutputME hatch) {
-                IItemList<IAEFluidStack> fluids = MEOutputCaches.GET_FLUID_STACK_LIST.apply(hatch);
+                var provider = hatch.getProvider();
 
-                for (IAEFluidStack fluid : fluids) {
+                for (IAEFluidStack fluid : provider.getCacheList()) {
                     if (fluid.getStackSize() == 0) continue;
 
                     givePlayerFluids(Arrays.asList(BigFluidStack.create(fluid)));
