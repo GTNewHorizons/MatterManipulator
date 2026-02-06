@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.function.Function;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -36,9 +35,6 @@ import gregtech.api.interfaces.tileentity.IRedstoneEmitter;
 import gregtech.api.util.GTUtility;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
-import gregtech.common.tileentities.machines.outputme.base.MTEHatchOutputMEBase;
-import gregtech.common.tileentities.machines.outputme.filter.MEFilterFluid;
-import gregtech.common.tileentities.machines.outputme.filter.MEFilterItem;
 import gregtech.common.tileentities.storage.MTEDigitalChestBase;
 
 import appeng.api.config.Actionable;

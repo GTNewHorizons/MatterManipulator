@@ -13,14 +13,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
-import appeng.api.storage.data.IAEFluidStack;
-import appeng.api.storage.data.IAEItemStack;
-import com.recursive_pineapple.matter_manipulator.common.building.AbstractBuildable;
-import gregtech.common.tileentities.machines.outputme.base.MTEHatchOutputMEBase;
-import gregtech.common.tileentities.machines.outputme.filter.MEFilterFluid;
-import gregtech.common.tileentities.machines.outputme.filter.MEFilterItem;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockAnvil;
 import net.minecraft.block.BlockBasePressurePlate;
@@ -59,6 +52,7 @@ import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.common.blocks.ItemMachines;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
+import gregtech.common.tileentities.machines.outputme.base.MTEHatchOutputMEBase;
 
 import appeng.util.ReadableNumberConverter;
 
@@ -89,7 +83,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
 import lombok.SneakyThrows;
-import net.minecraftforge.fluids.FluidStack;
 
 public class BlockPropertyRegistry {
 
@@ -1375,6 +1368,7 @@ public class BlockPropertyRegistry {
     }
 
     private static class MEHatchCacheModeProperty<MTE extends IMetaTileEntity & MTEHatchOutputMEBase.Environment<?, ?, ?>> extends IntrinsicMTEProperty<MTE> {
+
         public static final String KEY = "cacheMode";
 
         public MEHatchCacheModeProperty(Class<MTE> clazz) {
@@ -1416,6 +1410,7 @@ public class BlockPropertyRegistry {
     }
 
     private static class MEHatchCheckModeProperty<MTE extends IMetaTileEntity & MTEHatchOutputMEBase.Environment<?, ?, ?>> extends IntrinsicMTEProperty<MTE> {
+
         public static final String KEY = "checkMode";
 
         public MEHatchCheckModeProperty(Class<MTE> clazz) {
