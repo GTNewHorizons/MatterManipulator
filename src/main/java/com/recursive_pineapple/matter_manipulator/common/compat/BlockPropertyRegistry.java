@@ -13,7 +13,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
+import appeng.api.storage.data.IAEFluidStack;
+import appeng.api.storage.data.IAEItemStack;
+import com.recursive_pineapple.matter_manipulator.common.building.AbstractBuildable;
+import gregtech.common.tileentities.machines.outputme.base.MTEHatchOutputMEBase;
+import gregtech.common.tileentities.machines.outputme.filter.MEFilterFluid;
+import gregtech.common.tileentities.machines.outputme.filter.MEFilterItem;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockAnvil;
 import net.minecraft.block.BlockBasePressurePlate;
@@ -50,8 +57,8 @@ import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.common.blocks.ItemMachines;
-import gregtech.common.tileentities.machines.MTEHatchOutputBusME;
-import gregtech.common.tileentities.machines.MTEHatchOutputME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 
 import appeng.util.ReadableNumberConverter;
 
@@ -82,6 +89,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
 import lombok.SneakyThrows;
+import net.minecraftforge.fluids.FluidStack;
 
 public class BlockPropertyRegistry {
 
@@ -1067,6 +1075,10 @@ public class BlockPropertyRegistry {
     private static void initGT5u() {
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCapacityProperty<>(MTEHatchOutputBusME.class));
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCapacityProperty<>(MTEHatchOutputME.class));
+        registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCacheModeProperty<>(MTEHatchOutputBusME.class));
+        registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCacheModeProperty<>(MTEHatchOutputME.class));
+        registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCheckModeProperty<>(MTEHatchOutputBusME.class));
+        registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCheckModeProperty<>(MTEHatchOutputME.class));
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new CALImprintProperty());
     }
 
@@ -1359,6 +1371,88 @@ public class BlockPropertyRegistry {
         public void getItemDetails(List<String> details, JsonElement value) {
             ReadableNumberConverter nc = ReadableNumberConverter.INSTANCE;
             details.add(String.format("Cache Capacity: %s", nc.toWideReadableForm(value.getAsLong())));
+        }
+    }
+
+    private static class MEHatchCacheModeProperty<MTE extends IMetaTileEntity & MTEHatchOutputMEBase.Environment<?, ?, ?>> extends IntrinsicMTEProperty<MTE> {
+        public static final String KEY = "cacheMode";
+
+        public MEHatchCacheModeProperty(Class<MTE> clazz) {
+            super(clazz);
+        }
+
+        @Override
+        public String getName() {
+            return "cacheMode";
+        }
+
+        @Override
+        public JsonElement getValue(MTE mte) {
+            var provider = mte.getProvider();
+            return new JsonPrimitive(provider.getCacheMode());
+        }
+
+        @Override
+        public void setValue(MTE mte, JsonElement value) {
+            var provider = mte.getProvider();
+            provider.setCacheMode(value.getAsBoolean());
+        }
+
+        @Override
+        public JsonElement getValue(NBTTagCompound itemTag) {
+            boolean cacheMode = itemTag.hasKey(KEY) && itemTag.getBoolean(KEY);
+            return new JsonPrimitive(cacheMode);
+        }
+
+        @Override
+        public void setValue(NBTTagCompound itemTag, JsonElement value) {
+            itemTag.setBoolean(KEY, value.getAsBoolean());
+        }
+
+        @Override
+        public void getItemDetails(List<String> details, JsonElement value) {
+            details.add("Cache Mode: " + (value.getAsBoolean() ? "On" : "Off"));
+        }
+    }
+
+    private static class MEHatchCheckModeProperty<MTE extends IMetaTileEntity & MTEHatchOutputMEBase.Environment<?, ?, ?>> extends IntrinsicMTEProperty<MTE> {
+        public static final String KEY = "checkMode";
+
+        public MEHatchCheckModeProperty(Class<MTE> clazz) {
+            super(clazz);
+        }
+
+        @Override
+        public String getName() {
+            return "checkMode";
+        }
+
+        @Override
+        public JsonElement getValue(MTE mte) {
+            var provider = mte.getProvider();
+            return new JsonPrimitive(provider.getCheckMode());
+        }
+
+        @Override
+        public void setValue(MTE mte, JsonElement value) {
+            var provider = mte.getProvider();
+            provider.setCheckMode(value.getAsBoolean());
+        }
+
+        @Override
+        public JsonElement getValue(NBTTagCompound itemTag) {
+            boolean mode = itemTag.hasKey(KEY) && itemTag.getBoolean(KEY);
+            return new JsonPrimitive(mode);
+        }
+
+        @Override
+        public void setValue(NBTTagCompound itemTag, JsonElement value) {
+            itemTag.setBoolean(KEY, value.getAsBoolean());
+        }
+
+        @Override
+        public void getItemDetails(List<String> details, JsonElement value) {
+            details.add("Check Mode: " + (value.getAsBoolean() ? "On" : "Off"));
         }
     }
 
