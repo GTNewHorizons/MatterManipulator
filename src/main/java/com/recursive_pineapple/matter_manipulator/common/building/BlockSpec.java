@@ -376,6 +376,10 @@ public class BlockSpec implements ImmutableBlockSpec {
             + "]";
     }
 
+    public String toDisplayString() {
+        return toStack(1).getDisplayName();
+    }
+
     public static BlockSpec fromPickBlock(World world, EntityPlayer player, MovingObjectPosition hit) {
         if (hit == null || hit.typeOfHit != MovingObjectType.BLOCK) return new BlockSpec();
 
