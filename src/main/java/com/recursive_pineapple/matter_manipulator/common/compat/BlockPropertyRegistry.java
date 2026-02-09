@@ -14,7 +14,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import bartworks.API.enums.CircuitImprint;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockAnvil;
 import net.minecraft.block.BlockBasePressurePlate;
@@ -70,6 +69,7 @@ import com.rwtema.extrautils.block.BlockSpike;
 
 import net.bdew.ae2stuff.machines.wireless.TileWireless;
 
+import bartworks.API.enums.CircuitImprint;
 import bartworks.common.tileentities.multis.MTECircuitAssemblyLine;
 import codechicken.enderstorage.common.TileFrequencyOwner;
 import codechicken.enderstorage.storage.item.TileEnderChest;
@@ -1446,7 +1446,7 @@ public class BlockPropertyRegistry {
         public void setValue(NBTTagCompound itemTag, JsonElement value) {
             if (value == null) {
                 itemTag.removeTag(MTECircuitAssemblyLine.IMPRINT_ID_KEY);
-            } else if (value instanceof JsonPrimitive circuit){
+            } else if (value instanceof JsonPrimitive circuit) {
                 itemTag.setInteger(MTECircuitAssemblyLine.IMPRINT_ID_KEY, circuit.getAsInt());
             }
         }
