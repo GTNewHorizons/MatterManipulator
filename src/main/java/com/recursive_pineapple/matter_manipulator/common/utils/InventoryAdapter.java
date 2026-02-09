@@ -13,8 +13,8 @@ import gregtech.api.metatileentity.implementations.MTEBasicBatteryBuffer;
 import gregtech.api.metatileentity.implementations.MTEHatchInputBus;
 import gregtech.api.metatileentity.implementations.MTEHatchOutputBus;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
-import gregtech.common.tileentities.machines.MTEHatchOutputBusME;
-import gregtech.common.tileentities.machines.MTEHatchOutputME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 
 import com.google.common.collect.ImmutableList;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
