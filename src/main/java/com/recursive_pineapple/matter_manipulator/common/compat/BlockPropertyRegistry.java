@@ -69,6 +69,7 @@ import com.rwtema.extrautils.block.BlockSpike;
 
 import net.bdew.ae2stuff.machines.wireless.TileWireless;
 
+import bartworks.API.enums.CircuitImprint;
 import bartworks.common.tileentities.multis.MTECircuitAssemblyLine;
 import codechicken.enderstorage.common.TileFrequencyOwner;
 import codechicken.enderstorage.storage.item.TileEnderChest;
@@ -1411,13 +1412,6 @@ public class BlockPropertyRegistry {
 
     private static class CALImprintProperty extends IntrinsicMTEProperty<MTECircuitAssemblyLine> {
 
-        private static final MethodHandle GET_CAL_TYPE = MMUtils.exposeFieldGetter(MTECircuitAssemblyLine.class, "type");
-
-        @SneakyThrows
-        public static NBTTagCompound getCALType(MTECircuitAssemblyLine cal) {
-            return (NBTTagCompound) GET_CAL_TYPE.invokeExact(cal);
-        }
-
         public CALImprintProperty() {
             super(MTECircuitAssemblyLine.class);
         }
@@ -1429,11 +1423,11 @@ public class BlockPropertyRegistry {
 
         @Override
         public JsonElement getValue(MTECircuitAssemblyLine mte) {
-            NBTTagCompound imprint = getCALType(mte);
+            CircuitImprint imprint = mte.getCircuitImprint();
 
             if (imprint == null) return null;
 
-            return MMUtils.toJsonObjectExact(imprint);
+            return new JsonPrimitive(imprint.id);
         }
 
         @Override
@@ -1443,29 +1437,31 @@ public class BlockPropertyRegistry {
 
         @Override
         public JsonElement getValue(NBTTagCompound itemTag) {
-            if (itemTag == null || !itemTag.hasKey(MTECircuitAssemblyLine.IMPRINT_KEY)) return null;
+            if (itemTag == null || !itemTag.hasKey(MTECircuitAssemblyLine.IMPRINT_ID_KEY)) return null;
 
-            return MMUtils.toJsonObjectExact(itemTag.getCompoundTag(MTECircuitAssemblyLine.IMPRINT_KEY));
+            return new JsonPrimitive(itemTag.getInteger(MTECircuitAssemblyLine.IMPRINT_ID_KEY));
         }
 
         @Override
         public void setValue(NBTTagCompound itemTag, JsonElement value) {
             if (value == null) {
-                itemTag.removeTag(MTECircuitAssemblyLine.IMPRINT_KEY);
-            } else {
-                itemTag.setTag(MTECircuitAssemblyLine.IMPRINT_KEY, MMUtils.toNbtExact(value));
+                itemTag.removeTag(MTECircuitAssemblyLine.IMPRINT_ID_KEY);
+            } else if (value instanceof JsonPrimitive circuit) {
+                itemTag.setInteger(MTECircuitAssemblyLine.IMPRINT_ID_KEY, circuit.getAsInt());
             }
         }
 
         @Override
         public void getItemDetails(List<String> details, JsonElement value) {
-            ItemStack stack = null;
+            int circuitID = 0;
+            CircuitImprint imprint = null;
 
-            if (value != null) {
-                stack = ItemStack.loadItemStackFromNBT((NBTTagCompound) MMUtils.toNbtExact(value));
+            if (value != null && value instanceof JsonPrimitive primitive) {
+                circuitID = primitive.getAsInt();
+                imprint = CircuitImprint.IMPRINT_LOOKUPS_BY_IDS.get(circuitID);
             }
 
-            details.add(String.format("Imprint: %s", stack == null ? "None" : stack.getDisplayName()));
+            details.add(String.format("Imprint: %s", imprint == null ? "None" : imprint.imprint.get(1).getDisplayName()));
         }
     }
 
