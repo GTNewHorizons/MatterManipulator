@@ -97,6 +97,8 @@ dependencies {
 
     testImplementation(platform('org.junit:junit-bom:5.9.2'))
     testImplementation('org.junit.jupiter:junit-jupiter')
+    testImplementation('org.junit.platform:junit-platform-engine')
+    testImplementation('org.junit.platform:junit-platform-launcher')
 }
 
 // deps may transitively add Baubles, so we replace it
