@@ -700,6 +700,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         dup.mTTParams = mTTParams == null ? null : mTTParams.clone();
         dup.mAmperes = mAmperes;
         dup.mFluidPipeRestriction = mFluidPipeRestriction;
+        dup.mMaxParallels = mMaxParallels;
 
         return dup;
     }

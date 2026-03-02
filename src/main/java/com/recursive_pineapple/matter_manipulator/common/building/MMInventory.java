@@ -1,5 +1,6 @@
 package com.recursive_pineapple.matter_manipulator.common.building;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatFluid;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendWarningToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.AppliedEnergistics2;
@@ -240,7 +241,7 @@ public class MMInventory implements IPseudoInventory {
                 sendWarningToPlayer(
                     player,
                     "mm.info.warning.of_fluid",
-                    MMUtils.formatNumbers(stack.amount),
+                    formatFluid(stack.amount),
                     new ChatComponentTranslation(stack.getFluidStack().getUnlocalizedName())
                 );
             }
