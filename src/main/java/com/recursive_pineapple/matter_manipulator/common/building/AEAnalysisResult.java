@@ -34,6 +34,7 @@ import appeng.util.Platform;
 import appeng.util.SettingsFrom;
 
 import com.google.gson.JsonElement;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
@@ -200,7 +201,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
 
                             if (!result.leftBoolean()) {
                                 ctx.warn(
-                                    new ChatComponentTranslation("mm.info.warning.could_not_extract_item", MMUtils.getItemDisplayNameComponent(expectedStack))
+                                    new ChatComponentTranslation("mm.info.warning.could_not_extract_item", new ChatComponentItemName(expectedStack))
                                 );
                                 continue;
                             }
@@ -216,7 +217,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                                 new ChatComponentTranslation(
                                     "mm.info.error.invalid_location",
                                     new ChatComponentTranslation(MMUtils.getDirectionUnlocalizedName(dir, true)),
-                                    MMUtils.getItemDisplayNameComponent(expectedStack)
+                                    new ChatComponentItemName(expectedStack)
                                 )
                             );
                             continue;
@@ -259,7 +260,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
 
                         if (!result.leftBoolean()) {
                             ctx.warn(
-                                new ChatComponentTranslation("mm.info.warning.could_not_extract_item", MMUtils.getItemDisplayNameComponent(expectedStack))
+                                new ChatComponentTranslation("mm.info.warning.could_not_extract_item", new ChatComponentItemName(expectedStack))
                             );
                             continue;
                         }
@@ -279,7 +280,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                     if (newPart == null) continue;
 
                     if (!ctx.tryConsumeItems(expectedStack)) {
-                        ctx.warn(new ChatComponentTranslation("mm.info.warning.could_not_extract_item", MMUtils.getItemDisplayNameComponent(expectedStack)));
+                        ctx.warn(new ChatComponentTranslation("mm.info.warning.could_not_extract_item", new ChatComponentItemName(expectedStack)));
                         continue;
                     }
 
@@ -337,7 +338,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         if (!partHost.canAddPart(partStack, side)) { return false; }
 
         if (!context.tryConsumeItems(partStack)) {
-            context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_item", MMUtils.getItemDisplayNameComponent(partStack)));
+            context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_item", new ChatComponentItemName(partStack)));
             return false;
         }
 

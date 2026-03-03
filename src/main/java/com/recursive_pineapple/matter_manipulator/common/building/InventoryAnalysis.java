@@ -6,6 +6,7 @@ import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ChatComponentTranslation;
 
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.AECellItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.BatteryItemProvider;
@@ -99,7 +100,7 @@ public class InventoryAnalysis {
                 if (stack != null) {
                     if (!adapter.canExtract(inv, slot)) {
                         context.warn(
-                            new ChatComponentTranslation("mm.info.warning.could_not_extract_item_in_slot", slot, MMUtils.getItemDisplayNameComponent(stack))
+                            new ChatComponentTranslation("mm.info.warning.could_not_extract_item_in_slot", slot, new ChatComponentItemName(stack))
                         );
                         continue;
                     }
@@ -118,7 +119,7 @@ public class InventoryAnalysis {
                             new ChatComponentTranslation(
                                 "mm.info.warning.invalid_item_for_slot",
                                 slot,
-                                MMUtils.getItemDisplayNameComponent(target.getStack(null, false))
+                                new ChatComponentItemName(target.getStack(null, false))
                             )
                         );
                         continue;
@@ -130,7 +131,7 @@ public class InventoryAnalysis {
                         context.warn(
                             new ChatComponentTranslation(
                                 "mm.info.warning.could_not_gather_item_for_inventory",
-                                MMUtils.getItemDisplayNameComponent(target.getStack(null, false))
+                                new ChatComponentItemName(target.getStack(null, false))
                             )
                         );
                         success = false;

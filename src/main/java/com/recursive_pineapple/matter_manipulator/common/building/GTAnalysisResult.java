@@ -38,6 +38,7 @@ import gregtech.common.tileentities.machines.multi.MTEIntegratedOreFactory;
 import appeng.helpers.ICustomNameObject;
 
 import com.google.gson.JsonElement;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.structurelib.alignment.IAlignment;
 import com.gtnewhorizon.structurelib.alignment.IAlignmentProvider;
 import com.gtnewhorizon.structurelib.alignment.enumerable.ExtendedFacing;
@@ -362,8 +363,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                         ctx.error(
                             new ChatComponentTranslation(
                                 "mm.info.error.could_not_set_direction_to",
-                                // FIXME: should have a method like `facing.getUnlocalizedName()`
-                                new ChatComponentTranslation("structurelib.facing." + facing.getIndex())
+                                new ChatComponentTranslation(MMUtils.getFacingUnlocalizedName(facing))
                             )
                         );
                     }
@@ -540,7 +540,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                 new ChatComponentTranslation(
                     "mm.info.error.was_not_allowed_to_put_cover_on",
                     new ChatComponentTranslation(MMUtils.getDirectionUnlocalizedName(side, true)),
-                    MMUtils.getItemDisplayNameComponent(stack)
+                    new ChatComponentItemName(stack)
                 )
             );
             return;
@@ -550,7 +550,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             context.error(
                 new ChatComponentTranslation(
                     "mm.info.error.could_not_find_cover",
-                    MMUtils.getItemDisplayNameComponent(stack)
+                    new ChatComponentItemName(stack)
                 )
             );
             return;

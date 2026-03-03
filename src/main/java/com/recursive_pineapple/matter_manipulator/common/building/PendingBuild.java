@@ -585,7 +585,12 @@ public class PendingBuild extends AbstractBuildable {
             IMetaTileEntity imte = igte.getMetaTileEntity();
             if (imte != null) {
                 // FIXME: should use more robust method to get unlocalized name
-                return "gt.blockmachines." + imte.getMetaName() + ".name";
+                String key = "gt.blockmachines." + imte.getMetaName() + ".name";
+                if (StatCollector.canTranslate(key)) {
+                    return key;
+                } else {
+                    return imte.getLocalName();
+                }
             }
         }
 

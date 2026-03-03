@@ -30,6 +30,7 @@ import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
 
 import com.google.common.collect.ImmutableList;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentFluidName;
 import com.gtnewhorizon.gtnhlib.util.map.ItemStackMap;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.entities.EntityItemLarge;
@@ -242,7 +243,7 @@ public class MMInventory implements IPseudoInventory {
                     player,
                     "mm.info.warning.of_fluid",
                     formatFluid(stack.amount),
-                    new ChatComponentTranslation(stack.getFluidStack().getUnlocalizedName())
+                    new ChatComponentFluidName(stack.getFluidStack())
                 );
             }
         }

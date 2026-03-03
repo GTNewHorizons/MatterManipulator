@@ -28,6 +28,7 @@ import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
 
 import com.google.gson.JsonElement;
 import com.google.gson.annotations.SerializedName;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.compat.BlockProperty;
 import com.recursive_pineapple.matter_manipulator.common.compat.BlockPropertyRegistry;
@@ -337,7 +338,7 @@ public class BlockSpec implements ImmutableBlockSpec {
         if (stack == null) {
             chatComponent = new ChatComponentTranslation(Blocks.air.getUnlocalizedName() + ".name");
         } else {
-            chatComponent = MMUtils.getItemDisplayNameComponent(stack);
+            chatComponent = new ChatComponentItemName(stack);
         }
         // FIXME: localize item details
         return chatComponent.appendText(getItemDetails());

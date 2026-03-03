@@ -9,9 +9,9 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentTranslation;
 
 import com.google.gson.annotations.SerializedName;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
-import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 
 import gcewing.architecture.ArchitectureCraft;
 import gcewing.architecture.common.shape.Shape;
@@ -120,7 +120,7 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
 
         if (!context.tryConsumeItems(claddingStack)) {
             if (!simulate) {
-                context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_cladding", MMUtils.getItemDisplayNameComponent(claddingStack)));
+                context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_cladding", new ChatComponentItemName(claddingStack)));
             }
             return false;
         }

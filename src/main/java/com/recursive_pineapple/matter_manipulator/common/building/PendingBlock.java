@@ -20,6 +20,7 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
@@ -29,7 +30,6 @@ import com.recursive_pineapple.matter_manipulator.common.compat.BlockPropertyReg
 import com.recursive_pineapple.matter_manipulator.common.compat.Orientation;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
-import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.mixin.BlockCaptureDrops;
 
@@ -200,8 +200,8 @@ public class PendingBlock extends Location {
     }
 
     public IChatComponent getDisplayNameComponent() {
-        // FIXME: localize it
-        return MMUtils.getItemDisplayNameComponent(getStack()).appendText(getItemDetails());
+        // FIXME: localize itemDetails
+        return new ChatComponentItemName(getStack()).appendText(getItemDetails());
     }
 
     public boolean isFree() {

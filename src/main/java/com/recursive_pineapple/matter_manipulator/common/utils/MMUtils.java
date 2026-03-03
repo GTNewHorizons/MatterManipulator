@@ -60,7 +60,6 @@ import net.minecraft.nbt.NBTTagShort;
 import net.minecraft.nbt.NBTTagString;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.AxisAlignedBB;
-import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.ChatStyle;
 import net.minecraft.util.EnumChatFormatting;
@@ -104,6 +103,8 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonPrimitive;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
+import com.gtnewhorizon.structurelib.alignment.enumerable.ExtendedFacing;
 import com.gtnewhorizon.structurelib.util.XSTR;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
@@ -412,17 +413,6 @@ public class MMUtils {
         }
 
         return blocks;
-    }
-
-    public static IChatComponent getItemDisplayNameComponent(ItemStack stack) {
-        if (stack == null) return new ChatComponentText("");
-
-        // if stack's name has been set
-        if (stack.hasDisplayName()) {
-            return new ChatComponentText(stack.getDisplayName());
-        } else {
-            return new ChatComponentTranslation(stack.getUnlocalizedName() + ".name");
-        }
     }
 
     public static void sendChatToPlayerWithColor(EntityPlayer aPlayer, IChatComponent aChat, EnumChatFormatting color) {
@@ -881,7 +871,8 @@ public class MMUtils {
                     if (wanted.stackSize > 0) {
                         ctx.warn(
                             new ChatComponentTranslation(
-                                "mm.info.warning.could_not_find_upgrade" + MMUtils.getItemDisplayNameComponent(wanted.getItemStack()),
+                                "mm.info.warning.could_not_find_upgrade",
+                                new ChatComponentItemName(wanted.getItemStack()),
                                 wanted.stackSize
                             )
                         );
@@ -1370,7 +1361,7 @@ public class MMUtils {
                     if (stack.getStackSize() - available > 0) {
                         return new ChatComponentTranslation(
                             "mm.info.missing",
-                            MMUtils.getItemDisplayNameComponent(stack.getItemStack()),
+                            new ChatComponentItemName(stack.getItemStack()),
                             GRAY,
                             GOLD,
                             stack.getStackSize(),
@@ -1382,7 +1373,7 @@ public class MMUtils {
                     } else {
                         return new ChatComponentTranslation(
                             "%s%s: %s%s%s",
-                            MMUtils.getItemDisplayNameComponent(stack.getItemStack()),
+                            new ChatComponentItemName(stack.getItemStack()),
                             GRAY,
                             GOLD,
                             stack.getStackSize(),
@@ -1589,6 +1580,10 @@ public class MMUtils {
             case UP -> "mm.direction.up";
             case WEST -> "mm.direction.west";
         };
+    }
+
+    public static String getFacingUnlocalizedName(ExtendedFacing facing) {
+        return "structurelib.facing." + facing.getIndex();
     }
 
     public static <K, V> boolean areMapsEqual(Map<K, V> left, Map<K, V> right) {
