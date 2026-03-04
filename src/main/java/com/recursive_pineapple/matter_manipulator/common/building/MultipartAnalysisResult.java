@@ -4,6 +4,7 @@ import java.util.List;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
@@ -59,7 +60,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
     }
 
     @Override
-    public void getItemDetails(List<String> details) {
+    public void getItemDetailsChat(List<IChatComponent> details) {
 
     }
 

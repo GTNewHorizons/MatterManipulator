@@ -200,6 +200,11 @@ mm.enum.what.faces=faces
 mm.enum.what.volumes=volumes
 mm.enum.what.all=all blocks
 
+mm.chat.item.details.imprint=Imprint: %s
+mm.chat.item.details.imprint.none=None
+mm.chat.item.details.cache_capacity=Cache Capacity: %s
+mm.chat.item.details.hub=Hub
+
 # Transform
 mm.transform.info=Flip: %s\nUp: %s\nForward: %s
 mm.transform.button.rotate_x-=Rotate X-

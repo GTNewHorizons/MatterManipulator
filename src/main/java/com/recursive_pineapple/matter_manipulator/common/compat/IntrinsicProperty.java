@@ -3,6 +3,7 @@ package com.recursive_pineapple.matter_manipulator.common.compat;
 import java.util.List;
 
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.IBlockAccess;
 
 import com.google.gson.JsonElement;
@@ -24,5 +25,5 @@ public interface IntrinsicProperty {
 
     void setValue(IBlockAccess world, int x, int y, int z, JsonElement value);
 
-    default void getItemDetails(List<String> details, JsonElement value) {}
+    default void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {}
 }

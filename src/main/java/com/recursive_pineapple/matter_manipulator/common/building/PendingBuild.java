@@ -257,7 +257,7 @@ public class PendingBuild extends AbstractBuildable {
                 sendWarningToPlayer(
                     player,
                     "mm.info.warning.of_item",
-                    first.getDisplayNameComponent(),
+                    first.getDisplayNameChat(),
                     total
                 );
 
@@ -355,7 +355,7 @@ public class PendingBuild extends AbstractBuildable {
             sendWarningToPlayer(
                 player,
                 "mm.info.warning.of_item",
-                first.getDisplayNameComponent(),
+                first.getDisplayNameChat(),
                 total - (toPlace.size() - i) * perBlock.stackSize
             );
         }

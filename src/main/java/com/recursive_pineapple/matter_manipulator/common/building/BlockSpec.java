@@ -17,6 +17,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.MovingObjectPosition;
@@ -257,7 +258,8 @@ public class BlockSpec implements ImmutableBlockSpec {
         return out;
     }
 
-    public void getItemDetails(List<String> details) {
+    @Override
+    public void getItemDetailsChat(List<IChatComponent> details) {
         Map<String, IntrinsicProperty> props = new Object2ObjectOpenHashMap<>();
         BlockPropertyRegistry.getIntrinsicProperties(toStack(1), props);
 
@@ -267,7 +269,7 @@ public class BlockSpec implements ImmutableBlockSpec {
 
                 if (prop == null) continue;
 
-                prop.getItemDetails(details, e.getValue());
+                prop.getItemDetailsChat(details, e.getValue());
             }
         }
     }
@@ -319,13 +321,24 @@ public class BlockSpec implements ImmutableBlockSpec {
     }
 
     private String getItemDetails() {
-        List<String> details = new ArrayList<>(0);
+        return getItemDetailsChat().getUnformattedTextForChat();
+    }
 
-        getItemDetails(details);
+    private IChatComponent getItemDetailsChat() {
+        List<IChatComponent> details = new ArrayList<>(0);
 
-        if (ArchitectureCraft.isModLoaded() && arch != null) arch.getItemDetails(details);
+        getItemDetailsChat(details);
 
-        return details.isEmpty() ? "" : String.format(" (%s)", String.join(", ", details));
+        if (ArchitectureCraft.isModLoaded() && arch != null) arch.getItemDetailsChat(details);
+
+        if (details.isEmpty()) { return new ChatComponentText(""); }
+        IChatComponent out = details.get(0);
+
+        for (int i = 1; i < details.size(); i++) {
+            out.appendText(", ").appendSibling(details.get(i));
+        }
+
+        return new ChatComponentText(" (").appendSibling(out).appendText(")");
     }
 
     public String getDisplayName() {
@@ -334,14 +347,13 @@ public class BlockSpec implements ImmutableBlockSpec {
 
     public IChatComponent getChatComponent() {
         ItemStack stack = toStack(1);
-        IChatComponent chatComponent = null;
+        IChatComponent chatComponent;
         if (stack == null) {
             chatComponent = new ChatComponentTranslation(Blocks.air.getUnlocalizedName() + ".name");
         } else {
             chatComponent = new ChatComponentItemName(stack);
         }
-        // FIXME: localize item details
-        return chatComponent.appendText(getItemDetails());
+        return chatComponent.appendSibling(getItemDetailsChat());
     }
 
     @Override

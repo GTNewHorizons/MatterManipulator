@@ -6,7 +6,9 @@ import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 
 import com.google.gson.annotations.SerializedName;
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
@@ -141,14 +143,15 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
     }
 
     @Override
-    public void getItemDetails(List<String> details) {
+    public void getItemDetailsChat(List<IChatComponent> details) {
         Shape shape = Shape.forId(this.shape);
 
-        if (shape != null) details.add(shape.title);
+        // TODO: localize shape titles
+        if (shape != null) details.add(new ChatComponentText(shape.title));
 
         ItemStack stack = material == null ? null : material.toStack();
 
-        if (stack != null) details.add(stack.getDisplayName());
+        if (stack != null) details.add(new ChatComponentItemName(stack));
     }
 
     @Override
