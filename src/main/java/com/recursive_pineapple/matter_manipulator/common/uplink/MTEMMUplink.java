@@ -34,9 +34,10 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.enums.Materials;
 import gregtech.api.enums.StructureError;
-import gregtech.api.enums.Textures.BlockIcons.CustomIcon;
+import gregtech.api.enums.Textures.BlockIcons;
 import gregtech.api.enums.TierEU;
 import gregtech.api.interfaces.IHatchElement;
+import gregtech.api.interfaces.IIconContainer;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -259,13 +260,13 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
         return tt;
     }
 
-    private static final CustomIcon ACTIVE_GLOW = new CustomIcon(
+    private static final IIconContainer ACTIVE_GLOW = BlockIcons.custom(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_ACTIVE_GLOW")
     );
-    private static final CustomIcon IDLE_GLOW = new CustomIcon(
+    private static final IIconContainer IDLE_GLOW = BlockIcons.custom(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_IDLE_GLOW")
     );
-    private static final CustomIcon OFF = new CustomIcon(
+    private static final IIconContainer OFF = BlockIcons.custom(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_OFF")
     );
 
