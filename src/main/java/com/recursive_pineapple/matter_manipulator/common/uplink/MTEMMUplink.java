@@ -34,10 +34,8 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.enums.Materials;
 import gregtech.api.enums.StructureError;
-import gregtech.api.enums.Textures.BlockIcons;
 import gregtech.api.enums.TierEU;
 import gregtech.api.interfaces.IHatchElement;
-import gregtech.api.interfaces.IIconContainer;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -71,6 +69,7 @@ import com.google.common.collect.ImmutableList;
 import com.gtnewhorizon.structurelib.alignment.constructable.ISurvivalConstructable;
 import com.gtnewhorizon.structurelib.structure.IStructureDefinition;
 import com.gtnewhorizon.structurelib.structure.ISurvivalBuildEnvironment;
+import com.recursive_pineapple.matter_manipulator.client.Textures;
 import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInventory;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItemList;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
@@ -80,7 +79,6 @@ import com.recursive_pineapple.matter_manipulator.common.structure.CasingGTFrame
 import com.recursive_pineapple.matter_manipulator.common.utils.BigFluidStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
-import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 
 import it.unimi.dsi.fastutil.Pair;
 import mcp.mobius.waila.api.IWailaConfigHandler;
@@ -260,17 +258,8 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
         return tt;
     }
 
-    private static final IIconContainer ACTIVE_GLOW = BlockIcons.custom(
-        Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_ACTIVE_GLOW")
-    );
-    private static final IIconContainer IDLE_GLOW = BlockIcons.custom(
-        Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_IDLE_GLOW")
-    );
-    private static final IIconContainer OFF = BlockIcons.custom(
-        Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_OFF")
-    );
-
     @Override
+    @SideOnly(Side.CLIENT)
     public ITexture[] getTexture(
         IGregTechTileEntity baseMetaTileEntity,
         ForgeDirection side,
@@ -286,7 +275,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
         if (side == facing) {
             textures.add(
                 TextureFactory.builder()
-                    .addIcon(OFF)
+                    .addIcon(Textures.MTEMMUplink.OFF)
                     .extFacing()
                     .build()
             );
@@ -298,7 +287,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
                 case IDLE: {
                     textures.add(
                         TextureFactory.builder()
-                            .addIcon(IDLE_GLOW)
+                            .addIcon(Textures.MTEMMUplink.IDLE_GLOW)
                             .extFacing()
                             .glow()
                             .build()
@@ -308,7 +297,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
                 case ACTIVE: {
                     textures.add(
                         TextureFactory.builder()
-                            .addIcon(ACTIVE_GLOW)
+                            .addIcon(Textures.MTEMMUplink.ACTIVE_GLOW)
                             .extFacing()
                             .glow()
                             .build()
