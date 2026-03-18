@@ -261,17 +261,14 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
         return tt;
     }
 
-    @SideOnly(Side.CLIENT)
     private static final IIconContainer ACTIVE_GLOW = customOptional(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_ACTIVE_GLOW")
     );
 
-    @SideOnly(Side.CLIENT)
     private static final IIconContainer IDLE_GLOW = customOptional(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_IDLE_GLOW")
     );
 
-    @SideOnly(Side.CLIENT)
     private static final IIconContainer OFF = custom(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_OFF")
     );
