@@ -267,7 +267,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     }
 
     private static final MethodHandle GET_IOF_MODE = MMUtils
-        .exposeFieldGetter(MTEIntegratedOreFactory.class, "sMode");
+        .exposeFieldGetter(MTEIntegratedOreFactory.class, "mode");
 
     @SneakyThrows
     private static int getIOFMode(MTEIntegratedOreFactory cal) {
@@ -275,7 +275,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     }
 
     private static final MethodHandle SET_IOF_MODE = MMUtils
-        .exposeFieldSetter(MTEIntegratedOreFactory.class, "sMode");
+        .exposeFieldSetter(MTEIntegratedOreFactory.class, "mode");
 
     @SneakyThrows
     private static void setIOFMode(MTEIntegratedOreFactory cal, int mode) {
