@@ -2,7 +2,6 @@ package com.recursive_pineapple.matter_manipulator.common.building;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.nullIfUnknown;
 
-import java.lang.invoke.MethodHandle;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,7 +48,6 @@ import com.recursive_pineapple.matter_manipulator.mixin.interfaces.BlockFrameBox
 
 import gtnhlanth.common.beamline.MTEBeamlinePipe;
 import lombok.EqualsAndHashCode;
-import lombok.SneakyThrows;
 import tectech.thing.metaTileEntity.hatch.MTEHatchDynamoTunnel;
 import tectech.thing.metaTileEntity.hatch.MTEHatchEnergyTunnel;
 import tectech.thing.metaTileEntity.multi.base.TTMultiblockBase;
@@ -215,7 +213,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         // check if the machine is a multi and store its settings
         if (mte instanceof MTEMultiBlockBase multi) {
             if (multi instanceof MTEIntegratedOreFactory iof) {
-                mGTMode = getIOFMode(iof);
+                mGTMode = iof.getMachineMode();
             } else {
                 mGTMode = multi.machineMode;
             }
@@ -264,22 +262,6 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         if (mte instanceof IMEConnectable me && me.connectsToAllSides()) {
             mGTFlags |= GT_ME_CONNECT_ALL_SIDES;
         }
-    }
-
-    private static final MethodHandle GET_IOF_MODE = MMUtils
-        .exposeFieldGetter(MTEIntegratedOreFactory.class, "mode");
-
-    @SneakyThrows
-    private static int getIOFMode(MTEIntegratedOreFactory cal) {
-        return (int) GET_IOF_MODE.invokeExact(cal);
-    }
-
-    private static final MethodHandle SET_IOF_MODE = MMUtils
-        .exposeFieldSetter(MTEIntegratedOreFactory.class, "mode");
-
-    @SneakyThrows
-    private static void setIOFMode(MTEIntegratedOreFactory cal, int mode) {
-        SET_IOF_MODE.invokeExact(cal, mode);
     }
 
     @Override
@@ -433,7 +415,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             // set the various multi options
             if (mte instanceof MTEMultiBlockBase multi) {
                 if (mte instanceof MTEIntegratedOreFactory iof) {
-                    setIOFMode(iof, mGTMode);
+                    iof.setMachineMode(mGTMode);
                 } else {
                     multi.machineMode = mGTMode;
                 }
