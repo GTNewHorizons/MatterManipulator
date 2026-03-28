@@ -3,7 +3,7 @@ package com.recursive_pineapple.matter_manipulator.common.uplink;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.AdvancedIridiumPlatedMachineCasing;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.MatterGenerationCoil;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.RadiantNaquadahAlloyCasing;
-import static gregtech.api.enums.GTValues.AuthorPineapple;
+import static gregtech.api.enums.GTAuthors.AuthorPineapple;
 import static gregtech.api.enums.HatchElement.Energy;
 import static gregtech.api.enums.HatchElement.ExoticEnergy;
 import static gregtech.api.enums.HatchElement.InputHatch;
