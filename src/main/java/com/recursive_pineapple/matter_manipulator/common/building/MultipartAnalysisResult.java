@@ -175,10 +175,17 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
 
     private static boolean hasSupportBlock(World world, PartData data, int x, int y, int z) {
         if (data.typeId == null || data.typeId.startsWith("mcr_")) return true;
-        if (data.nbt == null || !data.nbt.hasKey("side")) return true;
+        if (data.nbt == null) return true;
 
-        int side = data.nbt.getByte("side") & 0xFF;
-        if (side >= 6) return true;
+        int side = -1;
+
+        if (data.nbt.hasKey("side")) {
+            side = data.nbt.getByte("side") & 0xFF;
+        } else if (data.nbt.hasKey("orient")) {
+            side = (data.nbt.getByte("orient") & 0xFF) >> 2;
+        }
+
+        if (side < 0 || side >= 6) return true;
 
         ForgeDirection dir = ForgeDirection.getOrientation(side);
         return !world.isAirBlock(x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ);
