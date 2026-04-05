@@ -43,6 +43,7 @@ dependencies {
     implementation("com.github.GTNewHorizons:GTNHLib:0.9.47:dev")
 
     compileOnly("com.github.GTNewHorizons:ae2stuff:0.10.17-GTNH:dev") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.64-gtnh:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-882-GTNH:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:ArchitectureCraft:1.12.10") { transitive = false }
     compileOnly("com.github.GTNewHorizons:Avaritia:1.93:dev") { transitive = false }
