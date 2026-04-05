@@ -4,6 +4,7 @@ import java.util.List;
 
 import net.minecraft.block.Block;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.IChatComponent;
 
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
@@ -18,7 +19,7 @@ public interface ITileAnalysisIntegration {
 
     void getItemTag(NBTTagCompound tag);
 
-    void getItemDetails(List<String> details);
+    void getItemDetailsChat(List<IChatComponent> details);
 
     void transform(Transform transform);
 

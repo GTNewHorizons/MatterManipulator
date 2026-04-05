@@ -40,6 +40,8 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntitySign;
 import net.minecraft.tileentity.TileEntitySkull;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
@@ -58,6 +60,7 @@ import appeng.util.ReadableNumberConverter;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonPrimitive;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.compat.BooleanProperty.FlagBooleanProperty;
@@ -1357,9 +1360,9 @@ public class BlockPropertyRegistry {
         }
 
         @Override
-        public void getItemDetails(List<String> details, JsonElement value) {
+        public void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {
             ReadableNumberConverter nc = ReadableNumberConverter.INSTANCE;
-            details.add(String.format("Cache Capacity: %s", nc.toWideReadableForm(value.getAsLong())));
+            details.add(new ChatComponentTranslation("mm.chat.item.details.cache_capacity", nc.toWideReadableForm(value.getAsLong())));
         }
     }
 
@@ -1403,9 +1406,9 @@ public class BlockPropertyRegistry {
         }
 
         @Override
-        public void getItemDetails(List<String> details, JsonElement value) {
+        public void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {
             if (value.getAsBoolean()) {
-                details.add("Hub");
+                details.add(new ChatComponentTranslation("mm.chat.item.details.hub"));
             }
         }
     }
@@ -1452,7 +1455,7 @@ public class BlockPropertyRegistry {
         }
 
         @Override
-        public void getItemDetails(List<String> details, JsonElement value) {
+        public void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {
             int circuitID = 0;
             CircuitImprint imprint = null;
 
@@ -1461,7 +1464,12 @@ public class BlockPropertyRegistry {
                 imprint = CircuitImprint.IMPRINT_LOOKUPS_BY_IDS.get(circuitID);
             }
 
-            details.add(String.format("Imprint: %s", imprint == null ? "None" : imprint.imprint.get(1).getDisplayName()));
+            details.add(
+                new ChatComponentTranslation(
+                    "mm.chat.item.details.imprint",
+                    imprint == null ? "mm.chat.item.details.imprint" : new ChatComponentItemName(imprint.imprint.get(1))
+                )
+            );
         }
     }
 

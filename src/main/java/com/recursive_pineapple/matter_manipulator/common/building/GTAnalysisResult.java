@@ -9,6 +9,8 @@ import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
@@ -36,6 +38,7 @@ import gregtech.common.tileentities.machines.multi.MTEIntegratedOreFactory;
 import appeng.helpers.ICustomNameObject;
 
 import com.google.gson.JsonElement;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.structurelib.alignment.IAlignment;
 import com.gtnewhorizon.structurelib.alignment.IAlignmentProvider;
 import com.gtnewhorizon.structurelib.alignment.enumerable.ExtendedFacing;
@@ -340,7 +343,12 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                         gte.setFrontFacing(facing.getDirection());
                         alignment.toolSetExtendedFacing(facing);
                     } else {
-                        ctx.error("Could not set direction to '" + facing.getLocalizedName() + "'");
+                        ctx.error(
+                            new ChatComponentTranslation(
+                                "mm.info.error.could_not_set_direction_to",
+                                new ChatComponentTranslation(MMUtils.getFacingUnlocalizedName(facing))
+                            )
+                        );
                     }
                 }
             } else {
@@ -511,12 +519,23 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         ItemStack stack = cover.getCoverStack();
 
         if (!canPlace(gte, side, cover)) {
-            context.error("Was not allowed to put cover on " + side.name().toLowerCase() + "side: " + stack.getDisplayName());
+            context.error(
+                new ChatComponentTranslation(
+                    "mm.info.error.was_not_allowed_to_put_cover_on",
+                    new ChatComponentTranslation(MMUtils.getDirectionUnlocalizedName(side, true)),
+                    new ChatComponentItemName(stack)
+                )
+            );
             return;
         }
 
         if (!context.tryConsumeItems(stack)) {
-            context.error("Could not find cover: " + stack.getDisplayName());
+            context.error(
+                new ChatComponentTranslation(
+                    "mm.info.error.could_not_find_cover",
+                    new ChatComponentItemName(stack)
+                )
+            );
             return;
         }
 
@@ -610,7 +629,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     }
 
     @Override
-    public void getItemDetails(List<String> details) {
+    public void getItemDetailsChat(List<IChatComponent> details) {
 
     }
 

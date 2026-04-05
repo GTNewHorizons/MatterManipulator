@@ -13,11 +13,15 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
@@ -140,16 +144,23 @@ public class PendingBlock extends Location {
         return list;
     }
 
-    private String getItemDetails() {
-        List<String> details = new ArrayList<>(0);
+    private IChatComponent getItemDetailsChat() {
+        List<IChatComponent> details = new ArrayList<>(0);
 
-        spec.getItemDetails(details);
+        spec.getItemDetailsChat(details);
 
         for (var analysis : getIntegrations()) {
-            analysis.getItemDetails(details);
+            analysis.getItemDetailsChat(details);
         }
 
-        return details.isEmpty() ? "" : String.format(" (%s)", String.join(", ", details));
+        if (details.isEmpty()) { return new ChatComponentText(""); }
+
+        IChatComponent out = details.get(0);
+        for (int i = 1; i < details.size(); i++) {
+            out.appendText(", ").appendSibling(details.get(i));
+        }
+
+        return new ChatComponentText(" (").appendSibling(out).appendText(")");
     }
 
     public ItemStack getStack() {
@@ -208,8 +219,8 @@ public class PendingBlock extends Location {
         return true;
     }
 
-    public String getDisplayName() {
-        return getStack().getDisplayName() + getItemDetails();
+    public IChatComponent getDisplayNameChat() {
+        return new ChatComponentItemName(getStack()).appendSibling(getItemDetailsChat());
     }
 
     public boolean isFree() {
@@ -339,7 +350,13 @@ public class PendingBlock extends Location {
                 try {
                     prop.setValueFromText(world, x, y, z, value);
                 } catch (Exception e) {
-                    context.error("Could not apply property " + property + ": " + e.getMessage());
+                    context.error(
+                        new ChatComponentTranslation(
+                            "mm.info.error.could_not_apply_property",
+                            new ChatComponentTranslation(property.getUnlocalizedName()),
+                            e.getMessage()
+                        )
+                    );
                 }
             }
         }

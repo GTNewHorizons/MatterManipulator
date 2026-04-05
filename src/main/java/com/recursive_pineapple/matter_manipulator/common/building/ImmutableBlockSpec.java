@@ -8,6 +8,7 @@ import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
@@ -58,7 +59,7 @@ public interface ImmutableBlockSpec extends ImmutableItemMeta, ImmutableBlockMet
         return InteropConstants.isFree(getBlock(), getBlockMeta());
     }
 
-    void getItemDetails(List<String> details);
+    void getItemDetailsChat(List<IChatComponent> details);
 
     static Comparator<ImmutableBlockSpec> getComparator() {
         return Comparator.comparing(s -> s.toStack(1), (a, b) -> {

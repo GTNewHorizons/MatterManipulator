@@ -24,7 +24,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumChatFormatting;
-import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
@@ -711,10 +710,9 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
 
             MMUtils.sendInfoToPlayer(
                 submitter,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.new_virtual_me_pattern",
-                    patternName
-                )
+                "mm.info.new_virtual_me_pattern",
+                // FIXME: localize it
+                patternName
             );
         }
     }

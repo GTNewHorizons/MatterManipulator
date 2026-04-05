@@ -11,6 +11,8 @@ import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
@@ -34,6 +36,7 @@ import appeng.util.SettingsFrom;
 
 import com.glodblock.github.inventory.IDualHost;
 import com.google.gson.JsonElement;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
@@ -234,7 +237,9 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                             var result = ctx.tryConsumeItems(Arrays.asList(BigItemStack.create(expectedStack)), IPseudoInventory.CONSUME_SIMULATED);
 
                             if (!result.leftBoolean()) {
-                                ctx.warn("Could not extract item: " + expectedStack.getDisplayName());
+                                ctx.warn(
+                                    new ChatComponentTranslation("mm.info.warning.could_not_extract_item", new ChatComponentItemName(expectedStack))
+                                );
                                 continue;
                             }
                         }
@@ -246,7 +251,11 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                     if (actualItem == null && expectedItem != null) {
                         if (expectedStack != null && !partHost.canAddPart(expectedStack, dir)) {
                             ctx.error(
-                                "Invalid location (" + MMUtils.getDirectionDisplayName(dir, true) + ") for part (" + expectedStack.getDisplayName() + ")"
+                                new ChatComponentTranslation(
+                                    "mm.info.error.invalid_location",
+                                    new ChatComponentTranslation(MMUtils.getDirectionUnlocalizedName(dir, true)),
+                                    new ChatComponentItemName(expectedStack)
+                                )
                             );
                             continue;
                         }
@@ -287,7 +296,9 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                         var result = ctx.tryConsumeItems(Arrays.asList(BigItemStack.create(expectedStack)), IPseudoInventory.CONSUME_SIMULATED);
 
                         if (!result.leftBoolean()) {
-                            ctx.warn("Could not extract item: " + expectedStack.getDisplayName());
+                            ctx.warn(
+                                new ChatComponentTranslation("mm.info.warning.could_not_extract_item", new ChatComponentItemName(expectedStack))
+                            );
                             continue;
                         }
                     }
@@ -306,7 +317,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                     if (newPart == null) continue;
 
                     if (!ctx.tryConsumeItems(expectedStack)) {
-                        ctx.warn("Could not extract item: " + expectedStack.getDisplayName());
+                        ctx.warn(new ChatComponentTranslation("mm.info.warning.could_not_extract_item", new ChatComponentItemName(expectedStack)));
                         continue;
                     }
 
@@ -364,7 +375,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         if (!partHost.canAddPart(partStack, side)) { return false; }
 
         if (!context.tryConsumeItems(partStack)) {
-            context.warn("Could not find " + partStack.getDisplayName());
+            context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_item", new ChatComponentItemName(partStack)));
             return false;
         }
 
@@ -462,7 +473,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
     }
 
     @Override
-    public void getItemDetails(List<String> details) {
+    public void getItemDetailsChat(List<IChatComponent> details) {
 
     }
 

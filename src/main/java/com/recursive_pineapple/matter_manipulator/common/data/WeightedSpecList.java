@@ -65,7 +65,7 @@ public class WeightedSpecList {
 
         for (var p : specs) {
             if (sb.length() > 0) sb.append(", ");
-
+            // TODO: should we localize it?
             sb.append(p.left().getDisplayName());
 
             if (p.rightInt() > 1) sb.append(" x ").append(p.rightInt());
