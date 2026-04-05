@@ -67,6 +67,7 @@ public class PendingBlock extends Location {
         this.gt = null;
         this.ae = null;
         this.arch = null;
+        this.mp = null;
         this.inventory = null;
         this.renderOrder = 0;
         this.buildOrder = 0;
@@ -109,6 +110,21 @@ public class PendingBlock extends Location {
         return spec.getBlock();
     }
 
+    public Block getPreviewBlock() {
+        for (var integration : getIntegrations()) {
+            Block preview = integration.getPreviewBlock();
+            if (preview != null) return preview;
+        }
+        return null;
+    }
+
+    public int getPreviewMeta() {
+        for (var integration : getIntegrations()) {
+            if (integration.getPreviewBlock() != null) return integration.getPreviewMeta();
+        }
+        return 0;
+    }
+
     public Item getItem() {
         return spec.getItem();
     }
@@ -119,7 +135,7 @@ public class PendingBlock extends Location {
         if (gt != null) list.add(gt);
         if (ae != null) list.add(ae);
         if (arch != null) list.add(arch);
-        // if (mp != null) list.add(mp);
+        if (mp != null) list.add(mp);
 
         return list;
     }
@@ -428,9 +444,9 @@ public class PendingBlock extends Location {
                 this.arch = ArchitectureCraftAnalysisResult.analyze(te);
             }
 
-            // if ((flags & ANALYZE_MP) != 0 && Mods.ForgeMultipart.isModLoaded()) {
-            // this.mp = MultipartAnalysisResult.analyze(te);
-            // }
+            if ((flags & ANALYZE_MP) != 0 && Mods.ForgeMultipart.isModLoaded()) {
+                this.mp = MultipartAnalysisResult.analyze(te);
+            }
 
             if ((flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory) {
                 this.inventory = InventoryAnalysis.fromInventory(inventory, false);
