@@ -138,7 +138,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
 
         for (PartData data : sorted) {
             if (!hasSupportBlock(world, data, x, y, z)) {
-                ctx.warn("Could not place " + data.typeId + ": no support block");
+                ctx.warn(new ChatComponentText("Could not place " + data.typeId + ": no support block"));
                 continue;
             }
 
@@ -210,7 +210,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
                 .leftBoolean();
 
             if (!ok) {
-                ctx.warn("Could not find item: " + stack.getDisplayName());
+                ctx.warn(new ChatComponentText("Could not find item: " + stack.getDisplayName()));
 
                 for (ItemStack refund : consumed) {
                     ctx.givePlayerItems(refund);
@@ -229,7 +229,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
 
         if (part == null) {
             refundPartItems(ctx, data);
-            ctx.error("Could not create multipart: " + data.typeId);
+            ctx.error(new ChatComponentText("Could not create multipart: " + data.typeId));
             return false;
         }
 
@@ -248,12 +248,12 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
                     coord.z
                 );
                 refundPartItems(ctx, data);
-                ctx.warn("Could not place multipart: " + data.typeId);
+                ctx.warn(new ChatComponentText("Could not place multipart: " + data.typeId));
             }
         } catch (Exception e) {
             MMMod.LOG.error("Failed to add multipart " + data.typeId, e);
             refundPartItems(ctx, data);
-            ctx.error("Failed to add multipart: " + data.typeId);
+            ctx.error(new ChatComponentText("Failed to add multipart: " + data.typeId));
             return false;
         }
 
