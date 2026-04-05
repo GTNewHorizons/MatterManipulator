@@ -2,6 +2,7 @@ package com.recursive_pineapple.matter_manipulator.common.building;
 
 import java.util.List;
 
+import net.minecraft.block.Block;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.IChatComponent;
 
@@ -25,4 +26,12 @@ public interface ITileAnalysisIntegration {
     ITileAnalysisIntegration clone();
 
     void migrate();
+
+    default Block getPreviewBlock() {
+        return null;
+    }
+
+    default int getPreviewMeta() {
+        return 0;
+    }
 }

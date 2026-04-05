@@ -34,14 +34,18 @@ import appeng.tile.networking.TileCableBus;
 import appeng.util.Platform;
 import appeng.util.SettingsFrom;
 
+import com.glodblock.github.inventory.IDualHost;
 import com.google.gson.JsonElement;
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
+import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.ItemId;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
 public class AEAnalysisResult implements ITileAnalysisIntegration {
 
@@ -54,6 +58,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
     public PortableItemStack[] mAEFacades = null;
     public InventoryAnalysis mAECells = null;
     public InventoryAnalysis mAEPatterns = null;
+    public InventoryAnalysis mAEFluidConfig = null;
 
     public static final ForgeDirection[] ALL_DIRECTIONS = ForgeDirection.values();
 
@@ -106,6 +111,11 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
             }
         }
 
+        // check if the tile has AE2FC fluid interface config
+        if (Mods.AE2FluidCraft.isModLoaded()) {
+            analyzeFluidConfig(te);
+        }
+
         // check all sides for parts (+UNKNOWN for cables)
         if (te instanceof IPartHost partHost) {
             mAEParts = new AEPartData[AEAnalysisResult.ALL_DIRECTIONS.length];
@@ -134,6 +144,27 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
             }
 
             if (!hasFacades) mAEFacades = null;
+        }
+    }
+
+    @Optional(Names.AE2_FLUID_CRAFT)
+    private void analyzeFluidConfig(TileEntity te) {
+        if (te instanceof IDualHost dualHost) {
+            IInventory fluidConfig = dualHost.getConfig();
+            if (fluidConfig != null) {
+                mAEFluidConfig = InventoryAnalysis.fromInventory(fluidConfig, false);
+            }
+        }
+    }
+
+    @Optional(Names.AE2_FLUID_CRAFT)
+    private void applyFluidConfig(IBlockApplyContext ctx, TileEntity te) {
+        if (te instanceof IDualHost dualHost) {
+            IInventory fluidConfig = dualHost.getConfig();
+            if (fluidConfig != null) {
+                mAEFluidConfig.apply(ctx, fluidConfig, false, false);
+                dualHost.getDualityFluid().loadConfigFromPacket(fluidConfig);
+            }
         }
     }
 
@@ -171,6 +202,11 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
             if (mAEConfig != null) {
                 ae.uploadSettings(SettingsFrom.MEMORY_CARD, (NBTTagCompound) MMUtils.toNbt(mAEConfig));
             }
+        }
+
+        // apply AE2FC fluid interface config
+        if (Mods.AE2FluidCraft.isModLoaded() && mAEFluidConfig != null) {
+            applyFluidConfig(ctx, te);
         }
 
         // set ae tile custom name
@@ -482,6 +518,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         dup.mAEParts = mAEParts == null ? null : MMUtils.mapToArray(mAEParts, AEPartData[]::new, x -> x == null ? null : x.clone());
         dup.mAECells = mAECells == null ? null : mAECells.clone();
         dup.mAEPatterns = mAEPatterns == null ? null : mAEPatterns.clone();
+        dup.mAEFluidConfig = mAEFluidConfig == null ? null : mAEFluidConfig.clone();
 
         return dup;
     }
@@ -499,6 +536,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         result = prime * result + Arrays.hashCode(mAEParts);
         result = prime * result + ((mAECells == null) ? 0 : mAECells.hashCode());
         result = prime * result + ((mAEPatterns == null) ? 0 : mAEPatterns.hashCode());
+        result = prime * result + ((mAEFluidConfig == null) ? 0 : mAEFluidConfig.hashCode());
         return result;
     }
 
@@ -525,6 +563,9 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         if (mAEPatterns == null) {
             if (other.mAEPatterns != null) return false;
         } else if (!mAEPatterns.equals(other.mAEPatterns)) return false;
+        if (mAEFluidConfig == null) {
+            if (other.mAEFluidConfig != null) return false;
+        } else if (!mAEFluidConfig.equals(other.mAEFluidConfig)) return false;
         return true;
     }
 }

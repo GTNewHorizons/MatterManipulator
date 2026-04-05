@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.EnumChatFormatting;
@@ -526,11 +527,26 @@ public class MMRenderer {
             if (pendingBlock.spec.isAir() && world.isAirBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z)) continue;
 
             Block block = pendingBlock.getBlock();
+            int meta = pendingBlock.spec.getBlockMeta();
+
+            Block previewBlock = pendingBlock.getPreviewBlock();
+            if (previewBlock != null) {
+                block = previewBlock;
+                meta = pendingBlock.getPreviewMeta();
+            } else if (pendingBlock.mp != null) {
+                block = Blocks.redstone_wire;
+                meta = 0;
+            }
+
             if (block == null) continue;
 
             BlockSpec.fromBlock(pooled, world, pendingBlock.x, pendingBlock.y, pendingBlock.z);
 
-            if (pooled.isEquivalent(pendingBlock.spec)) continue;
+            if (pendingBlock.mp != null) {
+                if (pooled.getBlock() == pendingBlock.getBlock()) continue;
+            } else {
+                if (pooled.isEquivalent(pendingBlock.spec)) continue;
+            }
 
             if (++i > RenderingConfig.maxHints) break;
 
@@ -561,7 +577,7 @@ public class MMRenderer {
                     pendingBlock.y,
                     pendingBlock.z,
                     block,
-                    pendingBlock.spec.getBlockMeta(),
+                    meta,
                     tint
                 );
             }
