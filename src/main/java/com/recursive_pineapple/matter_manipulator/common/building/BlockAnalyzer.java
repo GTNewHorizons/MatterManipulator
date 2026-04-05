@@ -62,6 +62,12 @@ public class BlockAnalyzer {
                 pending.analyze(world.getTileEntity(voxel.x, voxel.y, voxel.z), PendingBlock.ANALYZE_ALL & ~PendingBlock.ANALYZE_ARCH);
             }
 
+            // FMP blocks (multiparts) depend on adjacent blocks for support,
+            // so they must be placed after regular blocks.
+            if (pending.mp != null) {
+                pending.buildOrder = Math.max(pending.buildOrder, 100);
+            }
+
             pending.x -= a.x;
             pending.y -= a.y;
             pending.z -= a.z;
