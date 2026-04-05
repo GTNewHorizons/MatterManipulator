@@ -407,7 +407,34 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     public static void setState(ItemStack itemStack, MMState state) {
-        itemStack.setTagCompound(state.save());
+
+        // Reads the NBT Tags of already existing Manipulator
+        NBTTagCompound existingTags;
+        existingTags = getOrCreateNbtData(itemStack);
+        // Gets tags for the state change
+        NBTTagCompound newTags;
+        newTags = state.save();
+
+        // Manually set each tag
+        existingTags.setInteger("jv", newTags.getInteger("jv"));
+        existingTags.setInteger("dv", newTags.getInteger("dv"));
+        existingTags.setTag("config", newTags.getTag("config"));
+        existingTags.setTag("installedUpgrades", newTags.getTag("installedUpgrades"));
+        existingTags.setDouble("charge", newTags.getDouble("charge"));
+
+        // needs to get rid of null if it exists otherwise gets omitted, GSON behaviour
+        if (newTags.hasKey("encKey")) {
+            existingTags.setTag("encKey", newTags.getTag("encKey"));
+        } else {
+            existingTags.removeTag("encKey");
+        }
+
+        if (newTags.hasKey("uplinkAddress")) {
+            existingTags.setTag("uplinkAddress", newTags.getTag("uplinkAddress"));
+        } else {
+            existingTags.removeTag("uplinkAddress");
+        }
+
     }
 
     public static NBTTagCompound getOrCreateNbtData(ItemStack itemStack) {
