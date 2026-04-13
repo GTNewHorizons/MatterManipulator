@@ -1,5 +1,6 @@
 package com.recursive_pineapple.matter_manipulator.common.building;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -7,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 
 import net.minecraft.block.Block;
-import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -21,9 +21,16 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import appeng.api.parts.IPart;
+import appeng.api.parts.IPartHost;
+import appeng.parts.automation.PartSharedItemBus;
+import appeng.parts.misc.PartStorageBus;
+import appeng.util.Platform;
+
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
+import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.compat.BlockProperty;
@@ -32,6 +39,7 @@ import com.recursive_pineapple.matter_manipulator.common.compat.Orientation;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.recursive_pineapple.matter_manipulator.mixin.BlockCaptureDrops;
 
 import org.jetbrains.annotations.NotNull;
@@ -363,21 +371,91 @@ public class PendingBlock extends Location {
 
         BlockCaptureDrops.captureDrops(world);
 
+        boolean success = true;
+
         try {
             for (var analysis : getIntegrations()) {
-                if (!analysis.apply(context)) return false;
+                if (!analysis.apply(context)) {
+                    success = false;
+                    break;
+                }
             }
 
-            if (context.getTileEntity() instanceof IInventory inventory && this.inventory != null) {
-                if (!this.inventory.apply(context, inventory, true, false)) return false;
+            if (success && context.getTileEntity() instanceof IInventory inventory && this.inventory != null) {
+                if (!this.inventory.apply(context, inventory, true, false)) {
+                    success = false;
+                }
             }
         } finally {
             context.givePlayerItems(BlockCaptureDrops.stopCapturingDrops(world).toArray(new ItemStack[0]));
+
+            Block block = world.getBlock(x, y, z);
+            world.notifyBlockOfNeighborChange(x, y, z, block);
+
+            if (Mods.AppliedEnergistics2.isModLoaded()) {
+                notifyAE2Neighbors(world, x, y, z);
+            }
         }
 
-        world.notifyBlockOfNeighborChange(x, y, z, Blocks.air);
+        return success ? ref.didSomething : false;
+    }
 
-        return ref.didSomething;
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void notifyAE2Neighbors(World world, int x, int y, int z) {
+        initAE2ReflectionFields();
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            TileEntity te = world.getTileEntity(x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ);
+
+            if (te instanceof IPartHost partHost) {
+                IPart part = partHost.getPart(dir.getOpposite());
+
+                if (part != null) {
+                    resetAE2PartCache(part);
+                }
+            }
+        }
+
+        Platform.notifyBlocksOfNeighbors(world, x, y, z);
+    }
+
+    private static boolean ae2FieldsInitialized = false;
+    private static Field storageBusHandlerHash;
+    private static Field sharedBusCachedAdaptorHash;
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void initAE2ReflectionFields() {
+        if (ae2FieldsInitialized) return;
+        ae2FieldsInitialized = true;
+
+        try {
+            storageBusHandlerHash = PartStorageBus.class.getDeclaredField("handlerHash");
+            storageBusHandlerHash.setAccessible(true);
+        } catch (Exception e) {
+            MMMod.LOG.warn("Could not find PartStorageBus.handlerHash", e);
+        }
+
+        try {
+            sharedBusCachedAdaptorHash = PartSharedItemBus.class.getDeclaredField("cachedAdaptorHash");
+            sharedBusCachedAdaptorHash.setAccessible(true);
+        } catch (Exception e) {
+            MMMod.LOG.warn("Could not find PartSharedItemBus.cachedAdaptorHash", e);
+        }
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void resetAE2PartCache(IPart part) {
+        try {
+            if (part instanceof PartStorageBus && storageBusHandlerHash != null) {
+                storageBusHandlerHash.setInt(part, 0);
+            }
+
+            if (part instanceof PartSharedItemBus && sharedBusCachedAdaptorHash != null) {
+                sharedBusCachedAdaptorHash.setInt(part, 0);
+            }
+        } catch (Exception e) {
+            MMMod.LOG.warn("Failed to reset AE2 part cache", e);
+        }
     }
 
     @Override

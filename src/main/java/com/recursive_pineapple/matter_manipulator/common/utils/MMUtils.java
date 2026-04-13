@@ -681,20 +681,18 @@ public class MMUtils {
     public static void emptyInventory(IPseudoInventory dest, IInventory src) {
         if (src == null) return;
 
-        InventoryAdapter adapter = InventoryAdapter.findAdapter(src);
-
         int size = src.getSizeInventory();
 
         for (int slot = 0; slot < size; slot++) {
-            if (!adapter.isValidSlot(src, slot)) continue;
+            if (!isSlotValidGT(src, slot)) continue;
 
             ItemStack stack = src.getStackInSlot(slot);
 
             if (stack == null || stack.getItem() == null || stack.stackSize == 0) continue;
 
-            stack = adapter.extract(src, slot);
+            src.setInventorySlotContents(slot, null);
 
-            if (stack != null && stack.getItem() != null) {
+            if (stack.getItem() != null) {
                 dest.givePlayerItems(resetItem(dest, stack));
             }
         }

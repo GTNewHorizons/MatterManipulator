@@ -34,10 +34,13 @@ public class InventoryAnalysis {
     public static InventoryAnalysis fromInventory(IInventory inv, boolean fuzzy) {
         InventoryAdapter adapter = InventoryAdapter.findAdapter(inv);
 
+        int size = adapter.getSizeInventory(inv);
+        if (size == 0) return null;
+
         InventoryAnalysis analysis = new InventoryAnalysis();
 
         analysis.mFuzzy = fuzzy;
-        analysis.mItems = new IItemProvider[adapter.getSizeInventory(inv)];
+        analysis.mItems = new IItemProvider[size];
 
         for (int slot = 0; slot < analysis.mItems.length; slot++) {
             if (!adapter.isValidSlot(inv, slot)) continue;
@@ -82,7 +85,9 @@ public class InventoryAnalysis {
         if (!adapter.validate(context, inv)) return false;
 
         if (adapter.getSizeInventory(inv) != mItems.length) {
-            context.warn(new ChatComponentTranslation("mm.info.warning.inventory_was_the_wrong_size", mItems.length, adapter.getSizeInventory(inv)));
+            if (adapter.getSizeInventory(inv) != 0) {
+                context.warn(new ChatComponentTranslation("mm.info.warning.inventory_was_the_wrong_size", mItems.length, adapter.getSizeInventory(inv)));
+            }
             return false;
         }
 
