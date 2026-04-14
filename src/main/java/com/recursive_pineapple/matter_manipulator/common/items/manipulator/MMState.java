@@ -1100,4 +1100,9 @@ public class MMState {
         EXCHANGING,
         CABLES,
     }
+
+    public static enum WirelessLinkMode {
+        INTERNAL,
+        LINK_EXTERNAL_HUB,
+    }
 }

@@ -12,6 +12,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessLinkMode;
 
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -45,6 +46,8 @@ public class MMConfig {
     public Transform transform;
     /** The array size in repetitions */
     public Vector3i arraySpan;
+
+    public WirelessLinkMode wirelessLinkMode = WirelessLinkMode.INTERNAL;
 
     public Location getCoordA(World world, Vector3i lookingAt) {
         if (coordAOffset == null) {
@@ -262,6 +265,7 @@ public class MMConfig {
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
         result = prime * result + ((arraySpan == null) ? 0 : arraySpan.hashCode());
+        result = prime * result + ((wirelessLinkMode == null) ? 0 : wirelessLinkMode.hashCode());
         return result;
     }
 
@@ -322,6 +326,7 @@ public class MMConfig {
         if (arraySpan == null) {
             if (other.arraySpan != null) return false;
         } else if (!arraySpan.equals(other.arraySpan)) return false;
+        if (wirelessLinkMode != other.wirelessLinkMode) return false;
         return true;
     }
 }

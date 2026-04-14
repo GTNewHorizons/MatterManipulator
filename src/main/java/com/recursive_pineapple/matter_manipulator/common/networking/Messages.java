@@ -39,6 +39,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessLinkMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.uplink.IUplinkMulti;
 import com.recursive_pineapple.matter_manipulator.common.uplink.MTEMMUplink;
@@ -87,6 +88,7 @@ public enum Messages {
         state.config.action = null;
     }))),
     SetShape(server(enumPacket(Shape.values(), (state, value) -> state.config.shape = value))),
+    SetWirelessLinkMode(server(enumPacket(WirelessLinkMode.values(), (state, value) -> state.config.wirelessLinkMode = value))),
     SetA(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordA = new Location(player.worldObj, location);
     }))),

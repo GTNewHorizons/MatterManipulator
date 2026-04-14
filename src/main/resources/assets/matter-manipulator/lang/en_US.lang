@@ -95,6 +95,9 @@ mm.gui.add_block=Add Block
 mm.gui.set_block=Set Block
 mm.gui.set_block_to_replace_with=Set Block To Replace With
 mm.gui.set_cable=Set Cable
+mm.gui.wireless_link_mode=Wireless Link Mode
+mm.gui.wireless_internal=Internal Only
+mm.gui.wireless_link_hub=Link External Hubs
 
 # InfoMessage, only accept %s in this section
 
@@ -287,6 +290,7 @@ mm.tooltip.volume_block=Volume block: %s
 mm.tooltip.copying.copy_a=Copy Coordinate A: %s
 mm.tooltip.copying.copy_b=Copy Coordinate B: %s
 mm.tooltip.copying.stack=Stack: %s
+mm.tooltip.copying.wireless_link=Wireless Links: %s
 mm.tooltip.paste=Paste Coordinate: %s
 mm.tooltip.moving.cut_a=Cut Coordinate A: %s
 mm.tooltip.moving.cut_b=Cut Coordinate B: %s

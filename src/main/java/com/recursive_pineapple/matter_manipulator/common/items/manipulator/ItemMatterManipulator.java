@@ -105,6 +105,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessLinkMode;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
@@ -584,6 +585,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         span.x + (span.x < 0 ? -1 : 1),
                         span.y + (span.y < 0 ? -1 : 1),
                         span.z + (span.z < 0 ? -1 : 1)));
+
+                WirelessLinkMode wlm = state.config.wirelessLinkMode;
+                if (wlm == null) wlm = WirelessLinkMode.INTERNAL;
+                addInfoLine(desc, "mm.tooltip.copying.wireless_link", wlm, mode -> StatCollector.translateToLocal(switch (mode) {
+                    case INTERNAL -> "mm.gui.wireless_internal";
+                    case LINK_EXTERNAL_HUB -> "mm.gui.wireless_link_hub";
+                }));
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {
@@ -1430,6 +1438,21 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                             new ModularUIContainer(new ModularUIContext(buildContext2, null, true), window));
                     FMLCommonHandler.instance().showGuiScreen(screen);
                 })
+            .done()
+            .branch()
+                .label(StatCollector.translateToLocal("mm.gui.wireless_link_mode"))
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_internal"))
+                    .onClicked(() -> {
+                        Messages.SetWirelessLinkMode.sendToServer(WirelessLinkMode.INTERNAL);
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link_hub"))
+                    .onClicked(() -> {
+                        Messages.SetWirelessLinkMode.sendToServer(WirelessLinkMode.LINK_EXTERNAL_HUB);
+                    })
+                .done()
             .done()
             .option()
                 .label(StatCollector.translateToLocal("mm.gui.mark_paste"))

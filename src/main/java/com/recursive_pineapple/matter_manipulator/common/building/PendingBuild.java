@@ -62,6 +62,8 @@ public class PendingBuild extends AbstractBuildable {
     private final LongList errors = new LongArrayList();
     private final LongList warnings = new LongArrayList();
 
+    private final WirelessLinkFixer wirelessLinkFixer;
+
     public PendingBuild(
         EntityPlayer player,
         MMState state,
@@ -70,6 +72,7 @@ public class PendingBuild extends AbstractBuildable {
     ) {
         super(player, state, tier);
         this.pendingBlocks = new ArrayDeque<>(pendingBlocks);
+        this.wirelessLinkFixer = new WirelessLinkFixer(state);
     }
 
     @Override
@@ -83,6 +86,9 @@ public class PendingBuild extends AbstractBuildable {
         int shuffleCount = 0;
 
         World world = player.worldObj;
+
+        wirelessLinkFixer.tryInit(world);
+
         ProxiedWorld proxiedWorld = new ProxiedWorld(world);
 
         PendingBuildApplyContext applyContext = new PendingBuildApplyContext(stack);
@@ -144,6 +150,8 @@ public class PendingBuild extends AbstractBuildable {
                     block.apply(applyContext, world);
                     playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
                 }
+
+                wirelessLinkFixer.tryApply(world, x, y, z);
 
                 continue;
             }
@@ -295,6 +303,8 @@ public class PendingBuild extends AbstractBuildable {
                     pending.apply(applyContext, world);
                 }
 
+                wirelessLinkFixer.tryApply(world, x, y, z);
+
                 world.notifyBlockOfNeighborChange(x, y, z, Blocks.air);
                 continue;
             }
@@ -342,6 +352,8 @@ public class PendingBuild extends AbstractBuildable {
 
             applyContext.pendingBlock = pending;
             pending.apply(applyContext, world);
+
+            wirelessLinkFixer.tryApply(world, x, y, z);
         }
 
         if (extracted != null && i < toPlace.size()) {
