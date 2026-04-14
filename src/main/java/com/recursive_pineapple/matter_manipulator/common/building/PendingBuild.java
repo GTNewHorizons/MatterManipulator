@@ -310,7 +310,7 @@ public class PendingBuild extends AbstractBuildable {
             if (!pending.spec.isAir()) {
                 Block block = pending.getBlock();
 
-                if (pending.getItem() instanceof ItemBlock itemBlock) {
+                if (pending.getItem() instanceof ItemBlock itemBlock && Block.getBlockFromItem(itemBlock) == block) {
                     itemBlock.placeBlockAt(
                         perBlock,
                         player,
