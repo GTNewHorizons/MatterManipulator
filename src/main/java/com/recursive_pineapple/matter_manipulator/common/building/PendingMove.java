@@ -16,6 +16,7 @@ import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.oredict.OreDictionary;
 
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -47,6 +48,9 @@ import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
 public class PendingMove extends AbstractBuildable {
 
     private List<Pair<Location, Location>> moves = null;
+
+    private int moveOffsetX, moveOffsetY, moveOffsetZ;
+    private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
 
     public PendingMove(EntityPlayer player, MMState state, ManipulatorTier tier) {
         super(player, state, tier);
@@ -170,6 +174,8 @@ public class PendingMove extends AbstractBuildable {
                         source.getChatComponent()
                     )
                 );
+            } else {
+                fixWirelessLink(world, d);
             }
 
             playSound(world, s.x, s.y, s.z, SoundResource.MOB_ENDERMEN_PORTAL);
@@ -203,6 +209,33 @@ public class PendingMove extends AbstractBuildable {
     public void onStopped() {
 
     }
+    
+    private void fixWirelessLink(World world, Location dest) {
+        Block block = world.getBlock(dest.x, dest.y, dest.z);
+
+        if (!InteropConstants.WIRELESS_CONNECTOR.matches(block, OreDictionary.WILDCARD_VALUE)) return;
+
+        TileEntity te = world.getTileEntity(dest.x, dest.y, dest.z);
+        if (te == null) return;
+
+        NBTTagCompound nbt = new NBTTagCompound();
+        te.writeToNBT(nbt);
+
+        if (!nbt.hasKey("link", 10)) return; // 10 = TAG_Compound
+
+        NBTTagCompound link = nbt.getCompoundTag("link");
+        int lx = link.getInteger("x");
+        int ly = link.getInteger("y");
+        int lz = link.getInteger("z");
+
+        // only adjust if the linked partner was within the source region (i.e. it's also being moved)
+        if (lx >= srcMinX && lx <= srcMaxX && ly >= srcMinY && ly <= srcMaxY && lz >= srcMinZ && lz <= srcMaxZ) {
+            link.setInteger("x", lx + moveOffsetX);
+            link.setInteger("y", ly + moveOffsetY);
+            link.setInteger("z", lz + moveOffsetZ);
+            te.readFromNBT(nbt);
+        }
+    }
 
     private void initMoves() {
         moves = new ArrayList<>();
@@ -234,6 +267,16 @@ public class PendingMove extends AbstractBuildable {
         int maxZ = Math.max(z1, z2);
 
         int worldId = startA.worldId;
+
+        moveOffsetX = dest.x - startA.x;
+        moveOffsetY = dest.y - startA.y;
+        moveOffsetZ = dest.z - startA.z;
+        srcMinX = minX;
+        srcMinY = minY;
+        srcMinZ = minZ;
+        srcMaxX = maxX;
+        srcMaxY = maxY;
+        srcMaxZ = maxZ;
 
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
