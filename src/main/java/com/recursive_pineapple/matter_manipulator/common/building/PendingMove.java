@@ -209,7 +209,7 @@ public class PendingMove extends AbstractBuildable {
     public void onStopped() {
 
     }
-    
+
     private void fixWirelessLink(World world, Location dest) {
         Block block = world.getBlock(dest.x, dest.y, dest.z);
 
