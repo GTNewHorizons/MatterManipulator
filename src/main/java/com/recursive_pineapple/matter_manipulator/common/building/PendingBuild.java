@@ -344,6 +344,14 @@ public class PendingBuild extends AbstractBuildable {
             pending.apply(applyContext, world);
         }
 
+        for (int j = 0; j < i; j++) {
+            PendingBlock placed = toPlace.get(j);
+            TileEntity newTe = world.getTileEntity(placed.x, placed.y, placed.z);
+            if (newTe != null) {
+                fluidReinjectTargets.add(newTe);
+            }
+        }
+
         if (extracted != null && i < toPlace.size()) {
             sendWarningToPlayer(
                 player,

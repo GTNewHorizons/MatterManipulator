@@ -11,16 +11,21 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.ChatComponentTranslation;
 
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidContainerItem;
+
+import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
+import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
+import gregtech.api.metatileentity.implementations.MTEBasicTank;
+import gregtech.api.metatileentity.implementations.MTEHatchMultiInput;
 
 import appeng.api.config.Actionable;
 import appeng.api.config.FuzzyMode;
@@ -61,6 +66,9 @@ public class MMInventory implements IPseudoInventory {
 
     public final Object2LongOpenHashMap<ItemId> pendingItems = new Object2LongOpenHashMap<>();
     public final Object2LongOpenHashMap<FluidId> pendingFluids = new Object2LongOpenHashMap<>();
+
+    /** Newly placed tile entities that should be tried first when delivering pending fluids. */
+    protected final ArrayList<TileEntity> fluidReinjectTargets = new ArrayList<>();
 
     private boolean printedUplinkWarning = false;
 
@@ -139,8 +147,6 @@ public class MMInventory implements IPseudoInventory {
 
     @Override
     public void givePlayerItems(List<BigItemStack> items) {
-        if (player.capabilities.isCreativeMode) { return; }
-
         for (BigItemStack item : items) {
             if (item != null && item.getItem() != null) {
                 pendingItems.addTo(item.getId(), item.stackSize);
@@ -150,8 +156,6 @@ public class MMInventory implements IPseudoInventory {
 
     @Override
     public void givePlayerFluids(List<BigFluidStack> fluids) {
-        if (player.capabilities.isCreativeMode) { return; }
-
         for (BigFluidStack fluid : fluids) {
             if (fluid != null) {
                 pendingFluids.addTo(fluid.getId(), fluid.amount);
@@ -167,8 +171,18 @@ public class MMInventory implements IPseudoInventory {
      */
     protected void actuallyGivePlayerStuff() {
         if (player.capabilities.isCreativeMode) {
+            if (GregTech.isModLoaded()) {
+                for (var entry : pendingFluids.object2LongEntrySet()) {
+                    BigFluidStack stack = BigFluidStack.create(entry.getKey(), entry.getLongValue());
+                    for (TileEntity te : fluidReinjectTargets) {
+                        reinjectFluidIntoGTHatch(stack, te);
+                        if (stack.amount <= 0) break;
+                    }
+                }
+            }
             pendingItems.clear();
             pendingFluids.clear();
+            fluidReinjectTargets.clear();
             return;
         }
 
@@ -217,6 +231,15 @@ public class MMInventory implements IPseudoInventory {
         for (var entry : pendingFluids.object2LongEntrySet()) {
             BigFluidStack stack = BigFluidStack.create(entry.getKey(), entry.getLongValue());
 
+            if (GregTech.isModLoaded()) {
+                for (TileEntity te : fluidReinjectTargets) {
+                    reinjectFluidIntoGTHatch(stack, te);
+                    if (stack.amount <= 0) break;
+                }
+
+                if (stack.amount <= 0) continue;
+            }
+
             if (hasME) {
                 injectFluidsIntoAE(stack);
 
@@ -249,6 +272,7 @@ public class MMInventory implements IPseudoInventory {
         }
 
         pendingFluids.clear();
+        fluidReinjectTargets.clear();
     }
 
     private void injectItemsIntoUplink(BigItemStack stack) {
@@ -371,24 +395,77 @@ public class MMInventory implements IPseudoInventory {
     }
 
     private void injectFluidsIntoCells(BigFluidStack stack) {
-        final FluidStack fluid = stack.getFluidStack();
+        ItemStack[] inv = player.inventory.mainInventory;
 
-        // spotless:off
-        List<ItemStack> validCells = MMUtils.streamInventory(player.inventory)
-            .filter(x -> (
-                x != null &&
-                x.getItem() instanceof IFluidContainerItem container &&
-                x.stackSize == 1 &&
-                container.fill(x, fluid, false) > 0
-            ))
-            .collect(Collectors.toList());
-        // spotless:on
+        for (int i = 0; i < inv.length && stack.amount > 0; i++) {
+            ItemStack cell = inv[i];
+            if (cell == null) continue;
+            if (!(cell.getItem() instanceof IFluidContainerItem container)) continue;
 
-        for (ItemStack cell : validCells) {
-            FluidStack fluid2 = stack.getFluidStack();
-            stack.amount -= ((IFluidContainerItem) cell.getItem()).fill(cell, fluid2, true);
+            if (cell.stackSize == 1) {
+                FluidStack fluid = stack.getFluidStack();
+                if (container.fill(cell, fluid, false) > 0) {
+                    stack.amount -= container.fill(cell, stack.getFluidStack(), true);
+                }
+            } else {
+                // Split cells off the stack one at a time and fill them
+                while (stack.amount > 0 && cell.stackSize > 0) {
+                    ItemStack single = cell.copy();
+                    single.stackSize = 1;
+                    FluidStack fluid = stack.getFluidStack();
+                    if (container.fill(single, fluid, false) <= 0) break;
+                    int filled = container.fill(single, stack.getFluidStack(), true);
+                    if (filled <= 0) break;
+                    stack.amount -= filled;
+                    cell.stackSize--;
+                    if (cell.stackSize <= 0) inv[i] = null;
+                    if (!player.inventory.addItemStackToInventory(single)) {
+                        player.worldObj.spawnEntityInWorld(
+                            new EntityItemLarge(player.worldObj, player.posX, player.posY, player.posZ, single)
+                        );
+                    }
+                }
+                player.inventory.markDirty();
+            }
+        }
+    }
 
-            if (stack.amount <= 0) return;
+    @Optional(Names.GREG_TECH_NH)
+    private void reinjectFluidIntoGTHatch(BigFluidStack stack, TileEntity te) {
+        if (!(te instanceof IGregTechTileEntity igte)) return;
+        IMetaTileEntity mte = igte.getMetaTileEntity();
+        if (mte == null) return;
+
+        if (mte instanceof MTEHatchMultiInput multiInput) {
+            for (int slot = 0; slot < multiInput.getMaxType() && stack.amount > 0; slot++) {
+                FluidStack existing = multiInput.getFluid(slot);
+                if (existing == null) {
+                    FluidStack toSet = stack.getFluidStack();
+                    toSet.amount = (int) Math.min(stack.amount, multiInput.mCapacityPer);
+                    multiInput.setFluid(toSet, slot);
+                    stack.amount -= toSet.amount;
+                } else if (existing.isFluidEqual(stack.getFluidStack())) {
+                    int space = multiInput.mCapacityPer - existing.amount;
+                    int toAdd = (int) Math.min(stack.amount, space);
+                    existing.amount += toAdd;
+                    stack.amount -= toAdd;
+                }
+            }
+            igte.markDirty();
+        } else if (mte instanceof MTEBasicTank tank) {
+            FluidStack existing = tank.getFillableStack();
+            if (existing == null) {
+                FluidStack toSet = stack.getFluidStack();
+                toSet.amount = (int) Math.min(stack.amount, tank.getCapacity());
+                tank.setFillableStack(toSet);
+                stack.amount -= toSet.amount;
+            } else if (existing.isFluidEqual(stack.getFluidStack())) {
+                int space = tank.getCapacity() - existing.amount;
+                int toAdd = (int) Math.min(stack.amount, space);
+                existing.amount += toAdd;
+                stack.amount -= toAdd;
+            }
+            igte.markDirty();
         }
     }
 
