@@ -45,6 +45,12 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
  */
 public class PendingBlock extends Location {
 
+    public static enum SmartCopyAction {
+        NONE,
+        CRIB_TO_PROXY,
+        INTERFACE_TO_P2P
+    }
+
     public ImmutableBlockSpec spec;
 
     public ITileAnalysisIntegration gt;
@@ -55,6 +61,31 @@ public class PendingBlock extends Location {
     public InventoryAnalysis inventory = null;
 
     public int renderOrder, buildOrder;
+
+    public transient SmartCopyAction smartCopyAction = SmartCopyAction.NONE;
+    public transient int smartCopySourceX, smartCopySourceY, smartCopySourceZ;
+    public transient java.util.List<SmartCopyP2PInfo> smartCopyP2PActions;
+
+    public static class SmartCopyP2PInfo {
+
+        public long freq;
+        public int srcX, srcY, srcZ;
+        public ForgeDirection srcSide;
+        public ForgeDirection destSide;
+        public PortableItemStack p2pItem;
+
+        public SmartCopyP2PInfo clone() {
+            SmartCopyP2PInfo dup = new SmartCopyP2PInfo();
+            dup.freq = freq;
+            dup.srcX = srcX;
+            dup.srcY = srcY;
+            dup.srcZ = srcZ;
+            dup.srcSide = srcSide;
+            dup.destSide = destSide;
+            dup.p2pItem = p2pItem;
+            return dup;
+        }
+    }
 
     public PendingBlock(int worldId, int x, int y, int z, @NotNull ImmutableBlockSpec spec) {
         super(worldId, x, y, z);
@@ -242,6 +273,16 @@ public class PendingBlock extends Location {
         if (inventory != null) dup.inventory = inventory.clone();
         dup.renderOrder = renderOrder;
         dup.buildOrder = buildOrder;
+        dup.smartCopyAction = smartCopyAction;
+        dup.smartCopySourceX = smartCopySourceX;
+        dup.smartCopySourceY = smartCopySourceY;
+        dup.smartCopySourceZ = smartCopySourceZ;
+        if (smartCopyP2PActions != null) {
+            dup.smartCopyP2PActions = new java.util.ArrayList<>(smartCopyP2PActions.size());
+            for (SmartCopyP2PInfo info : smartCopyP2PActions) {
+                dup.smartCopyP2PActions.add(info.clone());
+            }
+        }
 
         return dup;
     }
@@ -300,6 +341,14 @@ public class PendingBlock extends Location {
 
         for (var analysis : getIntegrations()) {
             analysis.transform(transform);
+        }
+
+        if (smartCopyP2PActions != null) {
+            for (SmartCopyP2PInfo info : smartCopyP2PActions) {
+                if (info.destSide != null && info.destSide != ForgeDirection.UNKNOWN) {
+                    info.destSide = transform.apply(info.destSide);
+                }
+            }
         }
     }
 

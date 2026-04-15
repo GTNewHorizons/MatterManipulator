@@ -105,7 +105,6 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
-import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessLinkMode;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
@@ -586,12 +585,16 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         span.y + (span.y < 0 ? -1 : 1),
                         span.z + (span.z < 0 ? -1 : 1)));
 
-                WirelessLinkMode wlm = state.config.wirelessLinkMode;
-                if (wlm == null) wlm = WirelessLinkMode.INTERNAL;
-                addInfoLine(desc, "mm.tooltip.copying.wireless_link", wlm, mode -> StatCollector.translateToLocal(switch (mode) {
-                    case INTERNAL -> "mm.gui.wireless_internal";
-                    case LINK_EXTERNAL_HUB -> "mm.gui.wireless_link_hub";
-                }));
+                addInfoLine(desc, "mm.tooltip.copying.wireless_link", state.config.linkExternalHubs,
+                    on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
+
+                if (state.hasCap(CONNECTS_TO_UPLINK)) {
+                    addInfoLine(desc, "mm.tooltip.copying.auto_proxy_cribs", state.config.replaceCribsWithProxies,
+                        on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
+                }
+
+                addInfoLine(desc, "mm.tooltip.copying.auto_p2p_interfaces", state.config.replaceInterfacesWithP2P,
+                    on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {
@@ -1439,26 +1442,39 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     FMLCommonHandler.instance().showGuiScreen(screen);
                 })
             .done()
-            .branch()
-                .label(StatCollector.translateToLocal("mm.gui.wireless_link_mode"))
-                .option()
-                    .label(StatCollector.translateToLocal("mm.gui.wireless_internal"))
-                    .onClicked(() -> {
-                        Messages.SetWirelessLinkMode.sendToServer(WirelessLinkMode.INTERNAL);
-                    })
-                .done()
-                .option()
-                    .label(StatCollector.translateToLocal("mm.gui.wireless_link_hub"))
-                    .onClicked(() -> {
-                        Messages.SetWirelessLinkMode.sendToServer(WirelessLinkMode.LINK_EXTERNAL_HUB);
-                    })
-                .done()
-            .done()
             .option()
                 .label(StatCollector.translateToLocal("mm.gui.mark_paste"))
                 .onClicked(() -> {
                     Messages.MarkPaste.sendToServer();
                 })
+            .done()
+            .branch()
+                .label(StatCollector.translateToLocal("mm.gui.advanced_options"))
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.wireless_link_hub",
+                        StatCollector.translateToLocal(initialState.config.linkExternalHubs ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> {
+                        Messages.SetLinkExternalHubs.sendToServer();
+                    })
+                .done()
+                .option()
+                    .hidden(!initialState.hasCap(CONNECTS_TO_UPLINK))
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.smart_copy.cribs_to_proxies",
+                        StatCollector.translateToLocal(initialState.config.replaceCribsWithProxies ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> {
+                        Messages.SetReplaceCribs.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.smart_copy.interfaces_to_p2p",
+                        StatCollector.translateToLocal(initialState.config.replaceInterfacesWithP2P ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> {
+                        Messages.SetReplaceInterfaces.sendToServer();
+                    })
+                .done()
             .done();
     }
 

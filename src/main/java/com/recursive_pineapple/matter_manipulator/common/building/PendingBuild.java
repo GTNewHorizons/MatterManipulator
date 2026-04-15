@@ -17,6 +17,7 @@ import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Blocks;
+import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -398,8 +399,177 @@ public class PendingBuild extends AbstractBuildable {
             visited.remove(coord);
         }
 
+        if (Mods.AppliedEnergistics2.isModLoaded()) {
+            for (PendingBlock placed : toPlace) {
+                if (placed.smartCopyAction == PendingBlock.SmartCopyAction.INTERFACE_TO_P2P) {
+                    placeSourceP2P(world, placed, applyContext);
+                }
+            }
+        }
+
         actuallyGivePlayerStuff();
         playSounds();
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void placeSourceP2P(World world, PendingBlock placed, PendingBuildApplyContext applyContext) {
+        if (placed.smartCopyP2PActions == null || placed.smartCopyP2PActions.isEmpty()) return;
+
+        for (PendingBlock.SmartCopyP2PInfo info : placed.smartCopyP2PActions) {
+            placeSourceP2PSingle(world, placed, info);
+        }
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void placeSourceP2PSingle(World world, PendingBlock placed, PendingBlock.SmartCopyP2PInfo info) {
+        int srcX = info.srcX;
+        int srcY = info.srcY;
+        int srcZ = info.srcZ;
+        ForgeDirection srcSide = info.srcSide;
+        ForgeDirection destSide = info.destSide != null ? info.destSide : srcSide;
+        long freq = info.freq;
+
+        if (srcSide == null || srcSide == ForgeDirection.UNKNOWN) {
+            MMMod.LOG.warn("SmartCopy: skipping P2P for block at {},{},{} - invalid source side", placed.x, placed.y, placed.z);
+            return;
+        }
+
+        TileEntity te = world.getTileEntity(srcX, srcY, srcZ);
+        if (!(te instanceof appeng.api.parts.IPartHost partHost)) {
+            MMMod.LOG.warn("SmartCopy: source at {},{},{} is not an IPartHost", srcX, srcY, srcZ);
+            return;
+        }
+
+        java.util.List<ItemStack> extractedPatterns = new java.util.ArrayList<>();
+        appeng.api.parts.IPart existingPart = partHost.getPart(srcSide);
+        if (existingPart instanceof appeng.api.implementations.tiles.ISegmentedInventory srcSegInv) {
+            IInventory patternInv = srcSegInv.getInventoryByName("patterns");
+            if (patternInv != null) {
+                for (int i = 0; i < patternInv.getSizeInventory(); i++) {
+                    ItemStack pattern = patternInv.getStackInSlot(i);
+                    if (pattern != null) {
+                        extractedPatterns.add(pattern.copy());
+                        patternInv.setInventorySlotContents(i, null);
+                    }
+                }
+            }
+        }
+
+        if (existingPart != null) {
+            partHost.removePart(srcSide, false);
+        }
+
+        ItemStack p2pStack = info.p2pItem != null ?
+            info.p2pItem.toStack() :
+            appeng.api.AEApi.instance()
+                .definitions()
+                .parts()
+                .p2PTunnelMEInterface()
+                .maybeStack(1)
+                .orNull();
+        if (p2pStack == null) {
+            MMMod.LOG.warn("SmartCopy: no P2P item available for source at {},{},{} side {}", srcX, srcY, srcZ, srcSide);
+            for (ItemStack pattern : extractedPatterns) {
+                givePlayerItems(pattern);
+            }
+            return;
+        }
+
+        if (!tryConsumeItems(p2pStack)) {
+            sendWarningToPlayer(
+                player,
+                "mm.info.warning.only_message",
+                srcX,
+                srcY,
+                srcZ,
+                new ChatComponentText("Could not find P2P Interface for source side " + srcSide)
+            );
+            for (ItemStack pattern : extractedPatterns) {
+                givePlayerItems(pattern);
+            }
+            return;
+        }
+
+        if (partHost.addPart(p2pStack, srcSide, player) == null) {
+            givePlayerItems(p2pStack);
+            sendWarningToPlayer(
+                player,
+                "mm.info.warning.only_message",
+                srcX,
+                srcY,
+                srcZ,
+                new ChatComponentText("Could not place P2P Interface on source " + srcSide + " side")
+            );
+            for (ItemStack pattern : extractedPatterns) {
+                givePlayerItems(pattern);
+            }
+            return;
+        }
+
+        appeng.api.parts.IPart srcPart = partHost.getPart(srcSide);
+        if (srcPart instanceof appeng.parts.p2p.PartP2PTunnel<?> tunnel) {
+            tunnel.output = false;
+            try {
+                appeng.me.cache.P2PCache p2p = tunnel.getProxy()
+                    .getP2P();
+                p2p.updateFreq(tunnel, freq);
+            } catch (appeng.me.GridAccessException e) {
+                tunnel.setFrequency(freq);
+            }
+            tunnel.onTunnelConfigChange();
+        }
+
+        playSound(world, srcX, srcY, srcZ, SoundResource.MOB_ENDERMEN_PORTAL);
+
+        if (!extractedPatterns.isEmpty()) {
+            appeng.api.parts.IPart newSrcPart = partHost.getPart(srcSide);
+            if (newSrcPart instanceof appeng.api.implementations.tiles.ISegmentedInventory srcSegInv) {
+                IInventory srcPatternInv = srcSegInv.getInventoryByName("patterns");
+                if (srcPatternInv != null) {
+                    int slot = 0;
+                    for (ItemStack pattern : extractedPatterns) {
+                        while (slot < srcPatternInv.getSizeInventory() && srcPatternInv.getStackInSlot(slot) != null) {
+                            slot++;
+                        }
+                        if (slot >= srcPatternInv.getSizeInventory()) {
+                            MMMod.LOG.warn(
+                                "SmartCopy: source P2P pattern inventory full at {},{},{} side {} - returning remaining patterns to player",
+                                srcX,
+                                srcY,
+                                srcZ,
+                                srcSide
+                            );
+                            givePlayerItems(pattern);
+                            continue;
+                        }
+                        srcPatternInv.setInventorySlotContents(slot, pattern);
+                        slot++;
+                    }
+                } else {
+                    MMMod.LOG.warn(
+                        "SmartCopy: no pattern inventory on source P2P at {},{},{} side {} - returning patterns to player",
+                        srcX,
+                        srcY,
+                        srcZ,
+                        srcSide
+                    );
+                    for (ItemStack pattern : extractedPatterns) {
+                        givePlayerItems(pattern);
+                    }
+                }
+            } else {
+                MMMod.LOG.warn(
+                    "SmartCopy: source P2P at {},{},{} side {} is not a segmented inventory - returning patterns to player",
+                    srcX,
+                    srcY,
+                    srcZ,
+                    srcSide
+                );
+                for (ItemStack pattern : extractedPatterns) {
+                    givePlayerItems(pattern);
+                }
+            }
+        }
     }
 
     @Override

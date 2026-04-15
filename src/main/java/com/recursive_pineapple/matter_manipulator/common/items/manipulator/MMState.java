@@ -12,14 +12,20 @@ import java.util.Set;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
 import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
 
+import gregtech.api.enums.ItemList;
+import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
+import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.common.blocks.BlockMachines;
+import gregtech.common.tileentities.machines.MTEHatchCraftingInputME;
 
 import appeng.api.AEApi;
 import appeng.api.config.SecurityPermissions;
@@ -54,6 +60,8 @@ import com.recursive_pineapple.matter_manipulator.common.building.GTAnalysisResu
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
+import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock.SmartCopyAction;
+import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
@@ -64,6 +72,7 @@ import com.recursive_pineapple.matter_manipulator.common.persist.UIDJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.persist.WeightedListJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.uplink.IUplinkMulti;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
 import org.joml.Vector3i;
@@ -333,6 +342,10 @@ public class MMState {
         RegionAnalysis analysis = BlockAnalyzer
             .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING ? true : false);
 
+        if (config.placeMode == PlaceMode.COPYING && (config.replaceCribsWithProxies || config.replaceInterfacesWithP2P)) {
+            applySmartCopySubstitutions(world, analysis.blocks, coordA);
+        }
+
         if (config.placeMode == PlaceMode.COPYING) {
             Transform t = getTransform();
 
@@ -400,6 +413,120 @@ public class MMState {
         }
 
         return analysis.blocks;
+    }
+
+    private void applySmartCopySubstitutions(World world, List<PendingBlock> blocks, Location coordA) {
+        if (GregTech.isModLoaded() && config.replaceCribsWithProxies) {
+            applySmartCopyCribs(world, blocks, coordA);
+        }
+
+        if (AppliedEnergistics2.isModLoaded() && config.replaceInterfacesWithP2P) {
+            applySmartCopyP2P(world, blocks, coordA);
+        }
+    }
+
+    @Optional(Names.GREG_TECH_NH)
+    private void applySmartCopyCribs(World world, List<PendingBlock> blocks, Location coordA) {
+        ItemStack proxyStack = ItemList.Hatch_CraftingInput_Bus_Slave.get(1L);
+        if (proxyStack == null) return;
+
+        ImmutableBlockSpec proxySpec = new BlockSpec().setObject(proxyStack);
+
+        for (PendingBlock block : blocks) {
+            int srcX = coordA.x + block.x;
+            int srcY = coordA.y + block.y;
+            int srcZ = coordA.z + block.z;
+
+            TileEntity te = world.getTileEntity(srcX, srcY, srcZ);
+            if (!(te instanceof IGregTechTileEntity igte)) continue;
+
+            IMetaTileEntity mte = igte.getMetaTileEntity();
+            if (!(mte instanceof MTEHatchCraftingInputME)) continue;
+
+            block.spec = proxySpec;
+            block.smartCopyAction = SmartCopyAction.CRIB_TO_PROXY;
+            block.smartCopySourceX = srcX;
+            block.smartCopySourceY = srcY;
+            block.smartCopySourceZ = srcZ;
+
+            NBTTagCompound proxyData = new NBTTagCompound();
+            proxyData.setString("type", "craftingInputProxy");
+            NBTTagCompound masterNBT = new NBTTagCompound();
+            masterNBT.setInteger("x", srcX);
+            masterNBT.setInteger("y", srcY);
+            masterNBT.setInteger("z", srcZ);
+            proxyData.setTag("master", masterNBT);
+
+            GTAnalysisResult gtResult = block.gt instanceof GTAnalysisResult ? (GTAnalysisResult) block.gt : new GTAnalysisResult();
+            gtResult.mGTData = MMUtils.toJsonObject(proxyData);
+            block.gt = gtResult;
+
+            block.ae = null;
+            block.inventory = null;
+        }
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void applySmartCopyP2P(World world, List<PendingBlock> blocks, Location coordA) {
+        long freqBase = System.currentTimeMillis();
+        int freqOffset = 0;
+
+        ItemStack p2pIfaceStack = AEApi.instance().definitions().parts().p2PTunnelMEInterface().maybeStack(1).orNull();
+        if (p2pIfaceStack == null) return;
+
+        ItemStack p2pDualIfaceStack = null;
+        if (Mods.AE2FluidCraft.isModLoaded()) {
+            p2pDualIfaceStack = getFluidP2PInterfaceStack();
+        }
+
+        for (PendingBlock block : blocks) {
+            if (!(block.ae instanceof AEAnalysisResult aeResult)) continue;
+            if (aeResult.mAEParts == null) continue;
+
+            int srcX = coordA.x + block.x;
+            int srcY = coordA.y + block.y;
+            int srcZ = coordA.z + block.z;
+
+            for (int i = 0; i < aeResult.mAEParts.length; i++) {
+                AEPartData partData = aeResult.mAEParts[i];
+                if (partData == null) continue;
+                if (partData.mAEPatterns == null) continue;
+                if (partData.isP2P()) continue;
+
+                boolean isDual = partData.mFluidConfig != null && p2pDualIfaceStack != null;
+                ItemStack replacementStack = isDual ? p2pDualIfaceStack : p2pIfaceStack;
+
+                ForgeDirection side = AEAnalysisResult.ALL_DIRECTIONS[i];
+                long freq = freqBase + freqOffset++;
+
+                partData.mPart = new PortableItemStack(replacementStack);
+                partData.mP2POutput = true;
+                partData.mP2PFreq = freq;
+                partData.mAEPatterns = null;
+
+                block.smartCopyAction = SmartCopyAction.INTERFACE_TO_P2P;
+
+                if (block.smartCopyP2PActions == null) {
+                    block.smartCopyP2PActions = new java.util.ArrayList<>();
+                }
+
+                PendingBlock.SmartCopyP2PInfo info = new PendingBlock.SmartCopyP2PInfo();
+                info.freq = freq;
+                info.srcX = srcX;
+                info.srcY = srcY;
+                info.srcZ = srcZ;
+                info.srcSide = side;
+                info.destSide = side;
+                info.p2pItem = new PortableItemStack(replacementStack);
+                block.smartCopyP2PActions.add(info);
+            }
+        }
+    }
+
+    @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
+    private static ItemStack getFluidP2PInterfaceStack() {
+        var item = com.glodblock.github.loader.ItemAndBlockHolder.FLUID_INTERFACE_P2P;
+        return item != null ? new ItemStack(item) : null;
     }
 
     private List<PendingBlock> getExchangeBlocks(ManipulatorTier tier, World world) {
@@ -1101,8 +1228,4 @@ public class MMState {
         CABLES,
     }
 
-    public static enum WirelessLinkMode {
-        INTERNAL,
-        LINK_EXTERNAL_HUB,
-    }
 }

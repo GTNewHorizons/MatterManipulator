@@ -16,7 +16,6 @@ import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
-import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessLinkMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
@@ -73,10 +72,9 @@ public class WirelessLinkFixer {
             return;
         }
 
-        WirelessLinkMode mode = state.config.wirelessLinkMode;
-        if (mode == null) mode = WirelessLinkMode.INTERNAL;
+        boolean linkExternalHubs = state.config.linkExternalHubs;
 
-        MMMod.LOG.info("[WirelessLink] Initializing wireless link map with mode={}", mode);
+        MMMod.LOG.info("[WirelessLink] Initializing wireless link map with linkExternalHubs={}", linkExternalHubs);
 
         int srcMinX = Math.min(coordA.x, coordB.x);
         int srcMinY = Math.min(coordA.y, coordB.y);
@@ -125,7 +123,7 @@ public class WirelessLinkFixer {
 
                         if (linkInRegion) {
                             shouldInclude = true;
-                        } else if (mode == WirelessLinkMode.LINK_EXTERNAL_HUB) {
+                        } else if (linkExternalHubs) {
                             if (world.blockExists(lx, ly, lz)) {
                                 TileEntity linkTe = world.getTileEntity(lx, ly, lz);
                                 if (linkTe instanceof net.bdew.ae2stuff.machines.wireless.TileWireless tw) {
@@ -169,7 +167,7 @@ public class WirelessLinkFixer {
                 Long partnerDest = allConnectorDests.get(linkSrcPacked);
                 if (partnerDest != null) {
                     wirelessLinkMap.put(destPacked, partnerDest);
-                } else if (mode == WirelessLinkMode.LINK_EXTERNAL_HUB) {
+                } else if (linkExternalHubs) {
                     wirelessLinkMap.put(destPacked, linkSrcPacked);
                 }
             }
