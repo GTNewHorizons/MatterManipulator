@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1381,7 +1382,7 @@ public class MMUtils {
                         );
                     }
                 })
-                .sorted()
+                .sorted(Comparator.comparing(IChatComponent::getUnformattedText))
                 .forEach(message -> { sendInfoToPlayer(player, message); });
         } else {
             sendInfoToPlayer(player, "mm.info.none");
