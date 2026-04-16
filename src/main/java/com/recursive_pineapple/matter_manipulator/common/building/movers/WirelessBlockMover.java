@@ -1,6 +1,5 @@
 package com.recursive_pineapple.matter_manipulator.common.building.movers;
 
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
@@ -8,6 +7,9 @@ import net.minecraftforge.oredict.OreDictionary;
 
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
+
+import net.bdew.ae2stuff.machines.wireless.TileWireless;
+import net.bdew.lib.block.BlockRef;
 
 public class WirelessBlockMover extends StandardBlockMover {
 
@@ -27,15 +29,18 @@ public class WirelessBlockMover extends StandardBlockMover {
         TileEntity te = world.getTileEntity(x, y, z);
         if (te == null) return;
 
-        NBTTagCompound nbt = new NBTTagCompound();
-        te.writeToNBT(nbt);
+        adjustWirelessLink((TileWireless) te, pendingMove);
+    }
 
-        if (!nbt.hasKey("link", 10)) return; // 10 = TAG_Compound
+    private void adjustWirelessLink(TileWireless wireless, PendingMove pendingMove) {
+        scala.Option<BlockRef> linkOpt = wireless.link().value();
 
-        NBTTagCompound link = nbt.getCompoundTag("link");
-        int lx = link.getInteger("x");
-        int ly = link.getInteger("y");
-        int lz = link.getInteger("z");
+        if (linkOpt.isEmpty()) return;
+
+        BlockRef ref = linkOpt.get();
+        int lx = ref.x();
+        int ly = ref.y();
+        int lz = ref.z();
 
         // only adjust if the linked partner was within the source region (i.e. it's also being moved)
         if (
@@ -45,10 +50,6 @@ public class WirelessBlockMover extends StandardBlockMover {
                 lz >= pendingMove.getSrcMinZ() &&
                 lz <= pendingMove.getSrcMaxZ()
         ) {
-            link.setInteger("x", lx + pendingMove.getMoveOffsetX());
-            link.setInteger("y", ly + pendingMove.getMoveOffsetY());
-            link.setInteger("z", lz + pendingMove.getMoveOffsetZ());
-            te.readFromNBT(nbt);
         }
     }
 }
