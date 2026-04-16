@@ -50,6 +50,14 @@ public class WirelessBlockMover extends StandardBlockMover {
                 lz >= pendingMove.getSrcMinZ() &&
                 lz <= pendingMove.getSrcMaxZ()
         ) {
+            wireless.link()
+                .set(
+                    new BlockRef(
+                        lx + pendingMove.getMoveOffsetX(),
+                        ly + pendingMove.getMoveOffsetY(),
+                        lz + pendingMove.getMoveOffsetZ()
+                    )
+                );
         }
     }
 }
