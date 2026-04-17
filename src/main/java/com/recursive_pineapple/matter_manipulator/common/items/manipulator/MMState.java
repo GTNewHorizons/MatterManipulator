@@ -60,8 +60,9 @@ import com.recursive_pineapple.matter_manipulator.common.building.GTAnalysisResu
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
-import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock.SmartCopyAction;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
+import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration;
+import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration.SmartCopyAction;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
@@ -371,34 +372,20 @@ public class MMState {
 
             // copy the blocks (arraying)
             if (config.arraySpan != null) {
-                int sx = config.arraySpan.x;
-                int sy = config.arraySpan.y;
-                int sz = config.arraySpan.z;
-
                 List<PendingBlock> base = new ArrayList<>(analysis.blocks);
                 analysis.blocks.clear();
 
-                for (int y = Math.min(sy, 0); y <= Math.max(sy, 0); y++) {
-                    for (int z = Math.min(sz, 0); z <= Math.max(sz, 0); z++) {
-                        for (int x = Math.min(sx, 0); x <= Math.max(sx, 0); x++) {
-                            int dx = x * (analysis.deltas.x + (analysis.deltas.x < 0 ? -1 : 1));
-                            int dy = y * (analysis.deltas.y + (analysis.deltas.y < 0 ? -1 : 1));
-                            int dz = z * (analysis.deltas.z + (analysis.deltas.z < 0 ? -1 : 1));
+                MMUtils.forEachArrayOffset(config.arraySpan, analysis.deltas, d -> {
+                    t.apply(d);
 
-                            Vector3i d = new Vector3i(dx, dy, dz);
-
-                            t.apply(d);
-
-                            for (PendingBlock original : base) {
-                                PendingBlock dup = original.clone();
-                                dup.x += d.x;
-                                dup.y += d.y;
-                                dup.z += d.z;
-                                analysis.blocks.add(dup);
-                            }
-                        }
+                    for (PendingBlock original : base) {
+                        PendingBlock dup = original.clone();
+                        dup.x += d.x;
+                        dup.y += d.y;
+                        dup.z += d.z;
+                        analysis.blocks.add(dup);
                     }
-                }
+                });
             }
 
             analysis.deltas = t.apply(analysis.deltas);
@@ -416,7 +403,7 @@ public class MMState {
     }
 
     private void applySmartCopySubstitutions(World world, List<PendingBlock> blocks, Location coordA) {
-        if (GregTech.isModLoaded() && config.replaceCribsWithProxies) {
+        if (GregTech.isModLoaded() && config.replaceCribsWithProxies && hasCap(ItemMatterManipulator.ALLOW_SMART_COPY)) {
             applySmartCopyCribs(world, blocks, coordA);
         }
 
@@ -444,10 +431,12 @@ public class MMState {
             if (!(mte instanceof MTEHatchCraftingInputME)) continue;
 
             block.spec = proxySpec;
-            block.smartCopyAction = SmartCopyAction.CRIB_TO_PROXY;
-            block.smartCopySourceX = srcX;
-            block.smartCopySourceY = srcY;
-            block.smartCopySourceZ = srcZ;
+            SmartCopyIntegration sc = new SmartCopyIntegration();
+            sc.action = SmartCopyAction.CRIB_TO_PROXY;
+            sc.sourceX = srcX;
+            sc.sourceY = srcY;
+            sc.sourceZ = srcZ;
+            block.smartCopy = sc;
 
             NBTTagCompound proxyData = new NBTTagCompound();
             proxyData.setString("type", "craftingInputProxy");
@@ -466,6 +455,14 @@ public class MMState {
         }
     }
 
+    /**
+     * Replaces patterned ME Interface parts in the analyzed blocks with P2P ME Interface tunnels.
+     * For each interface part that has patterns, this:
+     * 1. Swaps the part in the analysis to a P2P tunnel (output side) with a unique frequency
+     * 2. Records a P2PInfo so that PendingBuild can later place a matching P2P tunnel
+     * (input side) at the original source location, preserving the patterns there
+     * The result is that all pasted copies route patterns through P2P back to the single source interface.
+     */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void applySmartCopyP2P(World world, List<PendingBlock> blocks, Location coordA) {
         long freqBase = System.currentTimeMillis();
@@ -499,18 +496,23 @@ public class MMState {
                 ForgeDirection side = AEAnalysisResult.ALL_DIRECTIONS[i];
                 long freq = freqBase + freqOffset++;
 
+                // Replace the interface part with a P2P tunnel in the analysis
                 partData.mPart = new PortableItemStack(replacementStack);
                 partData.mP2POutput = true;
                 partData.mP2PFreq = freq;
                 partData.mAEPatterns = null;
 
-                block.smartCopyAction = SmartCopyAction.INTERFACE_TO_P2P;
+                if (block.smartCopy == null) {
+                    block.smartCopy = new SmartCopyIntegration();
+                }
+                block.smartCopy.action = SmartCopyAction.INTERFACE_TO_P2P;
 
-                if (block.smartCopyP2PActions == null) {
-                    block.smartCopyP2PActions = new java.util.ArrayList<>();
+                if (block.smartCopy.p2pActions == null) {
+                    block.smartCopy.p2pActions = new ArrayList<>();
                 }
 
-                PendingBlock.SmartCopyP2PInfo info = new PendingBlock.SmartCopyP2PInfo();
+                // Record info for the source-side P2P placement (done later by PendingBuild)
+                SmartCopyIntegration.P2PInfo info = new SmartCopyIntegration.P2PInfo();
                 info.freq = freq;
                 info.srcX = srcX;
                 info.srcY = srcY;
@@ -518,7 +520,7 @@ public class MMState {
                 info.srcSide = side;
                 info.destSide = side;
                 info.p2pItem = new PortableItemStack(replacementStack);
-                block.smartCopyP2PActions.add(info);
+                block.smartCopy.p2pActions.add(info);
             }
         }
     }

@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
@@ -413,6 +414,33 @@ public class MMUtils {
         }
 
         return blocks;
+    }
+
+    /**
+     * Iterates over all array copy offsets for the given span and deltas,
+     * calling the consumer with each offset vector (dx, dy, dz) in world-space
+     * (before any transform is applied).
+     *
+     * @param arraySpan the array repetition counts in each axis
+     * @param deltas the region deltas from {@link #getRegionDeltas}
+     * @param consumer called with each offset vector; the vector is reused, so callers must not retain references
+     */
+    public static void forEachArrayOffset(Vector3i arraySpan, Vector3i deltas, Consumer<Vector3i> consumer) {
+        int sx = arraySpan.x;
+        int sy = arraySpan.y;
+        int sz = arraySpan.z;
+
+        for (int ay = Math.min(sy, 0); ay <= Math.max(sy, 0); ay++) {
+            for (int az = Math.min(sz, 0); az <= Math.max(sz, 0); az++) {
+                for (int ax = Math.min(sx, 0); ax <= Math.max(sx, 0); ax++) {
+                    int dx = ax * (deltas.x + (deltas.x < 0 ? -1 : 1));
+                    int dy = ay * (deltas.y + (deltas.y < 0 ? -1 : 1));
+                    int dz = az * (deltas.z + (deltas.z < 0 ? -1 : 1));
+
+                    consumer.accept(new Vector3i(dx, dy, dz));
+                }
+            }
+        }
     }
 
     public static void sendChatToPlayerWithColor(EntityPlayer aPlayer, IChatComponent aChat, EnumChatFormatting color) {

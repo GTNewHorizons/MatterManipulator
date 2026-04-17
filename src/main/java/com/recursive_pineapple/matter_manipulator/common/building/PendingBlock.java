@@ -11,7 +11,6 @@ import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
@@ -45,47 +44,17 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
  */
 public class PendingBlock extends Location {
 
-    public static enum SmartCopyAction {
-        NONE,
-        CRIB_TO_PROXY,
-        INTERFACE_TO_P2P
-    }
-
     public ImmutableBlockSpec spec;
 
     public ITileAnalysisIntegration gt;
     public ITileAnalysisIntegration ae;
     public ITileAnalysisIntegration arch;
     public ITileAnalysisIntegration mp;
+    public transient SmartCopyIntegration smartCopy;
 
     public InventoryAnalysis inventory = null;
 
     public int renderOrder, buildOrder;
-
-    public transient SmartCopyAction smartCopyAction = SmartCopyAction.NONE;
-    public transient int smartCopySourceX, smartCopySourceY, smartCopySourceZ;
-    public transient java.util.List<SmartCopyP2PInfo> smartCopyP2PActions;
-
-    public static class SmartCopyP2PInfo {
-
-        public long freq;
-        public int srcX, srcY, srcZ;
-        public ForgeDirection srcSide;
-        public ForgeDirection destSide;
-        public PortableItemStack p2pItem;
-
-        public SmartCopyP2PInfo clone() {
-            SmartCopyP2PInfo dup = new SmartCopyP2PInfo();
-            dup.freq = freq;
-            dup.srcX = srcX;
-            dup.srcY = srcY;
-            dup.srcZ = srcZ;
-            dup.srcSide = srcSide;
-            dup.destSide = destSide;
-            dup.p2pItem = p2pItem;
-            return dup;
-        }
-    }
 
     public PendingBlock(int worldId, int x, int y, int z, @NotNull ImmutableBlockSpec spec) {
         super(worldId, x, y, z);
@@ -103,6 +72,7 @@ public class PendingBlock extends Location {
         this.ae = null;
         this.arch = null;
         this.mp = null;
+        this.smartCopy = null;
         this.inventory = null;
         this.renderOrder = 0;
         this.buildOrder = 0;
@@ -171,6 +141,7 @@ public class PendingBlock extends Location {
         if (ae != null) list.add(ae);
         if (arch != null) list.add(arch);
         if (mp != null) list.add(mp);
+        if (smartCopy != null) list.add(smartCopy);
 
         return list;
     }
@@ -199,13 +170,9 @@ public class PendingBlock extends Location {
 
         if (stack == null) return null;
 
-        NBTTagCompound tag = stack.getTagCompound() != null ? stack.getTagCompound() : new NBTTagCompound();
-
         for (var analysis : getIntegrations()) {
-            analysis.getItemTag(tag);
+            analysis.getItemTag(stack);
         }
-
-        stack.setTagCompound(tag.hasNoTags() ? null : tag);
 
         return stack;
     }
@@ -270,19 +237,10 @@ public class PendingBlock extends Location {
         if (ae != null) dup.ae = ae.clone();
         if (arch != null) dup.arch = arch.clone();
         if (mp != null) dup.mp = mp.clone();
+        if (smartCopy != null) dup.smartCopy = smartCopy.clone();
         if (inventory != null) dup.inventory = inventory.clone();
         dup.renderOrder = renderOrder;
         dup.buildOrder = buildOrder;
-        dup.smartCopyAction = smartCopyAction;
-        dup.smartCopySourceX = smartCopySourceX;
-        dup.smartCopySourceY = smartCopySourceY;
-        dup.smartCopySourceZ = smartCopySourceZ;
-        if (smartCopyP2PActions != null) {
-            dup.smartCopyP2PActions = new java.util.ArrayList<>(smartCopyP2PActions.size());
-            for (SmartCopyP2PInfo info : smartCopyP2PActions) {
-                dup.smartCopyP2PActions.add(info.clone());
-            }
-        }
 
         return dup;
     }
@@ -341,14 +299,6 @@ public class PendingBlock extends Location {
 
         for (var analysis : getIntegrations()) {
             analysis.transform(transform);
-        }
-
-        if (smartCopyP2PActions != null) {
-            for (SmartCopyP2PInfo info : smartCopyP2PActions) {
-                if (info.destSide != null && info.destSide != ForgeDirection.UNKNOWN) {
-                    info.destSide = transform.apply(info.destSide);
-                }
-            }
         }
     }
 

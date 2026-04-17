@@ -401,7 +401,7 @@ public class PendingBuild extends AbstractBuildable {
 
         if (Mods.AppliedEnergistics2.isModLoaded()) {
             for (PendingBlock placed : toPlace) {
-                if (placed.smartCopyAction == PendingBlock.SmartCopyAction.INTERFACE_TO_P2P) {
+                if (placed.smartCopy != null && placed.smartCopy.action == SmartCopyIntegration.SmartCopyAction.INTERFACE_TO_P2P) {
                     placeSourceP2P(world, placed, applyContext);
                 }
             }
@@ -413,15 +413,15 @@ public class PendingBuild extends AbstractBuildable {
 
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void placeSourceP2P(World world, PendingBlock placed, PendingBuildApplyContext applyContext) {
-        if (placed.smartCopyP2PActions == null || placed.smartCopyP2PActions.isEmpty()) return;
+        if (placed.smartCopy == null || placed.smartCopy.p2pActions == null || placed.smartCopy.p2pActions.isEmpty()) return;
 
-        for (PendingBlock.SmartCopyP2PInfo info : placed.smartCopyP2PActions) {
+        for (SmartCopyIntegration.P2PInfo info : placed.smartCopy.p2pActions) {
             placeSourceP2PSingle(world, placed, info);
         }
     }
 
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private void placeSourceP2PSingle(World world, PendingBlock placed, PendingBlock.SmartCopyP2PInfo info) {
+    private void placeSourceP2PSingle(World world, PendingBlock placed, SmartCopyIntegration.P2PInfo info) {
         int srcX = info.srcX;
         int srcY = info.srcY;
         int srcZ = info.srcZ;
