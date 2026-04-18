@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
@@ -371,25 +370,33 @@ public class MMInventory implements IPseudoInventory {
     }
 
     private void injectFluidsIntoCells(BigFluidStack stack) {
-        final FluidStack fluid = stack.getFluidStack();
+        ItemStack[] inv = player.inventory.mainInventory;
 
-        // spotless:off
-        List<ItemStack> validCells = MMUtils.streamInventory(player.inventory)
-            .filter(x -> (
-                x != null &&
-                x.getItem() instanceof IFluidContainerItem container &&
-                x.stackSize == 1 &&
-                container.fill(x, fluid, false) > 0
-            ))
-            .collect(Collectors.toList());
-        // spotless:on
+        for (int i = 0; i < inv.length && stack.amount > 0; i++) {
+            ItemStack cell = inv[i];
+            if (cell == null) continue;
+            if (!(cell.getItem() instanceof IFluidContainerItem container)) continue;
 
-        for (ItemStack cell : validCells) {
-            FluidStack fluid2 = stack.getFluidStack();
-            stack.amount -= ((IFluidContainerItem) cell.getItem()).fill(cell, fluid2, true);
-
-            if (stack.amount <= 0) return;
+            // Split cells off the stack one at a time and fill them
+            while (stack.amount > 0 && cell.stackSize > 0) {
+                ItemStack single = cell.copy();
+                single.stackSize = 1;
+                FluidStack fluid = stack.getFluidStack();
+                if (container.fill(single, fluid, false) <= 0) break;
+                int filled = container.fill(single, fluid, true);
+                if (filled <= 0) break;
+                stack.amount -= filled;
+                cell.stackSize--;
+                if (cell.stackSize <= 0) inv[i] = null;
+                if (!player.inventory.addItemStackToInventory(single)) {
+                    player.worldObj.spawnEntityInWorld(
+                        new EntityItemLarge(player.worldObj, player.posX, player.posY, player.posZ, single)
+                    );
+                }
+            }
         }
+
+        player.inventory.markDirty();
     }
 
     private void consumeItemsFromPending(
