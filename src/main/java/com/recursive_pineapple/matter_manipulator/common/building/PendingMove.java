@@ -10,20 +10,14 @@ import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.MinecraftForge;
 
-import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
-import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
-import gregtech.api.interfaces.tileentity.IIC2Enet;
-import gregtech.api.metatileentity.BaseMetaTileEntity;
-
-import com.github.bsideup.jabel.Desugar;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMover;
+import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMovers;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
@@ -35,11 +29,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.recursive_pineapple.matter_manipulator.mixin.BlockCaptureDrops;
 
 import WayofTime.alchemicalWizardry.api.event.TeleposeEvent;
-import codechicken.multipart.MultipartHelper;
-import codechicken.multipart.TileMultipart;
 import it.unimi.dsi.fastutil.Pair;
-import tectech.thing.metaTileEntity.pipe.MTEPipeData;
-import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
 
 /**
  * Handles all moving logic.
@@ -48,8 +38,47 @@ public class PendingMove extends AbstractBuildable {
 
     private List<Pair<Location, Location>> moves = null;
 
+    private int moveOffsetX, moveOffsetY, moveOffsetZ;
+    private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
+
     public PendingMove(EntityPlayer player, MMState state, ManipulatorTier tier) {
         super(player, state, tier);
+    }
+
+    public int getMoveOffsetX() {
+        return moveOffsetX;
+    }
+
+    public int getMoveOffsetY() {
+        return moveOffsetY;
+    }
+
+    public int getMoveOffsetZ() {
+        return moveOffsetZ;
+    }
+
+    public int getSrcMinX() {
+        return srcMinX;
+    }
+
+    public int getSrcMinY() {
+        return srcMinY;
+    }
+
+    public int getSrcMinZ() {
+        return srcMinZ;
+    }
+
+    public int getSrcMaxX() {
+        return srcMaxX;
+    }
+
+    public int getSrcMaxY() {
+        return srcMaxY;
+    }
+
+    public int getSrcMaxZ() {
+        return srcMaxZ;
     }
 
     @Override
@@ -159,7 +188,7 @@ public class PendingMove extends AbstractBuildable {
             }
 
             // try to move the source block into the (now empty) target block
-            if (!moveBlock(world, s, source, d, target)) {
+            if (!moveBlock(this, world, s, source, d, target)) {
                 sendErrorToPlayer(
                     player,
                     StatCollector.translateToLocalFormatted(
@@ -235,6 +264,16 @@ public class PendingMove extends AbstractBuildable {
 
         int worldId = startA.worldId;
 
+        moveOffsetX = dest.x - startA.x;
+        moveOffsetY = dest.y - startA.y;
+        moveOffsetZ = dest.z - startA.z;
+        srcMinX = minX;
+        srcMinY = minY;
+        srcMinZ = minZ;
+        srcMaxX = maxX;
+        srcMaxY = maxY;
+        srcMaxZ = maxZ;
+
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
@@ -256,7 +295,14 @@ public class PendingMove extends AbstractBuildable {
     // 'borrowed' from
     // https://github.com/GTNewHorizons/BloodMagic/blob/master/src/main/java/WayofTime/alchemicalWizardry/common/block/BlockTeleposer.java#L158
     @SuppressWarnings("unchecked")
-    public static boolean moveBlock(World world, Location s, BlockSpec spec1, Location d, BlockSpec spec2) {
+    public static boolean moveBlock(
+        PendingMove pendingMove,
+        World world,
+        Location s,
+        BlockSpec spec1,
+        Location d,
+        BlockSpec spec2
+    ) {
 
         World worldS = world.provider.dimensionId == s.worldId ? world : s.getWorld();
         int sx = s.x;
@@ -276,18 +322,18 @@ public class PendingMove extends AbstractBuildable {
             if (!allowTelepose(worldS, worldD, s, spec1, d, spec2)) return false;
         }
 
-        BlockMover<Object> source = (BlockMover<Object>) getBlockMover(worldS, sx, sy, sz);
-        BlockMover<Object> dest = (BlockMover<Object>) getBlockMover(worldD, dx, dy, dz);
+        BlockMover<Object> source = (BlockMover<Object>) BlockMovers.getBlockMover(worldS, sx, sy, sz);
+        BlockMover<Object> dest = (BlockMover<Object>) BlockMovers.getBlockMover(worldD, dx, dy, dz);
 
         try {
             BlockCaptureDrops.captureDrops(worldS);
             if (worldS != worldD) BlockCaptureDrops.captureDrops(worldD);
 
-            Object sourceState = source.remove(worldS, sx, sy, sz);
-            Object destState = dest.remove(worldD, dx, dy, dz);
+            Object sourceState = source.remove(pendingMove, worldS, sx, sy, sz);
+            Object destState = dest.remove(pendingMove, worldD, dx, dy, dz);
 
-            source.place(worldD, dx, dy, dz, sourceState);
-            dest.place(worldS, sx, sy, sz, destState);
+            source.place(pendingMove, worldD, dx, dy, dz, sourceState);
+            dest.place(pendingMove, worldS, sx, sy, sz, destState);
         } finally {
             // delete any items that were dropped
             BlockCaptureDrops.stopCapturingDrops(worldS);
@@ -314,178 +360,5 @@ public class PendingMove extends AbstractBuildable {
             spec2.getBlockMeta()
         );
         return !MinecraftForge.EVENT_BUS.post(evt);
-    }
-
-    private static BlockMover<?> getBlockMover(World world, int x, int y, int z) {
-        for (BlockMovers blockMover : BlockMovers.values()) {
-            if (blockMover.blockMover.canMove(world, x, y, z)) return blockMover.blockMover;
-        }
-
-        throw new IllegalStateException();
-    }
-
-    private enum BlockMovers {
-
-        @Optional(Names.FORGE_MULTIPART)
-        FMP(FMPBlockMover.INSTANCE),
-        @Optional(Names.GREG_TECH_NH)
-        GT(GTBlockMover.INSTANCE),
-        Standard(StandardBlockMover.INSTANCE);
-
-        public final BlockMover<?> blockMover;
-
-        BlockMovers(BlockMover<?> blockMover) {
-            this.blockMover = blockMover;
-        }
-    }
-
-    interface BlockMover<State> {
-
-        boolean canMove(World world, int x, int y, int z);
-
-        State remove(World world, int x, int y, int z);
-
-        void place(World world, int x, int y, int z, State state);
-    }
-
-    @Desugar
-    private record StandardBlock(Block block, int meta, NBTTagCompound tileData) {
-
-    }
-
-    private static class StandardBlockMover implements BlockMover<StandardBlock> {
-
-        public static final StandardBlockMover INSTANCE = new StandardBlockMover();
-
-        @Override
-        public boolean canMove(World world, int x, int y, int z) {
-            return true;
-        }
-
-        @Override
-        public StandardBlock remove(World world, int x, int y, int z) {
-            Block block = world.getBlock(x, y, z);
-            int meta = world.getBlockMetadata(x, y, z);
-            NBTTagCompound tag = null;
-
-            TileEntity te = world.getTileEntity(x, y, z);
-
-            if (te != null) {
-                tag = new NBTTagCompound();
-                te.writeToNBT(tag);
-            }
-
-            world.setTileEntity(x, y, z, null);
-            world.setBlockToAir(x, y, z);
-
-            return new StandardBlock(block, meta, tag);
-        }
-
-        @Override
-        public void place(World world, int x, int y, int z, StandardBlock standardBlock) {
-            world.setBlock(x, y, z, standardBlock.block, standardBlock.meta, 3);
-
-            if (standardBlock.tileData != null) {
-                TileEntity te = TileEntity.createAndLoadEntity(standardBlock.tileData);
-
-                te.xCoord = x;
-                te.yCoord = y;
-                te.zCoord = z;
-
-                world.setTileEntity(x, y, z, te);
-            }
-        }
-    }
-
-    private static class GTBlockMover extends StandardBlockMover {
-
-        public static final GTBlockMover INSTANCE = new GTBlockMover();
-
-        @Override
-        public boolean canMove(World world, int x, int y, int z) {
-            return world.getTileEntity(x, y, z) instanceof IGregTechTileEntity;
-        }
-
-        @Override
-        public StandardBlock remove(World world, int x, int y, int z) {
-            // Because GT uses this to call MTE.onRemoval() :doom:
-            world.getBlock(x, y, z).getDrops(world, x, y, z, world.getBlockMetadata(x, y, z), 0);
-
-            return super.remove(world, x, y, z);
-        }
-
-        @Override
-        public void place(World world, int x, int y, int z, StandardBlock standardBlock) {
-            super.place(world, x, y, z, standardBlock);
-
-            TileEntity te = world.getTileEntity(x, y, z);
-
-            if (te instanceof IGregTechTileEntity igte) {
-                if (igte instanceof BaseMetaTileEntity bmte) {
-                    bmte.setCableUpdateDelay(100);
-                }
-
-                IMetaTileEntity imte = igte.getMetaTileEntity();
-
-                if (imte instanceof MTEPipeLaser laserPipe) {
-                    laserPipe.updateNeighboringNetworks();
-                }
-
-                if (imte instanceof MTEPipeData dataPipe) {
-                    dataPipe.updateNeighboringNetworks();
-                }
-            }
-
-            if (te instanceof IIC2Enet enet) {
-                enet.doEnetUpdate();
-            }
-        }
-    }
-
-    @Desugar
-    private record FMPBlock(Block block, int meta, TileMultipart tile) {
-
-    }
-
-    private static class FMPBlockMover implements BlockMover<FMPBlock> {
-
-        public static final FMPBlockMover INSTANCE = new FMPBlockMover();
-
-        @Override
-        public boolean canMove(World world, int x, int y, int z) {
-            return world.getTileEntity(x, y, z) instanceof TileMultipart;
-        }
-
-        @Override
-        public FMPBlock remove(World world, int x, int y, int z) {
-            Block block = world.getBlock(x, y, z);
-            int meta = world.getBlockMetadata(x, y, z);
-            TileMultipart te = (TileMultipart) world.getTileEntity(x, y, z);
-
-            world.setTileEntity(x, y, z, null);
-            world.setBlockToAir(x, y, z);
-
-            return new FMPBlock(block, meta, te);
-        }
-
-        @Override
-        public void place(World world, int x, int y, int z, FMPBlock fmpBlock) {
-            world.setBlock(x, y, z, fmpBlock.block, fmpBlock.meta, 3);
-
-            fmpBlock.tile.xCoord = x;
-            fmpBlock.tile.yCoord = y;
-            fmpBlock.tile.zCoord = z;
-
-            fmpBlock.tile.validate();
-            world.setTileEntity(x, y, z, fmpBlock.tile);
-
-            fmpBlock.tile.onMoved();
-
-            world.markBlockForUpdate(x, y, z);
-            world.func_147451_t(x, y, z);
-            fmpBlock.tile.markDirty();
-            fmpBlock.tile.markRender();
-            MultipartHelper.sendDescPacket(world, fmpBlock.tile);
-        }
     }
 }

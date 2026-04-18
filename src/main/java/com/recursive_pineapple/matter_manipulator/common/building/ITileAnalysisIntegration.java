@@ -3,7 +3,7 @@ package com.recursive_pineapple.matter_manipulator.common.building;
 import java.util.List;
 
 import net.minecraft.block.Block;
-import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.IChatComponent;
 
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
@@ -17,7 +17,7 @@ public interface ITileAnalysisIntegration {
 
     boolean getRequiredItemsForNewBlock(IBlockApplyContext context);
 
-    void getItemTag(NBTTagCompound tag);
+    void getItemTag(ItemStack stack);
 
     void getItemDetailsChat(List<IChatComponent> details);
 

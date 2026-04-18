@@ -155,6 +155,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     public static final int ALLOW_EXCHANGING = 0b1 << counter++;
     public static final int ALLOW_MOVING = 0b1 << counter++;
     public static final int ALLOW_CABLES = 0b1 << counter++;
+    public static final int ALLOW_SMART_COPY = 0b1 << counter++;
 
     public static final int ALL_MODES = ALLOW_GEOMETRY | ALLOW_COPYING | ALLOW_EXCHANGING | ALLOW_MOVING | ALLOW_CABLES;
 
@@ -193,7 +194,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             GlobalMMConfig.BuildingConfig.mk3BlocksPerPlace, 5,
             7,
             10_000_000_000L,
-            ALLOW_GEOMETRY | CONNECTS_TO_AE | ALLOW_REMOVING | ALLOW_EXCHANGING | ALLOW_CONFIGURING | ALLOW_CABLES | ALLOW_COPYING | ALLOW_MOVING | CONNECTS_TO_UPLINK,
+            ALLOW_GEOMETRY | CONNECTS_TO_AE | ALLOW_REMOVING | ALLOW_EXCHANGING | ALLOW_CONFIGURING | ALLOW_CABLES | ALLOW_COPYING | ALLOW_MOVING | CONNECTS_TO_UPLINK | ALLOW_SMART_COPY,
             ImmutableList.of(MMUpgrades.PowerEff, MMUpgrades.PowerP2P),
             MMItemList.MK3
         );
@@ -584,6 +585,17 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         span.x + (span.x < 0 ? -1 : 1),
                         span.y + (span.y < 0 ? -1 : 1),
                         span.z + (span.z < 0 ? -1 : 1)));
+
+                addInfoLine(desc, "mm.tooltip.copying.wireless_link", state.config.linkExternalHubs,
+                    on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
+
+                if (state.hasCap(ALLOW_SMART_COPY)) {
+                    addInfoLine(desc, "mm.tooltip.copying.auto_proxy_cribs", state.config.replaceCribsWithProxies,
+                        on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
+                }
+
+                addInfoLine(desc, "mm.tooltip.copying.auto_p2p_interfaces", state.config.replaceInterfacesWithP2P,
+                    on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {
@@ -1436,6 +1448,34 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .onClicked(() -> {
                     Messages.MarkPaste.sendToServer();
                 })
+            .done()
+            .branch()
+                .label(StatCollector.translateToLocal("mm.gui.advanced_options"))
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.wireless_link_hub",
+                        StatCollector.translateToLocal(initialState.config.linkExternalHubs ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> {
+                        Messages.SetLinkExternalHubs.sendToServer();
+                    })
+                .done()
+                .option()
+                    .hidden(!initialState.hasCap(ALLOW_SMART_COPY))
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.smart_copy.cribs_to_proxies",
+                        StatCollector.translateToLocal(initialState.config.replaceCribsWithProxies ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> {
+                        Messages.SetReplaceCribs.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.smart_copy.interfaces_to_p2p",
+                        StatCollector.translateToLocal(initialState.config.replaceInterfacesWithP2P ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> {
+                        Messages.SetReplaceInterfaces.sendToServer();
+                    })
+                .done()
             .done();
     }
 
