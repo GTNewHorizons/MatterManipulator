@@ -11,7 +11,6 @@ import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
@@ -51,6 +50,7 @@ public class PendingBlock extends Location {
     public ITileAnalysisIntegration ae;
     public ITileAnalysisIntegration arch;
     public ITileAnalysisIntegration mp;
+    public transient SmartCopyIntegration smartCopy;
 
     public InventoryAnalysis inventory = null;
 
@@ -72,6 +72,7 @@ public class PendingBlock extends Location {
         this.ae = null;
         this.arch = null;
         this.mp = null;
+        this.smartCopy = null;
         this.inventory = null;
         this.renderOrder = 0;
         this.buildOrder = 0;
@@ -140,6 +141,7 @@ public class PendingBlock extends Location {
         if (ae != null) list.add(ae);
         if (arch != null) list.add(arch);
         if (mp != null) list.add(mp);
+        if (smartCopy != null) list.add(smartCopy);
 
         return list;
     }
@@ -168,13 +170,9 @@ public class PendingBlock extends Location {
 
         if (stack == null) return null;
 
-        NBTTagCompound tag = stack.getTagCompound() != null ? stack.getTagCompound() : new NBTTagCompound();
-
         for (var analysis : getIntegrations()) {
-            analysis.getItemTag(tag);
+            analysis.getItemTag(stack);
         }
-
-        stack.setTagCompound(tag.hasNoTags() ? null : tag);
 
         return stack;
     }
@@ -239,6 +237,7 @@ public class PendingBlock extends Location {
         if (ae != null) dup.ae = ae.clone();
         if (arch != null) dup.arch = arch.clone();
         if (mp != null) dup.mp = mp.clone();
+        if (smartCopy != null) dup.smartCopy = smartCopy.clone();
         if (inventory != null) dup.inventory = inventory.clone();
         dup.renderOrder = renderOrder;
         dup.buildOrder = buildOrder;

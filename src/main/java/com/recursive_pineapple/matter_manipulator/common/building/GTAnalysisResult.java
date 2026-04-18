@@ -624,7 +624,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     }
 
     @Override
-    public void getItemTag(NBTTagCompound tag) {
+    public void getItemTag(ItemStack stack) {
 
     }
 

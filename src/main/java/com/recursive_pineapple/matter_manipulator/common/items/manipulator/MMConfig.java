@@ -46,6 +46,19 @@ public class MMConfig {
     /** The array size in repetitions */
     public Vector3i arraySpan;
 
+    public boolean linkExternalHubs = false;
+
+    /**
+     * When true, CRIBs (Crafting Input Buses) in the copy region are replaced with Crafting Input Proxies linked to the
+     * source CRIB.
+     */
+    public boolean replaceCribsWithProxies = false;
+    /**
+     * When true, ME Interface parts with patterns in the copy region are replaced with P2P ME tunnels, with matching
+     * tunnels auto-placed at the source.
+     */
+    public boolean replaceInterfacesWithP2P = false;
+
     public Location getCoordA(World world, Vector3i lookingAt) {
         if (coordAOffset == null) {
             return coordA;
@@ -262,6 +275,9 @@ public class MMConfig {
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
         result = prime * result + ((arraySpan == null) ? 0 : arraySpan.hashCode());
+        result = prime * result + Boolean.hashCode(linkExternalHubs);
+        result = prime * result + Boolean.hashCode(replaceCribsWithProxies);
+        result = prime * result + Boolean.hashCode(replaceInterfacesWithP2P);
         return result;
     }
 
@@ -322,6 +338,9 @@ public class MMConfig {
         if (arraySpan == null) {
             if (other.arraySpan != null) return false;
         } else if (!arraySpan.equals(other.arraySpan)) return false;
+        if (linkExternalHubs != other.linkExternalHubs) return false;
+        if (replaceCribsWithProxies != other.replaceCribsWithProxies) return false;
+        if (replaceInterfacesWithP2P != other.replaceInterfacesWithP2P) return false;
         return true;
     }
 }
