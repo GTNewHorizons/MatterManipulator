@@ -61,7 +61,7 @@ public class WirelessLinkFixer {
         initialized = true;
 
         if (state.config.placeMode != PlaceMode.COPYING) {
-            MMMod.LOG.info("[WirelessLink] Skipping: not in COPYING mode (mode={})", state.config.placeMode);
+            MMMod.LOG.debug("[WirelessLink] Skipping: not in COPYING mode (mode={})", state.config.placeMode);
             return;
         }
 
@@ -70,13 +70,13 @@ public class WirelessLinkFixer {
         Location coordC = state.config.coordC;
 
         if (!Location.areCompatible(coordA, coordB, coordC)) {
-            MMMod.LOG.info("[WirelessLink] Skipping: coordinates not compatible");
+            MMMod.LOG.debug("[WirelessLink] Skipping: coordinates not compatible");
             return;
         }
 
         boolean linkExternalHubs = state.config.linkExternalHubs;
 
-        MMMod.LOG.info("[WirelessLink] Initializing wireless link map with linkExternalHubs={}", linkExternalHubs);
+        MMMod.LOG.debug("[WirelessLink] Initializing wireless link map with linkExternalHubs={}", linkExternalHubs);
 
         int srcMinX = Math.min(coordA.x, coordB.x);
         int srcMinY = Math.min(coordA.y, coordB.y);
@@ -136,7 +136,7 @@ public class WirelessLinkFixer {
 
                         if (!shouldInclude) continue;
 
-                        MMMod.LOG.info(
+                        MMMod.LOG.trace(
                             "[WirelessLink] Found connector at ({},{},{}) linked to ({},{},{}), linkInRegion={}",
                             sx,
                             sy,
@@ -208,12 +208,12 @@ public class WirelessLinkFixer {
             }
 
             if (wirelessLinkMap.isEmpty()) {
-                MMMod.LOG.info("[WirelessLink] Link map is empty after processing, setting to null");
+                MMMod.LOG.debug("[WirelessLink] Link map is empty after processing, setting to null");
                 wirelessLinkMap = null;
             } else {
-                MMMod.LOG.info("[WirelessLink] Built link map with {} entries", wirelessLinkMap.size());
+                MMMod.LOG.debug("[WirelessLink] Built link map with {} entries", wirelessLinkMap.size());
                 for (var e : wirelessLinkMap.entrySet()) {
-                    MMMod.LOG.info(
+                    MMMod.LOG.trace(
                         "[WirelessLink]   ({},{},{}) -> ({},{},{})",
                         CoordinatePacker.unpackX(e.getKey()),
                         CoordinatePacker.unpackY(e.getKey()),
@@ -237,13 +237,13 @@ public class WirelessLinkFixer {
 
         Block block = world.getBlock(x, y, z);
         if (!InteropConstants.WIRELESS_CONNECTOR.matches(block, OreDictionary.WILDCARD_VALUE)) {
-            MMMod.LOG.info("[WirelessLink] applyWirelessLink({},{},{}): block is not a wireless connector", x, y, z);
+            MMMod.LOG.debug("[WirelessLink] applyWirelessLink({},{},{}): block is not a wireless connector", x, y, z);
             return;
         }
 
         TileEntity te = world.getTileEntity(x, y, z);
         if (!(te instanceof TileWireless wireless)) {
-            MMMod.LOG.info("[WirelessLink] applyWirelessLink({},{},{}): tile entity is not a TileWireless", x, y, z);
+            MMMod.LOG.debug("[WirelessLink] applyWirelessLink({},{},{}): tile entity is not a TileWireless", x, y, z);
             return;
         }
 
@@ -251,14 +251,14 @@ public class WirelessLinkFixer {
         int py = CoordinatePacker.unpackY(partnerPacked);
         int pz = CoordinatePacker.unpackZ(partnerPacked);
 
-        MMMod.LOG.info("[WirelessLink] Applying link at ({},{},{}) -> ({},{},{})", x, y, z, px, py, pz);
+        MMMod.LOG.debug("[WirelessLink] Applying link at ({},{},{}) -> ({},{},{})", x, y, z, px, py, pz);
 
         wireless.link().set(new BlockRef(px, py, pz));
 
         scala.Option<BlockRef> verifyLink = wireless.link().value();
         if (verifyLink.isDefined()) {
             BlockRef ref = verifyLink.get();
-            MMMod.LOG.info(
+            MMMod.LOG.trace(
                 "[WirelessLink] Verified link at ({},{},{}): ({},{},{})",
                 x,
                 y,
