@@ -971,6 +971,10 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (cable.isAir() && Mods.AppliedEnergistics2.isModLoaded()) {
                 MMUtils.getAECable(cable, world, hit.blockX, hit.blockY, hit.blockZ);
             }
+
+            if (cable.isAir() && Mods.OpenComputers.isModLoaded()) {
+                MMUtils.getOCCable(cable, world, hit.blockX, hit.blockY, hit.blockZ);
+            }
         }
 
         state.config.cables = cable.isAir() ? null : cable;
