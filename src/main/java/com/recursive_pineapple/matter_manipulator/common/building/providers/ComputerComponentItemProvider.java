@@ -94,7 +94,7 @@ public class ComputerComponentItemProvider implements IItemProvider {
     @Override
     public boolean equals(Object other) {
         if (!(other instanceof ComputerComponentItemProvider provider)) return false;
-        if (component.getItemDamage() != API.items.get("eeprom").createItemStack(1).getItemDamage()) return super.equals(other);
+        if (component.getItemDamage() != API.items.get("eeprom").createItemStack(1).getItemDamage()) return component.equals(provider.component);
         if (provider.component.getItemDamage() != API.items.get("eeprom").createItemStack(1).getItemDamage()) return false;
 
         NBTTagCompound tagThis = (NBTTagCompound) component.getTagCompound().copy();
