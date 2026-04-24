@@ -55,6 +55,7 @@ public enum Mods implements IMod, ITargetMod {
     },
     NewHorizonsCoreMod(Names.NEW_HORIZONS_CORE_MOD),
     NotEnoughItems(Names.NOT_ENOUGH_ITEMS),
+    OpenComputers(Names.OPEN_COMPUTERS),
     StorageDrawers(Names.STORAGE_DRAWERS),
     Thaumcraft(Names.THAUMCRAFT),
 
@@ -90,6 +91,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String MINECRAFT = "minecraft";
         public static final String NEW_HORIZONS_CORE_MOD = "dreamcraft";
         public static final String NOT_ENOUGH_ITEMS = "NotEnoughItems";
+        public static final String OPEN_COMPUTERS = "OpenComputers";
         public static final String STORAGE_DRAWERS = "StorageDrawers";
         public static final String THAUMCRAFT = "Thaumcraft";
     }

@@ -10,6 +10,7 @@ import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.AECellItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.BatteryItemProvider;
+import com.recursive_pineapple.matter_manipulator.common.building.providers.ComputerComponentItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.PatternItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.utils.InventoryAdapter;
@@ -53,6 +54,11 @@ public class InventoryAnalysis {
 
     private static IItemProvider getProviderFor(ItemStack stack, boolean fuzzy) {
         if (stack == null || stack.getItem() == null) return null;
+
+        if (Mods.OpenComputers.isModLoaded()) {
+            IItemProvider component = ComputerComponentItemProvider.fromStack(stack);
+            if (component != null) return component;
+        }
 
         if (Mods.AppliedEnergistics2.isModLoaded()) {
             if (!fuzzy) {
