@@ -10,6 +10,7 @@ import net.minecraft.util.IChatComponent;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import com.carpentersblocks.data.Slope;
 import com.carpentersblocks.data.Stairs;
 import com.carpentersblocks.tileentity.TEBase;
 import com.google.gson.annotations.SerializedName;
@@ -22,6 +23,9 @@ public class CarpentersBlocksAnalysisResult implements ITileAnalysisIntegration 
     private static final byte TYPE_UNKNOWN = 0;
     private static final byte TYPE_STAIRS = 1;
     private static final byte TYPE_SLAB = 2;
+    private static final byte TYPE_SLOPE = 3;
+
+    private static final int SLOPE_COUNT = 65;
 
     // Slab data to ForgeDirection ordinal mapping, from Slab.DIR_MAP.
     private static final int[] SLAB_DIR_MAP = {
@@ -48,6 +52,8 @@ public class CarpentersBlocksAnalysisResult implements ITileAnalysisIntegration 
             .getUnlocalizedName();
         if (blockName.contains("Stairs")) {
             result.blockType = TYPE_STAIRS;
+        } else if (blockName.contains("Slope")) {
+            result.blockType = TYPE_SLOPE;
         } else if (blockName.contains("blockCarpentersBlock")) {
             result.blockType = TYPE_SLAB;
         }
@@ -157,9 +163,32 @@ public class CarpentersBlocksAnalysisResult implements ITileAnalysisIntegration 
     public void transform(Transform transform) {
         switch (blockType) {
             case TYPE_STAIRS -> transformStairs(transform);
+            case TYPE_SLOPE -> transformSlope(transform);
             case TYPE_SLAB -> transformSlab(transform);
             default -> {}
         }
+    }
+
+    private List<ForgeDirection> transformFacings(List<ForgeDirection> facings, Transform transform) {
+        List<ForgeDirection> result = new ArrayList<>(facings.size());
+        for (ForgeDirection facing : facings) {
+            result.add(transform.apply(facing));
+        }
+        return result;
+    }
+
+    private boolean facingsMatch(List<ForgeDirection> a, List<ForgeDirection> b) {
+        return a.size() == b.size() && a.containsAll(b);
+    }
+
+    private static boolean stairsTypesCompatible(Stairs.Type a, Stairs.Type b) {
+        if (a == b) return true;
+        return (a == Stairs.Type.NORMAL_SIDE || a == Stairs.Type.NORMAL) && (b == Stairs.Type.NORMAL_SIDE || b == Stairs.Type.NORMAL);
+    }
+
+    private static boolean slopeTypesCompatible(Slope.Type a, Slope.Type b) {
+        if (a == b) return true;
+        return (a == Slope.Type.WEDGE_SIDE || a == Slope.Type.WEDGE) && (b == Slope.Type.WEDGE_SIDE || b == Slope.Type.WEDGE);
     }
 
     private void transformStairs(Transform transform) {
@@ -168,18 +197,26 @@ public class CarpentersBlocksAnalysisResult implements ITileAnalysisIntegration 
         Stairs stairs = Stairs.stairsList[data];
         if (stairs == null) return;
 
-        List<ForgeDirection> newFacings = new ArrayList<>();
-        for (ForgeDirection facing : stairs.facings) {
-            newFacings.add(transform.apply(facing));
-        }
+        List<ForgeDirection> newFacings = transformFacings(stairs.facings, transform);
 
         for (Stairs candidate : Stairs.stairsList) {
-            if (
-                candidate != null && candidate.stairsType == stairs.stairsType &&
-                    candidate.facings.size() == newFacings.size() &&
-                    candidate.facings.containsAll(newFacings)
-            ) {
+            if (candidate != null && stairsTypesCompatible(candidate.stairsType, stairs.stairsType) && facingsMatch(candidate.facings, newFacings)) {
                 data = candidate.stairsID;
+                return;
+            }
+        }
+    }
+
+    private void transformSlope(Transform transform) {
+        Slope slope = Slope.getSlopeById(data);
+        if (slope == null) return;
+
+        List<ForgeDirection> newFacings = transformFacings(slope.facings, transform);
+
+        for (int i = 0; i < SLOPE_COUNT; i++) {
+            Slope candidate = Slope.getSlopeById(i);
+            if (candidate != null && slopeTypesCompatible(candidate.type, slope.type) && facingsMatch(candidate.facings, newFacings)) {
+                data = candidate.slopeID;
                 return;
             }
         }
