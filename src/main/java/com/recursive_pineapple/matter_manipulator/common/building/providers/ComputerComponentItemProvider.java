@@ -68,13 +68,11 @@ public class ComputerComponentItemProvider implements IItemProvider {
             if (component.hasTagCompound()) {
                 NBTTagCompound tag = (NBTTagCompound) component.getTagCompound().copy();
                 if (tag.hasKey("oc:data")) {
-                    NBTTagCompound ocData = tag.getCompoundTag("oc:data");
-                    if (ocData.hasKey("node")) {
-                        NBTTagCompound node = ocData.getCompoundTag("node");
+                    NBTTagCompound data = tag.getCompoundTag("oc:data");
+                    if (data.hasKey("node")) {
+                        NBTTagCompound node = data.getCompoundTag("node");
                         node.removeTag("address");
-                        ocData.setTag("node", node);
                     }
-                    tag.setTag("oc:data", ocData);
                 }
                 copiedEEPROM.setTagCompound(tag);
             }
@@ -91,5 +89,32 @@ public class ComputerComponentItemProvider implements IItemProvider {
         ComputerComponentItemProvider provider = new ComputerComponentItemProvider();
         provider.component = component;
         return provider;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (!(other instanceof ComputerComponentItemProvider provider)) return false;
+        if (component.getItemDamage() != API.items.get("eeprom").createItemStack(1).getItemDamage()) return super.equals(other);
+        if (provider.component.getItemDamage() != API.items.get("eeprom").createItemStack(1).getItemDamage()) return false;
+
+        NBTTagCompound tagThis = (NBTTagCompound) component.getTagCompound().copy();
+        NBTTagCompound tagOther = (NBTTagCompound) provider.component.getTagCompound().copy();
+
+        if (!tagThis.hasKey("oc:data")) return false;
+        if (!tagOther.hasKey("oc:data")) return false;
+
+        NBTTagCompound dataThis = tagThis.getCompoundTag("oc:data");
+        NBTTagCompound dataOther = tagOther.getCompoundTag("oc:data");
+
+        if (!dataThis.hasKey("node")) return false;
+        if (!dataOther.hasKey("node")) return false;
+
+        NBTTagCompound nodeThis = dataThis.getCompoundTag("node");
+        NBTTagCompound nodeOther = dataOther.getCompoundTag("node");
+
+        nodeThis.removeTag("address");
+        nodeOther.removeTag("address");
+
+        return tagThis.equals(tagOther);
     }
 }
