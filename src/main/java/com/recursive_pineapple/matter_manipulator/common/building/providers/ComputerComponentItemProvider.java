@@ -1,7 +1,10 @@
 package com.recursive_pineapple.matter_manipulator.common.building.providers;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -16,6 +19,37 @@ import li.cil.oc.api.API;
 import li.cil.oc.api.detail.ItemInfo;
 
 public class ComputerComponentItemProvider implements IItemProvider {
+
+    private static final HashSet<Integer> FUZZY_COMPONENT_DAMAGE = Arrays.stream(new String[] {
+        // spotless:off
+        "cpu1",
+        "cpu2",
+        "cpu3",
+        "dataCard1",
+        "dataCard2",
+        "dataCard3",
+        "internetCard",
+        "lanCard",
+        "wlanCard1",
+        "wlanCard2",
+        "linkedCard",
+        "redstoneCard1",
+        "redstoneCard2",
+        "tpsCard",
+        "debugCard",
+        "graphicsCard1",
+        "graphicsCard2",
+        "graphicsCard3",
+        "ram1",
+        "ram2",
+        "ram3",
+        "ram4",
+        "ram5",
+        "ram6"
+        // spotless:on
+    })
+        .map(name -> API.items.get(name).createItemStack(1).getItemDamage())
+        .collect(Collectors.toCollection(HashSet::new));
 
     public ItemStack component;
 
@@ -40,20 +74,7 @@ public class ComputerComponentItemProvider implements IItemProvider {
         if (!consume) return component;
 
         // any cpu, gpu, or ram can be used, even if it has assigned uuid
-        if (
-            component.getItemDamage() == API.items.get("cpu1").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("cpu2").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("cpu3").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("graphicsCard1").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("graphicsCard2").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("graphicsCard3").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("ram1").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("ram2").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("ram3").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("ram4").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("ram5").createItemStack(1).getItemDamage() ||
-                component.getItemDamage() == API.items.get("ram6").createItemStack(1).getItemDamage()
-        ) {
+        if (FUZZY_COMPONENT_DAMAGE.contains(component.getItemDamage())) {
             BooleanObjectImmutablePair<List<BigItemStack>> result = inv
                 .tryConsumeItems(Collections.singletonList(BigItemStack.create(component)), IPseudoInventory.CONSUME_FUZZY);
             if (!result.leftBoolean()) return null;
