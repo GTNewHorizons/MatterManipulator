@@ -46,6 +46,7 @@ dependencies {
     compileOnly("com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.64-gtnh:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-882-GTNH:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:ArchitectureCraft:1.12.10") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:CarpentersBlocks:3.7.2-GTNH") { transitive = false }
     compileOnly("com.github.GTNewHorizons:Avaritia:1.93:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:Avaritiaddons:1.9.4-GTNH:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:bdlib:1.11.0-GTNH:dev") { transitive = false }
