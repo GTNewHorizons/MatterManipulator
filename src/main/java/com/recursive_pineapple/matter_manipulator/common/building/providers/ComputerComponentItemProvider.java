@@ -102,6 +102,23 @@ public class ComputerComponentItemProvider implements IItemProvider {
             return null;
         }
 
+        // take empty hdds, do not program them
+        // TODO: override equality so disks are equal whenever their tier is equal, regardless of content
+        if (component.getItemDamage() == API.items.get("hdd1").createItemStack(1).getItemDamage()) {
+            if (inv.tryConsumeItems(API.items.get("hdd1").createItemStack(1))) return API.items.get("hdd1").createItemStack(1);
+            return null;
+        }
+
+        if (component.getItemDamage() == API.items.get("hdd2").createItemStack(1).getItemDamage()) {
+            if (inv.tryConsumeItems(API.items.get("hdd2").createItemStack(1))) return API.items.get("hdd2").createItemStack(1);
+            return null;
+        }
+
+        if (component.getItemDamage() == API.items.get("hdd3").createItemStack(1).getItemDamage()) {
+            if (inv.tryConsumeItems(API.items.get("hdd3").createItemStack(1))) return API.items.get("hdd3").createItemStack(1);
+            return null;
+        }
+
         return null;
     }
 
