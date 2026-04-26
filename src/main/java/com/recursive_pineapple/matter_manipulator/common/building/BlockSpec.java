@@ -190,6 +190,9 @@ public class BlockSpec implements ImmutableBlockSpec {
 
             if (isBlock) {
                 stack = getBlock().createStackedBlock(metadata);
+                if (stack != null && Block.getBlockFromItem(stack.getItem()) == getBlock()) {
+                    stack.stackSize = 1;
+                }
             }
 
             if (stack == null || stack.getItem() == null) {
