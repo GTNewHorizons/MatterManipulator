@@ -136,10 +136,12 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
     }
 
     @Override
-    public void getItemTag(NBTTagCompound tag) {
+    public void getItemTag(ItemStack stack) {
+        NBTTagCompound tag = stack.getTagCompound() != null ? stack.getTagCompound() : new NBTTagCompound();
         tag.setString("BaseName", material.item.toString());
         tag.setInteger("BaseData", material.getMeta());
         tag.setInteger("Shape", shape);
+        stack.setTagCompound(tag);
     }
 
     @Override

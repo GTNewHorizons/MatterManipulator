@@ -87,6 +87,9 @@ public enum Messages {
         state.config.action = null;
     }))),
     SetShape(server(enumPacket(Shape.values(), (state, value) -> state.config.shape = value))),
+    SetLinkExternalHubs(server(simple((player, stack, manipulator, state) -> {
+        state.config.linkExternalHubs = !state.config.linkExternalHubs;
+    }))),
     SetA(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordA = new Location(player.worldObj, location);
     }))),
@@ -307,6 +310,12 @@ public enum Messages {
             return packet;
         }
     })),
+    SetReplaceCribs(server(simple((player, stack, manipulator, state) -> {
+        state.config.replaceCribsWithProxies = !state.config.replaceCribsWithProxies;
+    }))),
+    SetReplaceInterfaces(server(simple((player, stack, manipulator, state) -> {
+        state.config.replaceInterfacesWithP2P = !state.config.replaceInterfacesWithP2P;
+    }))),
     SetArray(server(locationPacket((player, stack, manipulator, state, span) -> {
         state.config.arraySpan = span;
     }))),

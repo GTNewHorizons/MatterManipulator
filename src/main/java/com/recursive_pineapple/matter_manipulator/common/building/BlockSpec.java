@@ -223,10 +223,9 @@ public class BlockSpec implements ImmutableBlockSpec {
             if (this.stack.isPresent()) {
                 ItemStack stack2 = this.stack.get();
 
-                NBTTagCompound tag = new NBTTagCompound();
-                stack2.setTagCompound(tag);
+                stack2.setTagCompound(new NBTTagCompound());
 
-                if (ArchitectureCraft.isModLoaded() && arch != null) arch.getItemTag(tag);
+                if (ArchitectureCraft.isModLoaded() && arch != null) arch.getItemTag(stack2);
 
                 if (intrinsicProperties != null) {
                     Map<String, IntrinsicProperty> props = new Object2ObjectOpenHashMap<>();
@@ -250,7 +249,7 @@ public class BlockSpec implements ImmutableBlockSpec {
                     }
                 }
 
-                tag = stack2.getTagCompound();
+                NBTTagCompound tag = stack2.getTagCompound();
 
                 if (tag != null && tag.hasNoTags()) stack2.setTagCompound(null);
             }
