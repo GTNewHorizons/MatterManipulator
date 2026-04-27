@@ -83,7 +83,9 @@ public class ComputerComponentItemProvider implements IItemProvider {
 
         if (component.getItemDamage() == EEPROM.getItemDamage()) {
             // Prefer an exact matching EEPROM; otherwise program an empty one.
-            return inv.tryConsumeItems(component) || inv.tryConsumeItems(EEPROM) ? component.copy() : null;
+            BooleanObjectImmutablePair<List<BigItemStack>> result = inv
+                .tryConsumeItems(Collections.singletonList(BigItemStack.create(component)), IPseudoInventory.CONSUME_REAL_ONLY);
+            return result.leftBoolean() || inv.tryConsumeItems(EEPROM) ? component.copy() : null;
         }
 
         // HDDs and floppies are consumed empty; their data is not copied.
