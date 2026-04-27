@@ -52,13 +52,13 @@ public class ComputerComponentItemProvider implements IItemProvider {
         .map(name -> API.items.get(name).createItemStack(1).getItemDamage())
         .collect(Collectors.toCollection(HashSet::new));
 
-    public static final ItemStack EEPROM = API.items.get("eeprom").createItemStack(1);
-    public static final ItemStack HDD_1 = API.items.get("hdd1").createItemStack(1);
-    public static final ItemStack HDD_2 = API.items.get("hdd2").createItemStack(1);
-    public static final ItemStack HDD_3 = API.items.get("hdd3").createItemStack(1);
-    public static final ItemStack FLOPPY = API.items.get("floppy").createItemStack(1);
+    private static final ItemStack EEPROM = API.items.get("eeprom").createItemStack(1);
+    private static final ItemStack HDD_1 = API.items.get("hdd1").createItemStack(1);
+    private static final ItemStack HDD_2 = API.items.get("hdd2").createItemStack(1);
+    private static final ItemStack HDD_3 = API.items.get("hdd3").createItemStack(1);
+    private static final ItemStack FLOPPY = API.items.get("floppy").createItemStack(1);
 
-    public @NotNull ItemStack component;
+    private @NotNull ItemStack component;
 
     public ComputerComponentItemProvider(@NotNull ItemStack component) {
         this.component = component;
