@@ -67,7 +67,7 @@ public class ComputerComponentItemProvider implements IItemProvider {
     public static ComputerComponentItemProvider fromStack(ItemStack stack) {
         if (stack == null) return null;
         if (API.items.get(stack) == null) return null;
-        return new ComputerComponentItemProvider(stack);
+        return new ComputerComponentItemProvider(withoutAddress(stack));
     }
 
     @Override
@@ -78,28 +78,12 @@ public class ComputerComponentItemProvider implements IItemProvider {
         if (FUZZY_COMPONENT_DAMAGE.contains(component.getItemDamage())) {
             BooleanObjectImmutablePair<List<BigItemStack>> result = inv
                 .tryConsumeItems(Collections.singletonList(BigItemStack.create(component)), IPseudoInventory.CONSUME_FUZZY);
-            if (!result.leftBoolean()) return null;
-            return API.items.get(component).createItemStack(1);
+            return result.leftBoolean() ? API.items.get(component).createItemStack(1) : null;
         }
 
         if (component.getItemDamage() == EEPROM.getItemDamage()) {
-            ItemStack copiedEEPROM = API.items.get(component).createItemStack(1);
-
-            // Copy the programmed EEPROM data, but force OC to assign a fresh address.
-            if (component.hasTagCompound()) {
-                NBTTagCompound tag = (NBTTagCompound) component.getTagCompound().copy();
-                if (tag.hasKey("oc:data")) {
-                    NBTTagCompound data = tag.getCompoundTag("oc:data");
-                    if (data.hasKey("node")) {
-                        NBTTagCompound node = data.getCompoundTag("node");
-                        node.removeTag("address");
-                    }
-                }
-                copiedEEPROM.setTagCompound(tag);
-            }
-
             // Prefer an exact matching EEPROM; otherwise program an empty one.
-            return inv.tryConsumeItems(copiedEEPROM) || inv.tryConsumeItems(EEPROM) ? copiedEEPROM : null;
+            return inv.tryConsumeItems(component) || inv.tryConsumeItems(EEPROM) ? component.copy() : null;
         }
 
         // HDDs and floppies are consumed empty; their data is not copied.
@@ -109,6 +93,22 @@ public class ComputerComponentItemProvider implements IItemProvider {
         if (component.getItemDamage() == FLOPPY.getItemDamage()) return inv.tryConsumeItems(FLOPPY) ? FLOPPY.copy() : null;
 
         return null;
+    }
+
+    // Strips the address of EEPROMs. Might work for other components.
+    private static @NotNull ItemStack withoutAddress(@NotNull ItemStack source) {
+        ItemStack stripped = source.copy();
+
+        if (!stripped.hasTagCompound()) return stripped;
+        NBTTagCompound tag = stripped.getTagCompound();
+
+        if (!tag.hasKey("oc:data")) return stripped;
+        NBTTagCompound data = tag.getCompoundTag("oc:data");
+
+        if (!data.hasKey("node")) return stripped;
+        data.getCompoundTag("node").removeTag("address");
+
+        return stripped;
     }
 
     @Override
@@ -125,25 +125,7 @@ public class ComputerComponentItemProvider implements IItemProvider {
 
         if (provider.component.getItemDamage() != EEPROM.getItemDamage()) return false;
 
-        NBTTagCompound tagThis = (NBTTagCompound) component.getTagCompound().copy();
-        NBTTagCompound tagOther = (NBTTagCompound) provider.component.getTagCompound().copy();
-
-        if (!tagThis.hasKey("oc:data")) return false;
-        if (!tagOther.hasKey("oc:data")) return false;
-
-        NBTTagCompound dataThis = tagThis.getCompoundTag("oc:data");
-        NBTTagCompound dataOther = tagOther.getCompoundTag("oc:data");
-
-        if (!dataThis.hasKey("node")) return false;
-        if (!dataOther.hasKey("node")) return false;
-
-        NBTTagCompound nodeThis = dataThis.getCompoundTag("node");
-        NBTTagCompound nodeOther = dataOther.getCompoundTag("node");
-
         // EEPROMs must match exactly, except for their assigned OC address.
-        nodeThis.removeTag("address");
-        nodeOther.removeTag("address");
-
-        return tagThis.equals(tagOther);
+        return ItemStack.areItemStacksEqual(component, withoutAddress(provider.component));
     }
 }
