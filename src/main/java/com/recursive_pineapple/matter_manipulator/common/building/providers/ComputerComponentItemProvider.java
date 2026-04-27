@@ -126,6 +126,6 @@ public class ComputerComponentItemProvider implements IItemProvider {
         if (provider.component.getItemDamage() != EEPROM.getItemDamage()) return false;
 
         // EEPROMs must match exactly, except for their assigned OC address.
-        return ItemStack.areItemStacksEqual(component, withoutAddress(provider.component));
+        return ItemStack.areItemStacksEqual(component, provider.component);
     }
 }
