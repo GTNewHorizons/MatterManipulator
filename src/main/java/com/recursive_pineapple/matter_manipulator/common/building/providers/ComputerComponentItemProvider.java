@@ -58,7 +58,7 @@ public class ComputerComponentItemProvider implements IItemProvider {
     private static final ItemStack HDD_3 = API.items.get("hdd3").createItemStack(1);
     private static final ItemStack FLOPPY = API.items.get("floppy").createItemStack(1);
 
-    private @NotNull ItemStack component;
+    private final @NotNull ItemStack component;
 
     public ComputerComponentItemProvider(@NotNull ItemStack component) {
         this.component = component;
