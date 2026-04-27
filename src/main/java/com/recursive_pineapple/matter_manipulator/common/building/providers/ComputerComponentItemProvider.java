@@ -123,8 +123,6 @@ public class ComputerComponentItemProvider implements IItemProvider {
         // Most OC components are equal by descriptor; assigned addresses do not matter.
         if (component.getItemDamage() != EEPROM.getItemDamage()) return API.items.get(component).equals(API.items.get(provider.component));
 
-        if (provider.component.getItemDamage() != EEPROM.getItemDamage()) return false;
-
         // EEPROMs must match exactly, except for their assigned OC address.
         return ItemStack.areItemStacksEqual(component, provider.component);
     }
