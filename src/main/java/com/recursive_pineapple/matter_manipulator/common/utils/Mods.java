@@ -46,6 +46,7 @@ public enum Mods implements IMod, ITargetMod {
     IndustrialCraft2(Names.INDUSTRIAL_CRAFT2),
     LogisticsPipes(Names.LOGISTICS_PIPES),
     MatterManipulator(Names.MATTER_MANIPULATOR),
+    OpenComputers(Names.OPEN_COMPUTERS),
     Minecraft(Names.MINECRAFT) {
 
         @Override
@@ -89,6 +90,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String LOGISTICS_PIPES = "LogisticsPipes";
         public static final String MATTER_MANIPULATOR = "matter-manipulator";
         public static final String MINECRAFT = "minecraft";
+        public static final String OPEN_COMPUTERS = "OpenComputers";
         public static final String NEW_HORIZONS_CORE_MOD = "dreamcraft";
         public static final String NOT_ENOUGH_ITEMS = "NotEnoughItems";
         public static final String OPEN_COMPUTERS = "OpenComputers";

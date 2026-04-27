@@ -649,9 +649,28 @@ public class MMState {
             if (AppliedEnergistics2.isModLoaded()) {
                 getAECables(a, b, out, block, world, config.cables);
             }
+
+            if (Mods.OpenComputers.isModLoaded()) {
+                getOCCables(a, b, out, block, world, config.cables);
+            }
         }
 
         return out;
+    }
+
+    private void getOCCables(
+        Vector3i a,
+        Vector3i b,
+        List<PendingBlock> out,
+        Block block,
+        World world,
+        ImmutableBlockSpec cable
+    ) {
+        if (InteropConstants.OC_CABLE.matches(block, 0)) {
+            for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+                out.add(cable.instantiate(world, voxel.x, voxel.y, voxel.z));
+            }
+        }
     }
 
     @Optional(Names.GREG_TECH_NH)

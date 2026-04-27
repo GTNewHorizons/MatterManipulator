@@ -1572,6 +1572,19 @@ public class MMUtils {
         return false;
     }
 
+    public static boolean isOCCable(ImmutableBlockSpec spec) {
+        if (spec == null) return false;
+        return InteropConstants.OC_CABLE.matches(spec.getBlock(), 0);
+    }
+
+    public static boolean getOCCable(BlockSpec spec, World world, int x, int y, int z) {
+        if (InteropConstants.OC_CABLE.matches(world.getBlock(x, y, z), 0)) {
+            spec.setObject(Item.getItemFromBlock(world.getBlock(x, y, z)), 0);
+            return true;
+        }
+        return false;
+    }
+
     @Optional(Names.GREG_TECH_NH)
     public static boolean getGTCable(BlockSpec spec, World world, int x, int y, int z) {
         if (world.getTileEntity(x, y, z) instanceof IGregTechTileEntity igte && igte.getMetaTileEntity() instanceof IConnectable) {

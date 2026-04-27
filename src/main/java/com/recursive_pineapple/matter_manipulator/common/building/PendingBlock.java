@@ -58,6 +58,7 @@ public class PendingBlock extends Location {
     public ITileAnalysisIntegration ae;
     public ITileAnalysisIntegration arch;
     public ITileAnalysisIntegration mp;
+    public ITileAnalysisIntegration cb;
     public transient SmartCopyIntegration smartCopy;
 
     public InventoryAnalysis inventory = null;
@@ -80,6 +81,7 @@ public class PendingBlock extends Location {
         this.ae = null;
         this.arch = null;
         this.mp = null;
+        this.cb = null;
         this.smartCopy = null;
         this.inventory = null;
         this.renderOrder = 0;
@@ -149,6 +151,7 @@ public class PendingBlock extends Location {
         if (ae != null) list.add(ae);
         if (arch != null) list.add(arch);
         if (mp != null) list.add(mp);
+        if (cb != null) list.add(cb);
         if (smartCopy != null) list.add(smartCopy);
 
         return list;
@@ -245,6 +248,7 @@ public class PendingBlock extends Location {
         if (ae != null) dup.ae = ae.clone();
         if (arch != null) dup.arch = arch.clone();
         if (mp != null) dup.mp = mp.clone();
+        if (cb != null) dup.cb = cb.clone();
         if (smartCopy != null) dup.smartCopy = smartCopy.clone();
         if (inventory != null) dup.inventory = inventory.clone();
         dup.renderOrder = renderOrder;
@@ -466,6 +470,7 @@ public class PendingBlock extends Location {
         result = prime * result + ((ae == null) ? 0 : ae.hashCode());
         result = prime * result + ((arch == null) ? 0 : arch.hashCode());
         result = prime * result + ((mp == null) ? 0 : mp.hashCode());
+        result = prime * result + ((cb == null) ? 0 : cb.hashCode());
         result = prime * result + ((inventory == null) ? 0 : inventory.hashCode());
         result = prime * result + renderOrder;
         result = prime * result + buildOrder;
@@ -493,6 +498,9 @@ public class PendingBlock extends Location {
         if (mp == null) {
             if (other.mp != null) return false;
         } else if (!mp.equals(other.mp)) return false;
+        if (cb == null) {
+            if (other.cb != null) return false;
+        } else if (!cb.equals(other.cb)) return false;
         if (inventory == null) {
             if (other.inventory != null) return false;
         } else if (!inventory.equals(other.inventory)) return false;
@@ -521,6 +529,7 @@ public class PendingBlock extends Location {
     public static final int ANALYZE_AE = 0b1 << counter++;
     public static final int ANALYZE_ARCH = 0b1 << counter++;
     public static final int ANALYZE_MP = 0b1 << counter++;
+    public static final int ANALYZE_CB = 0b1 << counter++;
     public static final int ANALYZE_INV = 0b1 << counter++;
     public static final int ANALYZE_ALL = -1;
 
@@ -542,6 +551,10 @@ public class PendingBlock extends Location {
                 this.mp = MultipartAnalysisResult.analyze(te);
             }
 
+            if ((flags & ANALYZE_CB) != 0 && Mods.CarpentersBlocks.isModLoaded()) {
+                this.cb = CarpentersBlocksAnalysisResult.analyze(te);
+            }
+
             if ((flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory) {
                 this.inventory = InventoryAnalysis.fromInventory(inventory, false);
             }
@@ -555,6 +568,7 @@ public class PendingBlock extends Location {
         if (ae != null) ae.migrate();
         if (arch != null) arch.migrate();
         if (mp != null) mp.migrate();
+        if (cb != null) cb.migrate();
 
         return this;
     }
