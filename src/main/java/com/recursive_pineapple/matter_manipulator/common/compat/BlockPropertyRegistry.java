@@ -85,6 +85,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
+import li.cil.oc.common.tileentity.traits.Rotatable;
 import lombok.SneakyThrows;
 
 public class BlockPropertyRegistry {
@@ -268,6 +269,7 @@ public class BlockPropertyRegistry {
         if (Mods.AE2Stuff.isModLoaded()) initAE2Stuff();
         if (Mods.EnderStorage.isModLoaded()) initEnderStorage();
         if (Mods.ExtraUtilities.isModLoaded()) initEXU();
+        if (Mods.OpenComputers.isModLoaded()) initOpenComputers();
     }
 
     // #region Vanilla
@@ -1165,6 +1167,118 @@ public class BlockPropertyRegistry {
                     boolean enchanted = world.getBlockMetadata(x, y, z) >= 6;
 
                     world.setBlockMetadataWithNotify(x, y, z, (enchanted ? 6 : 0) + forgeDirection.ordinal(), 3);
+                }
+            }
+        );
+    }
+
+    // #endregion
+
+    // #region OpenComputers
+
+    @Optional(Names.OPEN_COMPUTERS)
+    private static void initOpenComputers() {
+        registerTileEntityInterfaceProperty(
+            Rotatable.class,
+            new OrientationBlockProperty() {
+
+                @Override
+                public String getName() {
+                    return "orientation";
+                }
+
+                @Override
+                public Orientation getValue(World world, int x, int y, int z) {
+                    if (!(world.getTileEntity(x, y, z) instanceof Rotatable rotatable)) return Orientation.NONE;
+
+                    return switch (rotatable.yaw()) {
+                        case NORTH -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_SOUTH;
+                            case DOWN -> Orientation.DOWN_NORTH;
+                            case NORTH -> Orientation.NORTH_UP;
+                            default -> Orientation.NONE;
+                        };
+                        case SOUTH -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_NORTH;
+                            case DOWN -> Orientation.DOWN_SOUTH;
+                            case NORTH -> Orientation.SOUTH_UP;
+                            default -> Orientation.NONE;
+                        };
+                        case WEST -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_EAST;
+                            case DOWN -> Orientation.DOWN_WEST;
+                            case NORTH -> Orientation.WEST_UP;
+                            default -> Orientation.NONE;
+                        };
+                        case EAST -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_WEST;
+                            case DOWN -> Orientation.DOWN_EAST;
+                            case NORTH -> Orientation.EAST_UP;
+                            default -> Orientation.NONE;
+                        };
+                        default -> Orientation.NONE;
+                    };
+                }
+
+                @Override
+                public void setValue(World world, int x, int y, int z, Orientation orientation) {
+                    if (!(world.getTileEntity(x, y, z) instanceof Rotatable rotatable)) return;
+
+                    switch (orientation) {
+                        // NORTH yaw
+                        case UP_SOUTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.NORTH);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_NORTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.NORTH);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case NORTH_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.NORTH);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        // SOUTH yaw
+                        case UP_NORTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.SOUTH);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_SOUTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.SOUTH);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case SOUTH_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.SOUTH);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        // WEST yaw
+                        case UP_EAST -> {
+                            rotatable.yaw_$eq(ForgeDirection.WEST);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_WEST -> {
+                            rotatable.yaw_$eq(ForgeDirection.WEST);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case WEST_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.WEST);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        // EAST yaw
+                        case UP_WEST -> {
+                            rotatable.yaw_$eq(ForgeDirection.EAST);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_EAST -> {
+                            rotatable.yaw_$eq(ForgeDirection.EAST);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case EAST_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.EAST);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        default -> {}
+                    }
                 }
             }
         );
