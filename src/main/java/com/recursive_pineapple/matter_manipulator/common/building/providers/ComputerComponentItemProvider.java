@@ -97,9 +97,14 @@ public class ComputerComponentItemProvider implements IItemProvider {
         return null;
     }
 
-    // Strips the address of EEPROMs. Might work for other components.
+    /// Strips the address of EEPROMs. Might work for other components.
     private static @NotNull ItemStack withoutAddress(@NotNull ItemStack source) {
         ItemStack stripped = source.copy();
+
+        if (stripped.getItemDamage() != EEPROM.getItemDamage()) {
+            stripped.setTagCompound(null);
+            return stripped;
+        }
 
         if (!stripped.hasTagCompound()) return stripped;
         NBTTagCompound tag = stripped.getTagCompound();
@@ -108,7 +113,7 @@ public class ComputerComponentItemProvider implements IItemProvider {
         NBTTagCompound data = tag.getCompoundTag("oc:data");
 
         if (!data.hasKey("node")) return stripped;
-        data.getCompoundTag("node").removeTag("address");
+        data.getCompoundTag("node").removeTag("address");;
 
         return stripped;
     }
