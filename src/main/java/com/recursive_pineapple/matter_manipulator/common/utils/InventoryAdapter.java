@@ -59,7 +59,7 @@ public enum InventoryAdapter {
             IGregTechTileEntity igte = (IGregTechTileEntity) inv;
             MTEHatchRack rack = (MTEHatchRack) igte.getMetaTileEntity();
 
-            if (rack.heat > 2000) {
+            if (rack.getHeat() > 2000) {
                 context.error(new ChatComponentTranslation("mm.info.error.qc_rack_is_too_hot"));
                 return false;
             }

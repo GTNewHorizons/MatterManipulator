@@ -34,7 +34,6 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.enums.Materials;
-import gregtech.api.enums.StructureError;
 import gregtech.api.enums.TierEU;
 import gregtech.api.interfaces.IHatchElement;
 import gregtech.api.interfaces.IIconContainer;
@@ -54,6 +53,7 @@ import gregtech.api.structure.IStructureProvider;
 import gregtech.api.structure.StructureWrapper;
 import gregtech.api.structure.StructureWrapperInstanceInfo;
 import gregtech.api.structure.StructureWrapperTooltipBuilder;
+import gregtech.api.structure.error.StructureError;
 import gregtech.api.util.GTRecipe;
 import gregtech.api.util.GTUtility;
 import gregtech.api.util.IGTHatchAdder;
@@ -170,21 +170,10 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
     }
 
     @Override
-    protected void validateStructure(Collection<StructureError> errors, NBTTagCompound context) {
-        super.validateStructure(errors, context);
+    protected void validateStructure(Collection<StructureError> errors) {
+        super.validateStructure(errors);
 
-        structureInstanceInfo.validate(errors, context);
-    }
-
-    @Override
-    protected void localizeStructureErrors(
-        Collection<StructureError> errors,
-        NBTTagCompound context,
-        List<String> lines
-    ) {
-        super.localizeStructureErrors(errors, context, lines);
-
-        structureInstanceInfo.localizeStructureErrors(errors, context, lines);
+        structureInstanceInfo.validate(errors);
     }
 
     private enum UplinkHatchAdder implements IHatchElement<MTEMMUplink> {
