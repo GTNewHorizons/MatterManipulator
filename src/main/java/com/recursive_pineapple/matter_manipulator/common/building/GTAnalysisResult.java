@@ -255,11 +255,11 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         }
 
         if (mte instanceof MTEHatchEnergyTunnel hatch) {
-            mAmperes = hatch.Amperes;
+            mAmperes = hatch.getAmperes();
         }
 
         if (mte instanceof MTEHatchDynamoTunnel dynamo) {
-            mAmperes = dynamo.Amperes;
+            mAmperes = dynamo.getAmperes();
         }
 
         if (mte instanceof IMEConnectable me && me.connectsToAllSides()) {
@@ -486,11 +486,11 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             }
 
             if (mAmperes > 0 && mte instanceof MTEHatchEnergyTunnel hatch) {
-                hatch.Amperes = MMUtils.clamp(mAmperes, 0, hatch.maxAmperes);
+                hatch.setAmperes(MMUtils.clamp(mAmperes, 0, hatch.maxAmperes));
             }
 
             if (mAmperes > 0 && mte instanceof MTEHatchDynamoTunnel dynamo) {
-                dynamo.Amperes = MMUtils.clamp(mAmperes, 0, dynamo.maxAmperes);
+                dynamo.setAmperes(MMUtils.clamp(mAmperes, 0, dynamo.maxAmperes));
             }
 
             if (mte instanceof IMEConnectable me) {
