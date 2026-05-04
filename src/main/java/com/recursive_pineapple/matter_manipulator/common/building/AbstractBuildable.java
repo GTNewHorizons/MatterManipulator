@@ -176,7 +176,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
         if (gt) resetGTMachine(te);
         if (eio) resetConduitBundle(te);
 
-        if (InteropConstants.WIRELESS_CONNECTOR.matches(block, meta)) resetTileColour(te);
+        if (InteropConstants.isWirelessConnector(block, meta)) resetTileColour(te);
 
         if (block instanceof IFluidBlock fluidBlock && fluidBlock.canDrain(world, x, y, z)) {
             givePlayerFluids(fluidBlock.drain(world, x, y, z, true));

@@ -29,11 +29,16 @@ public class InteropConstants {
 
     public static final LazyBlock BRIGHT_AIR = new LazyBlock(Mods.GalacticraftCore, "tile.brightAir", OreDictionary.WILDCARD_VALUE);
     public static final LazyBlock ARCANE_LAMP_LIGHT = new LazyBlock(Mods.Thaumcraft, "blockAiry", 2);
-    public static final LazyBlock WIRELESS_CONNECTOR = new LazyBlock(Mods.AE2Stuff, "Wireless");
+    public static final LazyBlock WIRELESS_CONNECTOR = new LazyBlock(Mods.AppliedEnergistics2, "tile.BlockWirelessConnector");
+    public static final LazyBlock WIRELESS_HUB = new LazyBlock(Mods.AppliedEnergistics2, "tile.BlockWirelessHub");
     public static final LazyBlockSpec AE_BLOCK_CABLE = LazyBlockSpec.ofBlock(Mods.AppliedEnergistics2, "tile.BlockCableBus", 0);
     public static final LazyBlock FMP_BLOCK = new LazyBlock(Mods.ForgeMultipart, "block");
     public static final LazyBlock OC_CABLE = new LazyBlock(Mods.OpenComputers, "cable");
     public static final LazyBlockSpec ENDER_STORAGE = LazyBlockSpec.ofBlock(Mods.EnderStorage, "enderChest", MMValues.W);
+
+    public static boolean isWirelessConnector(Block block, int meta) {
+        return WIRELESS_CONNECTOR.matches(block, meta) || WIRELESS_HUB.matches(block, meta);
+    }
 
     public static boolean isAir(Block block, int meta) {
         if (block.getMaterial() instanceof MaterialTransparent) return true;
