@@ -9,6 +9,9 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.oredict.OreDictionary;
 
+import appeng.api.util.DimensionalCoord;
+import appeng.tile.networking.TileWirelessBase;
+
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
@@ -20,15 +23,12 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
-import net.bdew.ae2stuff.machines.wireless.TileWireless;
-import net.bdew.lib.block.BlockRef;
-
 import org.joml.Vector3i;
 
 public class WirelessLinkFixer {
 
     private final MMState state;
-    private HashMap<Long, Long> wirelessLinkMap = null;
+    private HashMap<Long, HashSet<Long>> wirelessLinkMap = null;
     private boolean initialized = false;
 
     public WirelessLinkFixer(MMState state) {
@@ -40,7 +40,7 @@ public class WirelessLinkFixer {
     }
 
     public void tryInit(World world) {
-        if (!initialized && Mods.AE2Stuff.isModLoaded()) {
+        if (!initialized && Mods.AppliedEnergistics2.isModLoaded()) {
             try {
                 init(world);
             } catch (Exception e) {
@@ -51,12 +51,12 @@ public class WirelessLinkFixer {
     }
 
     public void tryApply(World world, int x, int y, int z) {
-        if (wirelessLinkMap != null && Mods.AE2Stuff.isModLoaded()) {
+        if (wirelessLinkMap != null && Mods.AppliedEnergistics2.isModLoaded()) {
             apply(world, x, y, z);
         }
     }
 
-    @Optional(Names.AE2STUFF)
+    @Optional(Names.APPLIED_ENERGISTICS2)
     private void init(World world) {
         initialized = true;
 
@@ -90,13 +90,13 @@ public class WirelessLinkFixer {
 
         try {
             HashMap<Long, Long> allConnectorDests = new HashMap<>();
-            HashMap<Long, long[]> tempMap = new HashMap<>();
+            HashMap<Long, HashSet<Long>> tempMap = new HashMap<>();
 
             for (int sy = srcMinY; sy <= srcMaxY; sy++) {
                 for (int sx = srcMinX; sx <= srcMaxX; sx++) {
                     for (int sz = srcMinZ; sz <= srcMaxZ; sz++) {
                         Block block = world.getBlock(sx, sy, sz);
-                        if (!InteropConstants.WIRELESS_CONNECTOR.matches(block, OreDictionary.WILDCARD_VALUE)) continue;
+                        if (!InteropConstants.isWirelessConnector(block, OreDictionary.WILDCARD_VALUE)) continue;
 
                         Vector3i destVec = t.apply(new Vector3i(sx - coordA.x, sy - coordA.y, sz - coordA.z));
                         destVec.add(coordC.x, coordC.y, coordC.z);
@@ -107,51 +107,49 @@ public class WirelessLinkFixer {
                         allConnectorDests.put(srcPacked, destPacked);
 
                         TileEntity te = world.getTileEntity(sx, sy, sz);
-                        if (!(te instanceof TileWireless tw)) continue;
+                        if (!(te instanceof TileWirelessBase tw)) continue;
 
-                        scala.Option<BlockRef> linkOpt = tw.link().value();
-                        if (linkOpt.isEmpty()) continue;
+                        for (DimensionalCoord linkCoord : tw.getConnectedCoords()) {
+                            if (linkCoord.getDimension() != world.provider.dimensionId) continue;
 
-                        BlockRef linkRef = linkOpt.get();
-                        int lx = linkRef.x();
-                        int ly = linkRef.y();
-                        int lz = linkRef.z();
+                            int lx = linkCoord.x;
+                            int ly = linkCoord.y;
+                            int lz = linkCoord.z;
 
-                        boolean linkInRegion = lx >= srcMinX && lx <= srcMaxX && ly >= srcMinY && ly <= srcMaxY && lz >= srcMinZ && lz <= srcMaxZ;
+                            boolean linkInRegion = lx >= srcMinX && lx <= srcMaxX && ly >= srcMinY && ly <= srcMaxY && lz >= srcMinZ && lz <= srcMaxZ;
 
-                        boolean shouldInclude = false;
+                            boolean shouldInclude = false;
 
-                        if (linkInRegion) {
-                            shouldInclude = true;
-                        } else if (linkExternalHubs) {
-                            if (world.blockExists(lx, ly, lz)) {
-                                TileEntity linkTe = world.getTileEntity(lx, ly, lz);
-                                if (linkTe instanceof TileWireless linkTw) {
-                                    if (linkTw.isHub()) {
-                                        shouldInclude = true;
+                            if (linkInRegion) {
+                                shouldInclude = true;
+                            } else if (linkExternalHubs) {
+                                if (world.blockExists(lx, ly, lz)) {
+                                    TileEntity linkTe = world.getTileEntity(lx, ly, lz);
+                                    if (linkTe instanceof TileWirelessBase linkTw) {
+                                        if (linkTw.isHub()) {
+                                            shouldInclude = true;
+                                        }
                                     }
                                 }
                             }
+
+                            if (!shouldInclude) continue;
+
+                            MMMod.LOG.trace(
+                                "[WirelessLink] Found connector at ({},{},{}) linked to ({},{},{}), linkInRegion={}",
+                                sx,
+                                sy,
+                                sz,
+                                lx,
+                                ly,
+                                lz,
+                                linkInRegion
+                            );
+
+                            long linkSrcPacked = CoordinatePacker.pack(lx, ly, lz);
+
+                            tempMap.computeIfAbsent(srcPacked, ignored -> new HashSet<>()).add(linkSrcPacked);
                         }
-
-                        if (!shouldInclude) continue;
-
-                        MMMod.LOG.trace(
-                            "[WirelessLink] Found connector at ({},{},{}) linked to ({},{},{}), linkInRegion={}",
-                            sx,
-                            sy,
-                            sz,
-                            lx,
-                            ly,
-                            lz,
-                            linkInRegion
-                        );
-
-                        long linkSrcPacked = CoordinatePacker.pack(lx, ly, lz);
-
-                        tempMap.put(srcPacked, new long[] {
-                            destPacked, linkSrcPacked
-                        });
                     }
                 }
             }
@@ -161,14 +159,15 @@ public class WirelessLinkFixer {
             wirelessLinkMap = new HashMap<>();
 
             for (var entry : tempMap.entrySet()) {
-                long destPacked = entry.getValue()[0];
-                long linkSrcPacked = entry.getValue()[1];
+                long destPacked = allConnectorDests.get(entry.getKey());
 
-                Long partnerDest = allConnectorDests.get(linkSrcPacked);
-                if (partnerDest != null) {
-                    wirelessLinkMap.put(destPacked, partnerDest);
-                } else if (linkExternalHubs) {
-                    wirelessLinkMap.put(destPacked, linkSrcPacked);
+                for (long linkSrcPacked : entry.getValue()) {
+                    Long partnerDest = allConnectorDests.get(linkSrcPacked);
+                    if (partnerDest != null) {
+                        addLink(wirelessLinkMap, destPacked, partnerDest);
+                    } else if (linkExternalHubs) {
+                        addLink(wirelessLinkMap, destPacked, linkSrcPacked);
+                    }
                 }
             }
 
@@ -178,7 +177,8 @@ public class WirelessLinkFixer {
 
                 HashSet<Long> internalDests = new HashSet<>(allConnectorDests.values());
 
-                HashMap<Long, Long> baseMap = new HashMap<>(wirelessLinkMap);
+                HashMap<Long, HashSet<Long>> baseMap = new HashMap<>();
+                wirelessLinkMap.forEach((key, value) -> baseMap.put(key, new HashSet<>(value)));
                 wirelessLinkMap.clear();
 
                 MMUtils.forEachArrayOffset(state.config.arraySpan, deltas, d -> {
@@ -186,7 +186,6 @@ public class WirelessLinkFixer {
 
                     for (var baseEntry : baseMap.entrySet()) {
                         long baseDest = baseEntry.getKey();
-                        long basePartner = baseEntry.getValue();
 
                         int bx = CoordinatePacker.unpackX(baseDest) + d.x;
                         int by = CoordinatePacker.unpackY(baseDest) + d.y;
@@ -194,14 +193,16 @@ public class WirelessLinkFixer {
 
                         long offsetDest = CoordinatePacker.pack(bx, by, bz);
 
-                        if (internalDests.contains(basePartner)) {
-                            int px = CoordinatePacker.unpackX(basePartner) + d.x;
-                            int py = CoordinatePacker.unpackY(basePartner) + d.y;
-                            int pz = CoordinatePacker.unpackZ(basePartner) + d.z;
+                        for (long basePartner : baseEntry.getValue()) {
+                            if (internalDests.contains(basePartner)) {
+                                int px = CoordinatePacker.unpackX(basePartner) + d.x;
+                                int py = CoordinatePacker.unpackY(basePartner) + d.y;
+                                int pz = CoordinatePacker.unpackZ(basePartner) + d.z;
 
-                            wirelessLinkMap.put(offsetDest, CoordinatePacker.pack(px, py, pz));
-                        } else {
-                            wirelessLinkMap.put(offsetDest, basePartner);
+                                addLink(wirelessLinkMap, offsetDest, CoordinatePacker.pack(px, py, pz));
+                            } else {
+                                addLink(wirelessLinkMap, offsetDest, basePartner);
+                            }
                         }
                     }
                 });
@@ -213,15 +214,17 @@ public class WirelessLinkFixer {
             } else {
                 MMMod.LOG.debug("[WirelessLink] Built link map with {} entries", wirelessLinkMap.size());
                 for (var e : wirelessLinkMap.entrySet()) {
-                    MMMod.LOG.trace(
-                        "[WirelessLink]   ({},{},{}) -> ({},{},{})",
-                        CoordinatePacker.unpackX(e.getKey()),
-                        CoordinatePacker.unpackY(e.getKey()),
-                        CoordinatePacker.unpackZ(e.getKey()),
-                        CoordinatePacker.unpackX(e.getValue()),
-                        CoordinatePacker.unpackY(e.getValue()),
-                        CoordinatePacker.unpackZ(e.getValue())
-                    );
+                    for (long partner : e.getValue()) {
+                        MMMod.LOG.trace(
+                            "[WirelessLink]   ({},{},{}) -> ({},{},{})",
+                            CoordinatePacker.unpackX(e.getKey()),
+                            CoordinatePacker.unpackY(e.getKey()),
+                            CoordinatePacker.unpackZ(e.getKey()),
+                            CoordinatePacker.unpackX(partner),
+                            CoordinatePacker.unpackY(partner),
+                            CoordinatePacker.unpackZ(partner)
+                        );
+                    }
                 }
             }
         } finally {
@@ -229,46 +232,40 @@ public class WirelessLinkFixer {
         }
     }
 
-    @Optional(Names.AE2STUFF)
+    private static void addLink(HashMap<Long, HashSet<Long>> links, long connector, long partner) {
+        links.computeIfAbsent(connector, ignored -> new HashSet<>()).add(partner);
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
     private void apply(World world, int x, int y, int z) {
         long packed = CoordinatePacker.pack(x, y, z);
-        Long partnerPacked = wirelessLinkMap.get(packed);
-        if (partnerPacked == null) return;
+        HashSet<Long> partnerPackedSet = wirelessLinkMap.get(packed);
+        if (partnerPackedSet == null) return;
 
         Block block = world.getBlock(x, y, z);
-        if (!InteropConstants.WIRELESS_CONNECTOR.matches(block, OreDictionary.WILDCARD_VALUE)) {
+        if (!InteropConstants.isWirelessConnector(block, OreDictionary.WILDCARD_VALUE)) {
             MMMod.LOG.debug("[WirelessLink] applyWirelessLink({},{},{}): block is not a wireless connector", x, y, z);
             return;
         }
 
         TileEntity te = world.getTileEntity(x, y, z);
-        if (!(te instanceof TileWireless wireless)) {
-            MMMod.LOG.debug("[WirelessLink] applyWirelessLink({},{},{}): tile entity is not a TileWireless", x, y, z);
+        if (!(te instanceof TileWirelessBase wireless)) {
+            MMMod.LOG.debug("[WirelessLink] applyWirelessLink({},{},{}): tile entity is not a TileWirelessBase", x, y, z);
             return;
         }
 
-        int px = CoordinatePacker.unpackX(partnerPacked);
-        int py = CoordinatePacker.unpackY(partnerPacked);
-        int pz = CoordinatePacker.unpackZ(partnerPacked);
+        wireless.doUnlink();
 
-        MMMod.LOG.debug("[WirelessLink] Applying link at ({},{},{}) -> ({},{},{})", x, y, z, px, py, pz);
+        for (long partnerPacked : partnerPackedSet) {
+            int px = CoordinatePacker.unpackX(partnerPacked);
+            int py = CoordinatePacker.unpackY(partnerPacked);
+            int pz = CoordinatePacker.unpackZ(partnerPacked);
 
-        wireless.link().set(new BlockRef(px, py, pz));
+            MMMod.LOG.debug("[WirelessLink] Applying link at ({},{},{}) -> ({},{},{})", x, y, z, px, py, pz);
 
-        scala.Option<BlockRef> verifyLink = wireless.link().value();
-        if (verifyLink.isDefined()) {
-            BlockRef ref = verifyLink.get();
-            MMMod.LOG.trace(
-                "[WirelessLink] Verified link at ({},{},{}): ({},{},{})",
-                x,
-                y,
-                z,
-                ref.x(),
-                ref.y(),
-                ref.z()
-            );
-        } else {
-            MMMod.LOG.warn("[WirelessLink] Link was NOT persisted at ({},{},{})", x, y, z);
+            wireless.injectConnection(new DimensionalCoord(world, px, py, pz));
         }
+
+        wireless.markDirty();
     }
 }
