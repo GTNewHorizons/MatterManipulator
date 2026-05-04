@@ -43,7 +43,7 @@ dependencies {
     implementation("com.github.GTNewHorizons:GTNHLib:0.9.59:dev")
 
     compileOnly("com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.80-gtnh:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-924-GTNH:dev") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-925-GTNH-pre:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:ArchitectureCraft:1.12.10") { transitive = false }
     compileOnly("com.github.GTNewHorizons:CarpentersBlocks:3.7.2-GTNH") { transitive = false }
     compileOnly("com.github.GTNewHorizons:Avaritia:1.96:dev") { transitive = false }
@@ -55,7 +55,7 @@ dependencies {
     compileOnly(rfg.deobf("curse.maven:extra-utilities-225561:2264384"))
     compileOnly("com.github.GTNewHorizons:FloodLights:1.5.6:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:ForgeMultipart:1.7.10:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.487:dev") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.488-pre:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:Hodgepodge:2.7.134:dev") { transitive = false }
     compileOnly("net.industrial-craft:industrialcraft-2:2.2.828-experimental:dev") { transitive = false }
     compileOnly("curse.maven:mekanism-268560:2475797") { transitive = false }
@@ -69,14 +69,14 @@ dependencies {
 
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:ArchitectureCraft:1.12.10")
     runtimeOnlyNonPublishable('com.github.GTNewHorizons:Angelica:2.1.20:dev')
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-924-GTNH:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-925-GTNH-pre:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:Avaritia:1.96:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:Avaritiaddons:1.9.4-GTNH:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:DuraDisplay:1.4.2:dev")
 //    runtimeOnlyNonPublishable('com.github.GTNewHorizons:EnderIO:5.2.62:dev')
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:EnderStorage:1.8.3:dev")
     runtimeOnlyNonPublishable(rfg.deobf("curse.maven:extra-utilities-225561:2264384"))
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.487:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.488-pre:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:FloodLights:1.5.6:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:ForgeMultipart:1.7.10:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:Hodgepodge:2.7.134:dev")
