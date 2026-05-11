@@ -122,7 +122,7 @@ public class PendingBuild extends AbstractBuildable {
             }
 
             // if this block is protected, ignore it completely and print a warning
-            if (!isEditable(world, x, y, z)) {
+            if (!isEditable(world, x, y, z, true)) {
                 pendingBlocks.removeFirst();
                 continue;
             }
