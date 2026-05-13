@@ -108,7 +108,7 @@ public class PendingMove extends AbstractBuildable {
             Location d = move.right();
 
             // if either block is protected, ignore them completely and print a warning
-            if (!isEditable(world, s.x, s.y, s.z) || !isEditable(world, d.x, d.y, d.z)) {
+            if (!isEditable(world, s.x, s.y, s.z, false) || !isEditable(world, d.x, d.y, d.z, true)) {
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.could_not_move_protected_block.new",
