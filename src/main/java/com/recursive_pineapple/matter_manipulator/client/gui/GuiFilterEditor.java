@@ -18,103 +18,231 @@ import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterR
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 
 /**
- * Visual builder UI for exchange mode filter rules.
- * Replaces the old chat-based filter input mechanism.
+ * Visual filter rule builder for exchange mode.
+ * Supports nested groups, at-position, and a popup position picker.
  */
 @SideOnly(Side.CLIENT)
 public class GuiFilterEditor extends GuiScreen {
 
-    // Panel dimensions
-    private static final int PW = 400;
-    private static final int PH = 224;
+    // ── Panel ──────────────────────────────────────────────────────────────
+    private static final int PW = 420, PH = 252;
+    private static final int O_VPT = 38;   // viewport top offset from panel top
+    private static final int VP_H  = 140;  // viewport height
+    private static final int O_VPB = O_VPT + VP_H;
+    private static final int O_PRV = O_VPB + 5;   // preview text y
+    private static final int O_STS = O_PRV + 12;  // status text y
+    private static final int O_BTN = O_STS + 14;  // footer buttons y
 
-    // Offsets from panel top (py)
-    private static final int O_DIV1   = 17;   // first horizontal divider y
-    private static final int O_ADDBTN = 20;   // add condition button y
-    private static final int O_VPT    = 38;   // viewport top y (relative to panel top)
-    private static final int VP_H     = 128;  // viewport height
-    private static final int O_VPB    = O_VPT + VP_H; // = 166, viewport bottom y
-    private static final int O_PREV   = O_VPB + 6;    // = 172, preview text y
-    private static final int O_STAT   = O_PREV + 12;  // = 184, status text y
-    private static final int O_BTNS   = O_STAT + 14;  // = 198, buttons y
+    // ── Row sizes ──────────────────────────────────────────────────────────
+    private static final int RH  = 18; // condition row height
+    private static final int GH  = 14; // group-open header height
+    private static final int GCH = 10; // group-close footer height
+    private static final int CNH = 12; // AND/OR connector height
+    private static final int GAP =  2; // gap after each render item
+    private static final int IND = 10; // horizontal indent per depth level
 
-    // Condition row dimensions
-    private static final int RH = 18;  // condition row height
-    private static final int CH = 12;  // connector (AND/OR) row height
-    private static final int RG = 2;   // gap between row and connector
-
-    // Button IDs
-    private static final int ID_ADD    = 1000;
-    private static final int ID_APPLY  = 1001;
-    private static final int ID_CANCEL = 1002;
-    // Per-row: ID_ROW + rowIndex * 10 + type  (type: 0=NOT, 1=POS, 2=IS, 3=REMOVE)
-    private static final int ID_ROW  = 2000;
-    // Connector: ID_CONN + rowIndex * 2 + type  (type: 0=AND, 1=OR)
-    private static final int ID_CONN = 3000;
-
-    private static final int GREEN = 0x55FF55;
-
-    // All available positions in the filter DSL
+    // ── Positions ─────────────────────────────────────────────────────────
+    // Index 11 is the special "at X Y Z" mode.
+    private static final int POS_AT = 11;
     private static final String[] POSITIONS = {
         "self", "above", "below", "north", "south", "east", "west",
         "any NSEW", "all NSEW", "any NSEWUD", "all NSEWUD"
     };
-    // Shorter display labels for the cycling button
-    private static final String[] POS_LABELS = {
+    private static final String[] PICKER_LABELS = {
         "self", "above", "below", "north", "south", "east", "west",
-        "any H", "all H", "any 6", "all 6"
+        "any NSEW", "all NSEW", "any NSEWUD", "all NSEWUD", "at X Y Z"
     };
 
-    private static class Condition {
+    // ── Button IDs ────────────────────────────────────────────────────────
+    // Static
+    private static final int ID_ROOT_COND  = 800;
+    private static final int ID_ROOT_GROUP = 801;
+    private static final int ID_APPLY      = 802;
+    private static final int ID_CANCEL     = 803;
+    // Per render-item: ID_ITEM_BASE + ri * 20 + sub-type
+    //   COND:       0=NOT  1=POS  2=IS  3=REMOVE
+    //   GROUP_OPEN: 0=NOT  3=REMOVE  4=ADD_COND  5=ADD_GROUP
+    //   CONN:       0=AND  1=OR
+    private static final int ID_ITEM_BASE  = 1000;
+    // Position picker buttons (drawn manually, not in buttonList)
+    private static final int ID_PICKER_BASE = 60000;
+
+    private static final int GREEN = 0x55FF55;
+
+    // ── Data model ────────────────────────────────────────────────────────
+
+    abstract static class ExprNode {
         boolean not = false;
-        int pos = 0;        // index into POSITIONS
-        boolean negated = false;  // "is not" vs "is"
-        String block = "";
-        String conn = "and"; // connector leading into this row (for rows after the first)
+        String  conn = "and";   // connector leading TO this node from its predecessor
+        GroupNode parent;
     }
 
-    private final List<Condition> conds = new ArrayList<>();
-    private final List<GuiTextField> textFields = new ArrayList<>();
-    private final List<Integer> fieldScreenY = new ArrayList<>();  // screen y of each text field
+    static class CondNode extends ExprNode {
+        int posIdx = 0;         // 0..10 = named position; 11 = "at X Y Z"
+        int atX = 0, atY = 0, atZ = 0;
+        boolean negated = false;
+        String block = "";
+    }
 
-    private int scroll = 0;
-    private String preview = "";
-    private String status = "";
+    static class GroupNode extends ExprNode {
+        final List<ExprNode> children = new ArrayList<>();
+    }
+
+    // ── Render list ───────────────────────────────────────────────────────
+
+    enum RItemType { COND, GROUP_OPEN, GROUP_CLOSE, CONN }
+
+    static class RItem {
+        final RItemType type;
+        final ExprNode  node;   // for CONN: the node that comes after the connector
+        final int       depth;
+        int vy, height;         // filled by flattenGroup
+
+        RItem(RItemType t, ExprNode n, int d) { type = t; node = n; depth = d; }
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────
+
+    private final GroupNode root = new GroupNode();
+    private final List<RItem> rItems = new ArrayList<>();
+
+    // Parallel to rItems — only COND slots are non-null
+    private final List<GuiTextField>   blockFields = new ArrayList<>();
+    private final List<GuiTextField[]> atFields    = new ArrayList<>(); // [dx,dy,dz] or null
+    private final List<Integer>        fieldSY     = new ArrayList<>(); // screen-y of block field
+
+    private int scroll = 0, listH = 0;
+    private String preview = "", status = "";
     private boolean valid = false;
     private GuiButton applyBtn;
 
+    // Position picker
+    private int pickerForRI = -1;   // rItem index whose picker is open; -1 = closed
+    private int pickerSX, pickerSY; // screen position of picker top-left
+
+    // ── Constructor ───────────────────────────────────────────────────────
+
     public GuiFilterEditor(String existingFilter) {
-        // Start with one empty condition; ignore existingFilter since back-parsing is non-trivial
-        conds.add(new Condition());
+        CondNode first = new CondNode();
+        first.parent = root;
+        root.children.add(first);
     }
 
-    private int px() { return (width - PW) / 2; }
-    private int py() { return (height - PH) / 2; }
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    private int px()    { return (width - PW) / 2; }
+    private int py()    { return (height - PH) / 2; }
     private int vpTop() { return py() + O_VPT; }
     private int vpBot() { return py() + O_VPB; }
 
-    /** Virtual y (within the scroll list) of condition row at index i. */
-    private int rowVY(int i) {
-        return i * (RH + RG + CH + RG);
-    }
-
-    /** Total pixel height of all condition rows (including connectors between them). */
-    private int listH() {
-        int n = conds.size();
-        return n == 0 ? 0 : (n - 1) * (RH + RG + CH + RG) + RH;
-    }
-
     private void clampScroll() {
-        int max = Math.max(0, listH() - VP_H);
-        scroll = Math.max(0, Math.min(scroll, max));
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, listH - VP_H)));
     }
 
-    /** Copy text field contents back into condition data. */
-    private void syncFields() {
-        for (int i = 0; i < textFields.size() && i < conds.size(); i++) {
-            conds.get(i).block = textFields.get(i).getText().trim();
+    // ── Tree → render list ────────────────────────────────────────────────
+
+    private void buildRenderList() {
+        rItems.clear();
+        int[] vy = { 0 };
+        flattenGroup(root.children, 0, vy);
+        listH = vy[0];
+    }
+
+    private void flattenGroup(List<ExprNode> children, int depth, int[] vy) {
+        for (int i = 0; i < children.size(); i++) {
+            ExprNode child = children.get(i);
+
+            // Connector before this child (skipped for the first child)
+            if (i > 0) {
+                RItem conn = new RItem(RItemType.CONN, child, depth);
+                conn.vy = vy[0]; conn.height = CNH + GAP;
+                rItems.add(conn);
+                vy[0] += CNH + GAP;
+            }
+
+            if (child instanceof CondNode) {
+                RItem ri = new RItem(RItemType.COND, child, depth);
+                ri.vy = vy[0]; ri.height = RH + GAP;
+                rItems.add(ri);
+                vy[0] += RH + GAP;
+            } else if (child instanceof GroupNode) {
+                GroupNode grp = (GroupNode) child;
+                RItem open = new RItem(RItemType.GROUP_OPEN, grp, depth);
+                open.vy = vy[0]; open.height = GH + GAP;
+                rItems.add(open);
+                vy[0] += GH + GAP;
+
+                flattenGroup(grp.children, depth + 1, vy);
+
+                RItem close = new RItem(RItemType.GROUP_CLOSE, grp, depth);
+                close.vy = vy[0]; close.height = GCH + GAP;
+                rItems.add(close);
+                vy[0] += GCH + GAP;
+            }
         }
     }
+
+    // ── Filter string builder ─────────────────────────────────────────────
+
+    private void buildGroupString(List<ExprNode> children, StringBuilder sb) {
+        for (int i = 0; i < children.size(); i++) {
+            ExprNode child = children.get(i);
+            if (i > 0) sb.append(" ").append(child.conn).append(" ");
+
+            if (child instanceof CondNode) {
+                CondNode c = (CondNode) child;
+                if (c.not) sb.append("not (");
+                if (c.posIdx == POS_AT) {
+                    sb.append("at ").append(c.atX).append(" ").append(c.atY).append(" ").append(c.atZ);
+                } else {
+                    sb.append(POSITIONS[c.posIdx]);
+                }
+                sb.append(" is");
+                if (c.negated) sb.append(" not");
+                sb.append(" ").append(c.block.isEmpty() ? "<block>" : c.block);
+                if (c.not) sb.append(")");
+            } else if (child instanceof GroupNode) {
+                GroupNode g = (GroupNode) child;
+                if (child.not) sb.append("not ");
+                sb.append("(");
+                buildGroupString(g.children, sb);
+                sb.append(")");
+            }
+        }
+    }
+
+    private boolean hasEmptyBlock(List<ExprNode> children) {
+        for (ExprNode n : children) {
+            if (n instanceof CondNode && ((CondNode) n).block.isEmpty()) return true;
+            if (n instanceof GroupNode && hasEmptyBlock(((GroupNode) n).children)) return true;
+        }
+        return false;
+    }
+
+    // ── Sync text fields → node data ──────────────────────────────────────
+
+    private void syncFields() {
+        for (int ri = 0; ri < rItems.size() && ri < blockFields.size(); ri++) {
+            GuiTextField bf = blockFields.get(ri);
+            if (bf == null) continue;
+            RItem item = rItems.get(ri);
+            if (item.type != RItemType.COND) continue;
+            CondNode c = (CondNode) item.node;
+            c.block = bf.getText().trim();
+            GuiTextField[] af = atFields.get(ri);
+            if (af != null) {
+                c.atX = parseIntSafe(af[0].getText());
+                c.atY = parseIntSafe(af[1].getText());
+                c.atZ = parseIntSafe(af[2].getText());
+            }
+        }
+    }
+
+    private static int parseIntSafe(String s) {
+        try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return 0; }
+    }
+
+    // ── GUI rebuild ───────────────────────────────────────────────────────
 
     @Override
     public void initGui() {
@@ -125,103 +253,151 @@ public class GuiFilterEditor extends GuiScreen {
     @SuppressWarnings("unchecked")
     private void rebuild() {
         syncFields();
+        buildRenderList();
+        clampScroll();
+
         buttonList.clear();
-        textFields.clear();
-        fieldScreenY.clear();
+        blockFields.clear();
+        atFields.clear();
+        fieldSY.clear();
 
         int px = px(), py = py();
         int vpTop = vpTop(), vpBot = vpBot();
 
-        clampScroll();
+        // ── Static buttons ──
+        buttonList.add(new GuiButton(ID_ROOT_COND,  px + 10, py + 22, 95, 14, "§a+ Condition"));
+        buttonList.add(new GuiButton(ID_ROOT_GROUP, px + 109, py + 22, 80, 14, "§9+ Group"));
+        applyBtn = new GuiButton(ID_APPLY,  px + 10,       py + O_BTN, 90, 16, "Apply");
+        buttonList.add(applyBtn);
+        buttonList.add(new GuiButton(ID_CANCEL, px + PW - 100, py + O_BTN, 90, 16, "Cancel"));
 
-        // [+ Add Condition] button
-        buttonList.add(new GuiButton(ID_ADD, px + 10, py + O_ADDBTN, 120, 14, "§a+ Add Condition"));
+        // ── Per-item buttons ──
+        for (int ri = 0; ri < rItems.size(); ri++) {
+            RItem item = rItems.get(ri);
+            int sy  = vpTop + item.vy - scroll;
+            int xi  = px + 10 + item.depth * IND;
+            boolean vis = sy + item.height > vpTop && sy < vpBot;
 
-        // Build condition rows and their connectors
-        for (int i = 0; i < conds.size(); i++) {
-            Condition c = conds.get(i);
+            // reserve parallel slots (filled for COND only)
+            blockFields.add(null);
+            atFields.add(null);
+            fieldSY.add(0);
 
-            int vy = rowVY(i);
-            int sy = vpTop + vy - scroll;   // screen y of this row's top
-            boolean rowVis = sy + RH > vpTop && sy < vpBot;
+            int base = ID_ITEM_BASE + ri * 20;
 
-            // [NOT] toggle
-            GuiButton notBtn = new GuiButton(ID_ROW + i * 10, px + 10, sy, 30, RH - 2,
-                c.not ? "[NOT]" : " not ");
-            if (c.not) notBtn.packedFGColour = GREEN;
-            if (rowVis) buttonList.add(notBtn);
+            switch (item.type) {
+                case COND: {
+                    CondNode c = (CondNode) item.node;
+                    boolean isAt = c.posIdx == POS_AT;
 
-            // [Position ►] cycling button
-            GuiButton posBtn = new GuiButton(ID_ROW + i * 10 + 1, px + 44, sy, 80, RH - 2,
-                POS_LABELS[c.pos] + " ►");
-            if (rowVis) buttonList.add(posBtn);
+                    // [NOT]
+                    GuiButton nb = new GuiButton(base, xi, sy, 28, RH - 2, c.not ? "[NOT]" : " not ");
+                    if (c.not) nb.packedFGColour = GREEN;
+                    if (vis) buttonList.add(nb);
+                    xi += 32;
 
-            // [is / is not] toggle
-            GuiButton isBtn = new GuiButton(ID_ROW + i * 10 + 2, px + 128, sy, 50, RH - 2,
-                c.negated ? "is not" : "is");
-            if (rowVis) buttonList.add(isBtn);
+                    if (isAt) {
+                        // [at] label — click to switch back to named position
+                        GuiButton atBtn = new GuiButton(base + 1, xi, sy, 22, RH - 2, "at");
+                        if (vis) buttonList.add(atBtn);
+                        xi += 26;
 
-            // Block name text field
-            int fsy = sy + 2;
-            GuiTextField field = new GuiTextField(fontRendererObj, px + 182, fsy, 152, RH - 4);
-            field.setMaxStringLength(200);
-            field.setText(c.block);
-            textFields.add(field);
-            fieldScreenY.add(fsy);
+                        // dx / dy / dz text fields
+                        GuiTextField dx = makeIntField(xi,       sy, 26, c.atX);
+                        GuiTextField dy = makeIntField(xi + 29,  sy, 26, c.atY);
+                        GuiTextField dz = makeIntField(xi + 58,  sy, 26, c.atZ);
+                        atFields.set(ri, new GuiTextField[]{ dx, dy, dz });
+                        xi += 90;
+                    } else {
+                        // [Position ▼] — click to open picker
+                        GuiButton pb = new GuiButton(base + 1, xi, sy, 78, RH - 2,
+                            PICKER_LABELS[c.posIdx] + " ▼");
+                        if (vis) buttonList.add(pb);
+                        xi += 82;
+                    }
 
-            // [X] remove button
-            GuiButton removeBtn = new GuiButton(ID_ROW + i * 10 + 3, px + 338, sy, 18, RH - 2, "X");
-            if (rowVis) buttonList.add(removeBtn);
+                    // [is / is not]
+                    GuiButton ib = new GuiButton(base + 2, xi, sy, 48, RH - 2, c.negated ? "is not" : "is");
+                    if (vis) buttonList.add(ib);
+                    xi += 52;
 
-            // Connector [AND] / [OR] between this row and the next
-            if (i < conds.size() - 1) {
-                Condition next = conds.get(i + 1);
-                int cvy = vy + RH + RG;
-                int csy = vpTop + cvy - scroll;
-                boolean connVis = csy + CH > vpTop && csy < vpBot;
+                    // block name field (fills remaining width)
+                    int rightEdge = px + PW - 10 - 4 - 16; // leave room for X button
+                    int fw = rightEdge - xi;
+                    int fsy = sy + 2;
+                    GuiTextField bf = new GuiTextField(fontRendererObj, xi, fsy, fw, RH - 4);
+                    bf.setMaxStringLength(200);
+                    bf.setText(c.block);
+                    blockFields.set(ri, bf);
+                    fieldSY.set(ri, fsy);
+                    xi = rightEdge + 4;
 
-                boolean isAnd = "and".equals(next.conn);
-                GuiButton andBtn = new GuiButton(ID_CONN + i * 2, px + 155, csy, 42, CH,
-                    isAnd ? "[AND]" : " AND ");
-                GuiButton orBtn  = new GuiButton(ID_CONN + i * 2 + 1, px + 201, csy, 42, CH,
-                    isAnd ? "  OR  " : "[ OR ]");
-                andBtn.packedFGColour = isAnd ? GREEN : 0;
-                orBtn.packedFGColour  = isAnd ? 0 : GREEN;
+                    // [X] remove
+                    GuiButton rb = new GuiButton(base + 3, xi, sy, 16, RH - 2, "X");
+                    if (vis) buttonList.add(rb);
+                    break;
+                }
 
-                if (connVis) {
-                    buttonList.add(andBtn);
-                    buttonList.add(orBtn);
+                case GROUP_OPEN: {
+                    GroupNode g = (GroupNode) item.node;
+
+                    // [NOT grp]
+                    GuiButton nb = new GuiButton(base, xi, sy, 28, GH - 2, g.not ? "[NOT]" : " not ");
+                    if (g.not) nb.packedFGColour = GREEN;
+                    if (vis) buttonList.add(nb);
+                    xi += 32;
+
+                    // [+ Cond inside group]
+                    GuiButton ac = new GuiButton(base + 4, xi, sy, 70, GH - 2, "§a+Cond");
+                    if (vis) buttonList.add(ac);
+                    xi += 74;
+
+                    // [+ Group inside group]
+                    GuiButton ag = new GuiButton(base + 5, xi, sy, 60, GH - 2, "§9+Group");
+                    if (vis) buttonList.add(ag);
+
+                    // [X] remove this group (right side)
+                    int rx = px + PW - 10 - 16;
+                    GuiButton rb = new GuiButton(base + 3, rx, sy, 16, GH - 2, "X");
+                    if (vis) buttonList.add(rb);
+                    break;
+                }
+
+                case GROUP_CLOSE:
+                    // Visual only — no buttons
+                    break;
+
+                case CONN: {
+                    // AND / OR centred in the panel
+                    int cx = px + PW / 2 - 46;
+                    boolean isAnd = "and".equals(item.node.conn);
+                    GuiButton ab = new GuiButton(base,     cx,      sy, 44, CNH - 2, isAnd ? "[AND]" : " AND ");
+                    GuiButton ob = new GuiButton(base + 1, cx + 48, sy, 44, CNH - 2, isAnd ? "  OR  " : "[ OR ]");
+                    ab.packedFGColour = isAnd ? GREEN : 0;
+                    ob.packedFGColour = isAnd ? 0 : GREEN;
+                    if (vis) { buttonList.add(ab); buttonList.add(ob); }
+                    break;
                 }
             }
         }
 
-        // Footer: Apply and Cancel
-        applyBtn = new GuiButton(ID_APPLY, px + 10, py + O_BTNS, 90, 16, "Apply");
-        buttonList.add(applyBtn);
-        buttonList.add(new GuiButton(ID_CANCEL, px + PW - 100, py + O_BTNS, 90, 16, "Cancel"));
-
         updatePreview();
+    }
+
+    private GuiTextField makeIntField(int x, int sy, int w, int initial) {
+        GuiTextField f = new GuiTextField(fontRendererObj, x, sy + 2, w, RH - 4);
+        f.setMaxStringLength(5);
+        f.setText(String.valueOf(initial));
+        return f;
     }
 
     private void updatePreview() {
         syncFields();
         StringBuilder sb = new StringBuilder();
-        boolean anyEmpty = false;
-
-        for (int i = 0; i < conds.size(); i++) {
-            Condition c = conds.get(i);
-            if (c.block.isEmpty()) anyEmpty = true;
-            if (i > 0) sb.append(" ").append(c.conn).append(" ");
-            if (c.not) sb.append("not (");
-            sb.append(POSITIONS[c.pos]).append(" is");
-            if (c.negated) sb.append(" not");
-            sb.append(" ").append(c.block.isEmpty() ? "<block>" : c.block);
-            if (c.not) sb.append(")");
-        }
-
+        buildGroupString(root.children, sb);
         preview = sb.toString();
 
-        if (anyEmpty) {
+        if (hasEmptyBlock(root.children)) {
             status = "§eFill in all block names";
             valid = false;
         } else {
@@ -230,54 +406,116 @@ public class GuiFilterEditor extends GuiScreen {
                 status = "§aValid filter";
                 valid = true;
             } catch (FilterRuleParser.ParseException e) {
-                String msg = e.getMessage();
-                status = "§c" + (msg.length() > 55 ? msg.substring(0, 52) + "..." : msg);
+                String m = e.getMessage();
+                status = "§c" + (m.length() > 58 ? m.substring(0, 55) + "..." : m);
                 valid = false;
             }
         }
-
         if (applyBtn != null) applyBtn.enabled = valid;
     }
+
+    // ── Actions ───────────────────────────────────────────────────────────
 
     @Override
     protected void actionPerformed(GuiButton button) {
         int id = button.id;
 
-        if (id == ID_ADD) {
-            conds.add(new Condition());
-            rebuild();
+        // Close picker unless we clicked another pos button (handled below)
+        if (pickerForRI >= 0 && id != ID_ITEM_BASE + pickerForRI * 20 + 1) {
+            pickerForRI = -1;
+        }
+
+        if (id == ID_ROOT_COND) {
+            addChildCond(root);
+        } else if (id == ID_ROOT_GROUP) {
+            addChildGroup(root);
         } else if (id == ID_APPLY && valid) {
             Messages.SetFilterRule.sendToServer(preview);
             mc.displayGuiScreen(null);
         } else if (id == ID_CANCEL) {
             mc.displayGuiScreen(null);
-        } else if (id >= ID_ROW && id < ID_CONN) {
-            int i = (id - ID_ROW) / 10;
-            int t = (id - ID_ROW) % 10;
-            if (i >= 0 && i < conds.size()) {
-                Condition c = conds.get(i);
-                switch (t) {
-                    case 0 -> { c.not = !c.not; rebuild(); }
-                    case 1 -> { c.pos = (c.pos + 1) % POSITIONS.length; rebuild(); }
-                    case 2 -> { c.negated = !c.negated; rebuild(); }
-                    case 3 -> {
-                        syncFields();
-                        conds.remove(i);
-                        if (conds.isEmpty()) conds.add(new Condition());
-                        rebuild();
-                    }
-                }
-            }
-        } else if (id >= ID_CONN) {
-            int rel   = id - ID_CONN;
-            int nextI = rel / 2 + 1;
-            int type  = rel % 2;
-            if (nextI < conds.size()) {
-                conds.get(nextI).conn = (type == 0) ? "and" : "or";
-                rebuild();
-            }
+        } else if (id >= ID_ITEM_BASE) {
+            int ri   = (id - ID_ITEM_BASE) / 20;
+            int sub  = (id - ID_ITEM_BASE) % 20;
+            handleItemBtn(ri, sub);
         }
     }
+
+    private void handleItemBtn(int ri, int sub) {
+        if (ri >= rItems.size()) return;
+        RItem item = rItems.get(ri);
+
+        switch (item.type) {
+            case COND: {
+                CondNode c = (CondNode) item.node;
+                switch (sub) {
+                    case 0: c.not = !c.not; rebuild(); break;
+                    case 1:
+                        if (c.posIdx == POS_AT) { c.posIdx = 0; rebuild(); }
+                        else { openPicker(ri, c); }
+                        break;
+                    case 2: c.negated = !c.negated; rebuild(); break;
+                    case 3: syncFields(); remove(c); rebuild(); break;
+                }
+                break;
+            }
+            case GROUP_OPEN: {
+                GroupNode g = (GroupNode) item.node;
+                switch (sub) {
+                    case 0: g.not = !g.not; rebuild(); break;
+                    case 3: syncFields(); remove(g); rebuild(); break;
+                    case 4: addChildCond(g); break;
+                    case 5: addChildGroup(g); break;
+                }
+                break;
+            }
+            case CONN: {
+                item.node.conn = (sub == 0) ? "and" : "or";
+                rebuild();
+                break;
+            }
+            default: break;
+        }
+    }
+
+    private void addChildCond(GroupNode parent) {
+        CondNode c = new CondNode(); c.parent = parent;
+        if (!parent.children.isEmpty()) c.conn = "and";
+        parent.children.add(c);
+        rebuild();
+    }
+
+    private void addChildGroup(GroupNode parent) {
+        GroupNode g = new GroupNode(); g.parent = parent;
+        if (!parent.children.isEmpty()) g.conn = "and";
+        CondNode first = new CondNode(); first.parent = g;
+        g.children.add(first);
+        parent.children.add(g);
+        rebuild();
+    }
+
+    private void remove(ExprNode node) {
+        GroupNode p = node.parent;
+        if (p == null) return;
+        p.children.remove(node);
+        // Never leave a group empty
+        if (p.children.isEmpty()) {
+            CondNode fill = new CondNode(); fill.parent = p;
+            p.children.add(fill);
+        }
+    }
+
+    private void openPicker(int ri, CondNode c) {
+        pickerForRI = ri;
+        RItem item = rItems.get(ri);
+        int px = px();
+        int sy = vpTop() + item.vy - scroll;
+        // Position picker just below the position button
+        pickerSX = px + 10 + item.depth * IND + 32; // after NOT button
+        pickerSY = sy + RH;
+    }
+
+    // ── Rendering ─────────────────────────────────────────────────────────
 
     @Override
     @SuppressWarnings("unchecked")
@@ -287,94 +525,201 @@ public class GuiFilterEditor extends GuiScreen {
         int px = px(), py = py();
         int vpTop = vpTop(), vpBot = vpBot();
 
-        // Panel background
+        // Panel
         drawRect(px - 1, py - 1, px + PW + 1, py + PH + 1, 0xFF555555);
         drawRect(px, py, px + PW, py + PH, 0xFF1E1E1E);
 
-        // Title
+        // Title + divider
         drawCenteredString(fontRendererObj, "§eFilter Editor", px + PW / 2, py + 6, 0xFFFFFF);
-        drawRect(px + 8, py + O_DIV1, px + PW - 8, py + O_DIV1 + 1, 0xFF666666);
+        drawRect(px + 8, py + 17, px + PW - 8, py + 18, 0xFF666666);
 
-        // Scroll hint
-        if (listH() > VP_H) {
-            int used = Math.min(scroll + VP_H, listH());
-            String hint = String.format("§7[scroll %d/%d]", scroll, Math.max(0, listH() - VP_H));
-            drawString(fontRendererObj, hint, px + 140, py + O_ADDBTN + 1, 0xFFFFFF);
+        // Scroll indicator
+        if (listH > VP_H) {
+            drawString(fontRendererObj, "§7[scroll]", px + PW - 72, py + 23, 0xFFFFFF);
         }
 
-        // Dividers around conditions viewport
+        // Viewport dividers
         drawRect(px + 8, vpTop - 1, px + PW - 8, vpTop,     0xFF666666);
         drawRect(px + 8, vpBot,     px + PW - 8, vpBot + 1, 0xFF666666);
 
-        // Draw static buttons (Add, Apply, Cancel) — no clipping needed
+        // Static buttons (no clipping)
         for (int bi = 0; bi < buttonList.size(); bi++) {
             GuiButton btn = (GuiButton) buttonList.get(bi);
-            if (btn.id == ID_ADD || btn.id == ID_APPLY || btn.id == ID_CANCEL) {
-                btn.drawButton(mc, mouseX, mouseY);
-            }
+            if (isStatic(btn.id)) btn.drawButton(mc, mouseX, mouseY);
         }
 
-        // Clip to conditions viewport for row/connector buttons and text fields
+        // Clipped viewport
         ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
         int sf = sr.getScaleFactor();
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        GL11.glScissor(
-            (px + 8) * sf,
-            mc.displayHeight - vpBot * sf,
-            (PW - 16) * sf,
-            VP_H * sf
-        );
+        GL11.glScissor((px + 8) * sf, mc.displayHeight - vpBot * sf, (PW - 16) * sf, VP_H * sf);
 
-        for (int bi = 0; bi < buttonList.size(); bi++) {
-            GuiButton btn = (GuiButton) buttonList.get(bi);
-            if (btn.id != ID_ADD && btn.id != ID_APPLY && btn.id != ID_CANCEL) {
-                btn.drawButton(mc, mouseX, mouseY);
+        // Group backgrounds (left border + tint)
+        for (int ri = 0; ri < rItems.size(); ri++) {
+            RItem item = rItems.get(ri);
+            if (item.type != RItemType.GROUP_OPEN) continue;
+            GroupNode grp = (GroupNode) item.node;
+            int gbX  = px + 8 + item.depth * IND;
+            int gbT  = vpTop + item.vy - scroll;
+            int gbB  = groupCloseScreenY(grp, vpTop);
+            if (gbB > vpTop && gbT < vpBot) {
+                int clT = Math.max(gbT, vpTop), clB = Math.min(gbB, vpBot);
+                drawRect(gbX, clT, gbX + 2, clB, 0xFF4488CC);
+                drawRect(gbX + 2, clT, px + PW - 8, clB, 0x18446699);
             }
         }
 
-        for (int i = 0; i < textFields.size(); i++) {
-            int fy = fieldScreenY.get(i);
-            if (fy + RH > vpTop && fy < vpBot) {
-                textFields.get(i).drawTextBox();
+        // Item buttons (clipped)
+        for (int bi = 0; bi < buttonList.size(); bi++) {
+            GuiButton btn = (GuiButton) buttonList.get(bi);
+            if (!isStatic(btn.id)) btn.drawButton(mc, mouseX, mouseY);
+        }
+
+        // Text fields (clipped)
+        for (int ri = 0; ri < rItems.size(); ri++) {
+            if (ri >= blockFields.size()) break;
+            int fsy = fieldSY.get(ri);
+            if (fsy + RH <= vpTop || fsy >= vpBot) continue;
+            GuiTextField bf = blockFields.get(ri);
+            if (bf != null) bf.drawTextBox();
+            GuiTextField[] af = atFields.get(ri);
+            if (af != null) for (GuiTextField f : af) f.drawTextBox();
+        }
+
+        // Group-close labels (clipped)
+        for (int ri = 0; ri < rItems.size(); ri++) {
+            RItem item = rItems.get(ri);
+            if (item.type != RItemType.GROUP_CLOSE) continue;
+            int sy = vpTop + item.vy - scroll;
+            if (sy + GCH > vpTop && sy < vpBot) {
+                int lx = px + 10 + item.depth * IND;
+                drawString(fontRendererObj, "§7)", lx, sy + 1, 0xFFFFFF);
             }
         }
 
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
 
-        // Preview
-        int prevY = py + O_PREV;
-        String dispPrev = preview.length() > 58 ? preview.substring(0, 55) + "..." : preview;
-        drawString(fontRendererObj, "§7▷ " + dispPrev, px + 10, prevY, 0xFFFFFF);
-        drawString(fontRendererObj, status, px + 10, prevY + 12, 0xFFFFFF);
+        // Preview + status
+        int pvy = py + O_PRV;
+        String dp = preview.length() > 62 ? preview.substring(0, 59) + "..." : preview;
+        drawString(fontRendererObj, "§7▷ " + dp, px + 10, pvy, 0xFFFFFF);
+        drawString(fontRendererObj, status, px + 10, pvy + 12, 0xFFFFFF);
+
+        // Position picker overlay (drawn last, no scissor)
+        if (pickerForRI >= 0) drawPicker(mouseX, mouseY);
+    }
+
+    private boolean isStatic(int id) {
+        return id == ID_ROOT_COND || id == ID_ROOT_GROUP || id == ID_APPLY || id == ID_CANCEL;
+    }
+
+    private int groupCloseScreenY(GroupNode grp, int vpTop) {
+        for (RItem ri : rItems) {
+            if (ri.type == RItemType.GROUP_CLOSE && ri.node == grp) {
+                return vpTop + ri.vy + ri.height - scroll;
+            }
+        }
+        return vpTop;
+    }
+
+    // ── Position picker overlay ────────────────────────────────────────────
+
+    private static final int PICK_COLS = 2, PICK_ROWS = 6;
+    private static final int PICK_BW = 92, PICK_BH = 14, PICK_GAP = 2;
+    private static final int PICK_PW = PICK_COLS * (PICK_BW + PICK_GAP) - PICK_GAP + 8;
+    private static final int PICK_PH = PICK_ROWS * (PICK_BH + PICK_GAP) - PICK_GAP + 8;
+
+    private int pickerBtnX(int i) {
+        int pxPick = Math.min(pickerSX, width  - PICK_PW - 2);
+        return pxPick + 4 + (i % PICK_COLS) * (PICK_BW + PICK_GAP);
+    }
+
+    private int pickerBtnY(int i) {
+        int pyPick = Math.min(pickerSY, height - PICK_PH - 2);
+        return pyPick + 4 + (i / PICK_COLS) * (PICK_BH + PICK_GAP);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void drawPicker(int mouseX, int mouseY) {
+        int pxPick = Math.min(pickerSX, width  - PICK_PW - 2);
+        int pyPick = Math.min(pickerSY, height - PICK_PH - 2);
+
+        drawRect(pxPick - 1, pyPick - 1, pxPick + PICK_PW + 1, pyPick + PICK_PH + 1, 0xFF888888);
+        drawRect(pxPick,     pyPick,     pxPick + PICK_PW,     pyPick + PICK_PH,     0xFF222222);
+
+        // Current selection (to highlight)
+        int curPos = -1;
+        if (pickerForRI >= 0 && pickerForRI < rItems.size()) {
+            RItem ri = rItems.get(pickerForRI);
+            if (ri.type == RItemType.COND) curPos = ((CondNode) ri.node).posIdx;
+        }
+
+        for (int i = 0; i < PICKER_LABELS.length; i++) {
+            GuiButton btn = new GuiButton(ID_PICKER_BASE + i, pickerBtnX(i), pickerBtnY(i),
+                PICK_BW, PICK_BH, PICKER_LABELS[i]);
+            if (curPos == i) btn.packedFGColour = GREEN;
+            btn.drawButton(mc, mouseX, mouseY);
+        }
+    }
+
+    // ── Input ─────────────────────────────────────────────────────────────
+
+    @Override
+    protected void mouseClicked(int x, int y, int button) {
+        // Picker clicks
+        if (pickerForRI >= 0) {
+            for (int i = 0; i < PICKER_LABELS.length; i++) {
+                int bx = pickerBtnX(i), by = pickerBtnY(i);
+                if (x >= bx && x < bx + PICK_BW && y >= by && y < by + PICK_BH) {
+                    if (pickerForRI < rItems.size()) {
+                        RItem ri = rItems.get(pickerForRI);
+                        if (ri.type == RItemType.COND) ((CondNode) ri.node).posIdx = i;
+                    }
+                    pickerForRI = -1;
+                    rebuild();
+                    return;
+                }
+            }
+            pickerForRI = -1; // clicked outside → just close
+        }
+
+        super.mouseClicked(x, y, button);
+
+        // Text fields
+        int vpTop = vpTop(), vpBot = vpBot();
+        for (int ri = 0; ri < rItems.size(); ri++) {
+            if (ri >= blockFields.size()) break;
+            int fsy = fieldSY.get(ri);
+            if (fsy + RH <= vpTop || fsy >= vpBot) continue;
+            GuiTextField bf = blockFields.get(ri);
+            if (bf != null) bf.mouseClicked(x, y, button);
+            GuiTextField[] af = atFields.get(ri);
+            if (af != null) for (GuiTextField f : af) f.mouseClicked(x, y, button);
+        }
     }
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        if (keyCode == 1 && pickerForRI >= 0) { pickerForRI = -1; return; }
         super.keyTyped(typedChar, keyCode);
-        for (GuiTextField tf : textFields) {
-            tf.textboxKeyTyped(typedChar, keyCode);
+        int vpTop = vpTop(), vpBot = vpBot();
+        for (int ri = 0; ri < rItems.size(); ri++) {
+            if (ri >= blockFields.size()) break;
+            int fsy = fieldSY.get(ri);
+            if (fsy + RH <= vpTop || fsy >= vpBot) continue;
+            GuiTextField bf = blockFields.get(ri);
+            if (bf != null) bf.textboxKeyTyped(typedChar, keyCode);
+            GuiTextField[] af = atFields.get(ri);
+            if (af != null) for (GuiTextField f : af) f.textboxKeyTyped(typedChar, keyCode);
         }
         updatePreview();
     }
 
     @Override
-    protected void mouseClicked(int x, int y, int button) {
-        super.mouseClicked(x, y, button);
-        int vpTop = vpTop(), vpBot = vpBot();
-        for (int i = 0; i < textFields.size(); i++) {
-            int fy = fieldScreenY.get(i);
-            if (fy + RH > vpTop && fy < vpBot) {
-                textFields.get(i).mouseClicked(x, y, button);
-            }
-        }
-    }
-
-    @Override
     public void updateScreen() {
         super.updateScreen();
-        for (GuiTextField tf : textFields) {
-            tf.updateCursorCounter();
-        }
+        for (GuiTextField bf : blockFields) if (bf != null) bf.updateCursorCounter();
+        for (GuiTextField[] af : atFields) if (af != null) for (GuiTextField f : af) f.updateCursorCounter();
     }
 
     @Override
@@ -382,14 +727,13 @@ public class GuiFilterEditor extends GuiScreen {
         super.handleMouseInput();
         int dw = Mouse.getEventDWheel();
         if (dw != 0) {
-            scroll -= Integer.signum(dw) * (RH + RG + CH + RG);
+            pickerForRI = -1;
+            scroll -= Integer.signum(dw) * (RH + GAP);
             clampScroll();
             rebuild();
         }
     }
 
     @Override
-    public boolean doesGuiPauseGame() {
-        return false;
-    }
+    public boolean doesGuiPauseGame() { return false; }
 }
