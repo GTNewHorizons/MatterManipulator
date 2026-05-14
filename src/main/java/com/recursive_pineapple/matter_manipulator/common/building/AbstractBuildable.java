@@ -110,8 +110,6 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
     public boolean tryConsumePower(ItemStack stack, double x, double y, double z, double euUsage) {
         if (player.capabilities.isCreativeMode) return true;
 
-        euUsage *= Math.pow(player.getDistance(x, y, z), EU_DISTANCE_EXP);
-
         if (state.hasUpgrade(MMUpgrades.PowerEff)) {
             euUsage *= 0.5;
         }

@@ -18,18 +18,21 @@ import net.minecraft.world.chunk.Chunk;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.NetworkRegistry.TargetPoint;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 
+import com.google.common.base.Charsets;
 import com.google.common.io.ByteArrayDataInput;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.gtnewhorizons.modularui.common.internal.network.NetworkUtils;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRuleParser;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMRenderer;
@@ -213,6 +216,16 @@ public enum Messages {
         }
     }))),
     ClearWhitelist(server(simple((player, stack, manipulator, state) -> { state.config.replaceWhitelist = null; }))),
+    ClearFilter(server(simple((player, stack, manipulator, state) -> {
+        state.config.filterRule = null;
+        state.config.action = null;
+    }))),
+    SetFilterRule(server(stringPacket((player, stack, manipulator, state, value) -> {
+        try {
+            state.config.filterRule = FilterRuleParser.parse(value);
+            state.config.action = null;
+        } catch (Exception ignored) {}
+    }))),
     UpdateUplinkState(client(new ISimplePacketHandler<UplinkPacket>() {
 
         @Override
@@ -589,6 +602,58 @@ public enum Messages {
     }
 
     /**
+     * A packet that contains a single string.
+     */
+    private static class StringPacket extends SimplePacket {
+
+        public String value;
+
+        public StringPacket(Messages message) {
+            super(message);
+        }
+
+        @Override
+        public void encode(ByteBuf buffer) {
+            ByteBufUtils.writeUTF8String(buffer, value);
+        }
+
+        @Override
+        public MMPacket decode(ByteArrayDataInput buffer) {
+            StringPacket packet = new StringPacket(super.message);
+
+            int len = readVarInt(buffer, 2);
+            byte[] bytes = new byte[len];
+            buffer.readFully(bytes);
+
+            packet.value = new String(bytes, Charsets.UTF_8);
+            return packet;
+        }
+
+        @Override
+        public String toString() {
+            return "StringPacket [message=" + message
+                + ", value="
+                + value
+                + "]";
+        }
+
+        private static int readVarInt(ByteArrayDataInput in, int maxSize) {
+            int value = 0;
+            int size = 0;
+            byte b;
+
+            do {
+                b = in.readByte();
+                value |= (b & 0x7F) << (size++ * 7);
+
+                if (size > maxSize) { throw new RuntimeException("VarInt too big"); }
+            } while ((b & 0x80) == 0x80);
+
+            return value;
+        }
+    }
+
+    /**
      * A packet that contains the data needed for updating an uplink.
      */
     private static class UplinkPacket extends SimplePacket {
@@ -829,6 +894,42 @@ public enum Messages {
             public IntPacket getNewPacket(Messages message, @Nullable Object value) {
                 IntPacket packet = new IntPacket(message);
                 packet.value = value == null ? 0 : (int) (Integer) value;
+                return packet;
+            }
+        };
+    }
+
+    private static interface IStringSetter {
+
+        public void set(
+            EntityPlayer player,
+            ItemStack stack,
+            ItemMatterManipulator manipulator,
+            MMState state,
+            String value
+        );
+    }
+
+    private static ISimplePacketHandler<StringPacket> stringPacket(IStringSetter setter) {
+        return new ISimplePacketHandler<Messages.StringPacket>() {
+
+            @Override
+            public void handle(EntityPlayer player, StringPacket packet) {
+                ItemStack held = player.inventory.getCurrentItem();
+
+                if (held != null && held.getItem() instanceof ItemMatterManipulator manipulator) {
+                    MMState state = ItemMatterManipulator.getState(held);
+
+                    setter.set(player, held, manipulator, state, packet.value);
+
+                    ItemMatterManipulator.setState(held, state);
+                }
+            }
+
+            @Override
+            public StringPacket getNewPacket(Messages message, @Nullable Object value) {
+                StringPacket packet = new StringPacket(message);
+                packet.value = (String) value;
                 return packet;
             }
         };

@@ -95,6 +95,8 @@ import com.recursive_pineapple.matter_manipulator.common.building.InteropConstan
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBuild;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRuleParser;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.StringSerializableRule;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItemList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
@@ -107,6 +109,7 @@ import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
+import com.recursive_pineapple.matter_manipulator.event.ClientChatEvent;
 
 import org.joml.Vector3i;
 
@@ -499,6 +502,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     case EXCH_ADD_REPLACE -> "Adding block to replace whitelist";
                     case EXCH_SET_REPLACE -> "Setting block in replace whitelist";
                     case EXCH_SET_TARGET -> "Setting block to replace with";
+                    case EXCH_SET_FILTER_RULE -> "Setting filter rule";
                     case PICK_CABLE -> "Picking cable";
                     case MARK_ARRAY -> "Marking array bounds";
                 });
@@ -565,6 +569,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (state.config.placeMode == PlaceMode.EXCHANGING) {
                 addInfoLine(desc, "Removable blocks: %s", state.config.replaceWhitelist);
                 addInfoLine(desc, "Replacing blocks with: %s", state.config.replaceWith);
+                if (state.config.filterRule instanceof StringSerializableRule rule) {
+                    addInfoLine(desc, "Current filter: %s", rule.asString());
+                } else {
+                    addInfoLine(desc, "Current filter: %s", state.config.filterRule);
+                }
             }
 
             if (state.config.placeMode == PlaceMode.CABLES) {
@@ -751,6 +760,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 onExchangeSetWhitelist(world, player, itemStack, state, hit);
                 state.config.action = null;
                 return true;
+            }
+            case EXCH_SET_FILTER_RULE: {
+                return false;
             }
             case PICK_CABLE: {
                 onPickCable(world, player, itemStack, state, hit);
@@ -1462,6 +1474,21 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 })
             .done()
             .branch()
+                .label(StatCollector.translateToLocal("mm.gui.edit_filter_rules"))
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.clear"))
+                    .onClicked(() -> {
+                        Messages.ClearFilter.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.set_filter_rule"))
+                    .onClicked(() -> {
+                        Messages.SetPendingAction.sendToServer(PendingAction.EXCH_SET_FILTER_RULE);
+                    })
+                .done()
+            .done()
+            .branch()
                 .label(StatCollector.translateToLocal("mm.gui.move_coords"))
                 .option()
                     .label(StatCollector.translateToLocal("mm.gui.move_coord_a"))
@@ -2031,6 +2058,39 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (event.entity instanceof EntityPlayer player) {
                 stopBuildable(player);
             }
+        }
+
+        @SubscribeEvent
+        public void onClientChatSend(ClientChatEvent.Pre event) {
+            Minecraft mc = Minecraft.getMinecraft();
+            if (mc.thePlayer == null) { return; }
+
+            ItemStack stack = mc.thePlayer.getHeldItem();
+            if (stack == null || !(stack.getItem() instanceof ItemMatterManipulator)) { return; }
+
+            MMState state = ItemMatterManipulator.getState(stack);
+            if (state.config.action != PendingAction.EXCH_SET_FILTER_RULE) { return; }
+
+            event.setCanceled(true);
+
+            try {
+                FilterRuleParser.parse(event.message);
+                Messages.SetFilterRule.sendToServer(event.message);
+                sendClientMessage("§aFilter set: §f" + event.message);
+            } catch (FilterRuleParser.ParseException e) {
+                sendClientMessage("§cInvalid filter: §f" + e.getMessage());
+                Messages.ClearFilter.sendToServer();
+            } catch (RuntimeException e) {
+                sendClientMessage("§cCould not parse filter.");
+                Messages.ClearFilter.sendToServer();
+            }
+            ItemMatterManipulator.setState(stack, state);
+        }
+
+        private static void sendClientMessage(String message) {
+            net.minecraft.client.Minecraft.getMinecraft().thePlayer.addChatMessage(
+                new net.minecraft.util.ChatComponentText(message)
+            );
         }
     }
 }

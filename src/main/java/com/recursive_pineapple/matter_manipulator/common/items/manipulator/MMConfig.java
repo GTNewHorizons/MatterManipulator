@@ -6,6 +6,7 @@ import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRule;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockRemoveMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockSelectMode;
@@ -40,6 +41,8 @@ public class MMConfig {
     public WeightedSpecList replaceWhitelist = new WeightedSpecList(BlockSpec.air());
     /** These blocks are what gets placed when exchanging */
     public WeightedSpecList replaceWith = new WeightedSpecList(BlockSpec.air());
+    /** Blocks matching this rule will be allowed to be replaced */
+    public FilterRule filterRule = null;
 
     @Nullable
     public Transform transform;
@@ -260,6 +263,7 @@ public class MMConfig {
         result = prime * result + ((cables == null) ? 0 : cables.hashCode());
         result = prime * result + ((replaceWhitelist == null) ? 0 : replaceWhitelist.hashCode());
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
+        result = prime * result + ((filterRule == null) ? 0 : filterRule.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
         result = prime * result + ((arraySpan == null) ? 0 : arraySpan.hashCode());
         return result;
@@ -316,6 +320,9 @@ public class MMConfig {
         if (replaceWith == null) {
             if (other.replaceWith != null) return false;
         } else if (!replaceWith.equals(other.replaceWith)) return false;
+        if (filterRule == null) {
+            if (other.filterRule != null) return false;
+        } else if (!filterRule.equals(other.filterRule)) return false;
         if (transform == null) {
             if (other.transform != null) return false;
         } else if (!transform.equals(other.transform)) return false;

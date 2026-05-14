@@ -53,9 +53,11 @@ import com.recursive_pineapple.matter_manipulator.common.building.GTAnalysisResu
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRule;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
+import com.recursive_pineapple.matter_manipulator.common.persist.FilterRuleJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.persist.NBTJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.persist.StaticEnumJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.persist.UIDJsonAdapter;
@@ -78,6 +80,7 @@ public class MMState {
         .registerTypeAdapter(NBTTagCompound.class, new NBTJsonAdapter())
         .registerTypeAdapter(ForgeDirection.class, new StaticEnumJsonAdapter<>(ForgeDirection.class))
         .registerTypeAdapter(WeightedSpecList.class, new WeightedListJsonAdapter())
+        .registerTypeAdapter(FilterRule.class, new FilterRuleJsonAdapter())
         .create();
 
     @SerializedName("jv")
@@ -437,6 +440,10 @@ public class MMState {
                 if (AppliedEnergistics2.isModLoaded() && MMUtils.isAECable(replacement)) {
                     placingAECable(rep, replacement);
                 }
+            }
+
+            if (config.filterRule != null && !config.filterRule.matches(world, x, y, z)) {
+                continue;
             }
 
             pending.add(rep);
@@ -1052,6 +1059,7 @@ public class MMState {
         EXCH_SET_TARGET,
         EXCH_ADD_REPLACE,
         EXCH_SET_REPLACE,
+        EXCH_SET_FILTER_RULE,
         PICK_CABLE,
         MARK_ARRAY,
     }
