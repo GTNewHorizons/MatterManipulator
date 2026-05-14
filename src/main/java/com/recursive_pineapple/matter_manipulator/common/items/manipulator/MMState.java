@@ -1059,7 +1059,6 @@ public class MMState {
         EXCH_SET_TARGET,
         EXCH_ADD_REPLACE,
         EXCH_SET_REPLACE,
-        EXCH_SET_FILTER_RULE,
         PICK_CABLE,
         MARK_ARRAY,
     }

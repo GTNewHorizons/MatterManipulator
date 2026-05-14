@@ -109,7 +109,7 @@ import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
-import com.recursive_pineapple.matter_manipulator.event.ClientChatEvent;
+import com.recursive_pineapple.matter_manipulator.client.gui.GuiFilterEditor;
 
 import org.joml.Vector3i;
 
@@ -502,7 +502,6 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     case EXCH_ADD_REPLACE -> "Adding block to replace whitelist";
                     case EXCH_SET_REPLACE -> "Setting block in replace whitelist";
                     case EXCH_SET_TARGET -> "Setting block to replace with";
-                    case EXCH_SET_FILTER_RULE -> "Setting filter rule";
                     case PICK_CABLE -> "Picking cable";
                     case MARK_ARRAY -> "Marking array bounds";
                 });
@@ -760,9 +759,6 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 onExchangeSetWhitelist(world, player, itemStack, state, hit);
                 state.config.action = null;
                 return true;
-            }
-            case EXCH_SET_FILTER_RULE: {
-                return false;
             }
             case PICK_CABLE: {
                 onPickCable(world, player, itemStack, state, hit);
@@ -1483,8 +1479,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .done()
                 .option()
                     .label(StatCollector.translateToLocal("mm.gui.set_filter_rule"))
-                    .onClicked(() -> {
-                        Messages.SetPendingAction.sendToServer(PendingAction.EXCH_SET_FILTER_RULE);
+                    .onClicked((menu, option, mouseButton, doubleClicked) -> {
+                        MMState currState = getState(heldStack);
+                        String existing = (currState.config.filterRule instanceof StringSerializableRule)
+                            ? ((StringSerializableRule) currState.config.filterRule).asString()
+                            : null;
+                        FMLCommonHandler.instance().showGuiScreen(new GuiFilterEditor(existing));
                     })
                 .done()
             .done()
@@ -2060,37 +2060,5 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
         }
 
-        @SubscribeEvent
-        public void onClientChatSend(ClientChatEvent.Pre event) {
-            Minecraft mc = Minecraft.getMinecraft();
-            if (mc.thePlayer == null) { return; }
-
-            ItemStack stack = mc.thePlayer.getHeldItem();
-            if (stack == null || !(stack.getItem() instanceof ItemMatterManipulator)) { return; }
-
-            MMState state = ItemMatterManipulator.getState(stack);
-            if (state.config.action != PendingAction.EXCH_SET_FILTER_RULE) { return; }
-
-            event.setCanceled(true);
-
-            try {
-                FilterRuleParser.parse(event.message);
-                Messages.SetFilterRule.sendToServer(event.message);
-                sendClientMessage("§aFilter set: §f" + event.message);
-            } catch (FilterRuleParser.ParseException e) {
-                sendClientMessage("§cInvalid filter: §f" + e.getMessage());
-                Messages.ClearFilter.sendToServer();
-            } catch (RuntimeException e) {
-                sendClientMessage("§cCould not parse filter.");
-                Messages.ClearFilter.sendToServer();
-            }
-            ItemMatterManipulator.setState(stack, state);
-        }
-
-        private static void sendClientMessage(String message) {
-            net.minecraft.client.Minecraft.getMinecraft().thePlayer.addChatMessage(
-                new net.minecraft.util.ChatComponentText(message)
-            );
-        }
     }
 }
