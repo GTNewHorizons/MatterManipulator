@@ -10,14 +10,14 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
 
-import org.lwjgl.input.Mouse;
-import org.lwjgl.opengl.GL11;
-
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRuleParser;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
+
+import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 
 @SideOnly(Side.CLIENT)
 public class GuiFilterEditor extends GuiScreen {
@@ -47,9 +47,9 @@ public class GuiFilterEditor extends GuiScreen {
     private static final int ID_CANCEL = 803;
 
     // Per render-item buttons: ID_ITEM_BASE + itemIndex * 20 + subButton
-    //   CONDITION:    1=POS_BTN  2=IS  3=REMOVE
-    //   GROUP_HEADER: 3=REMOVE  4=ADD_COND  5=ADD_GROUP
-    //   CONNECTOR:    0=AND  1=OR
+    // CONDITION: 1=POS_BTN 2=IS 3=REMOVE
+    // GROUP_HEADER: 3=REMOVE 4=ADD_COND 5=ADD_GROUP
+    // CONNECTOR: 0=AND 1=OR
     private static final int ID_ITEM_BASE = 1000;
 
     private static final int COLOR_ACTIVE = 0x55FF55;
@@ -63,9 +63,10 @@ public class GuiFilterEditor extends GuiScreen {
     // ── Text field state for a single condition row ────────────────────────
 
     private static class CondRowUI {
+
         GuiTextField blockField;
         GuiTextField[] atFields; // [dx, dy, dz] when in "at" mode; null otherwise
-        int fieldScreenY;        // used for viewport visibility culling
+        int fieldScreenY; // used for viewport visibility culling
     }
 
     // ── State ──────────────────────────────────────────────────────────────
@@ -116,8 +117,15 @@ public class GuiFilterEditor extends GuiScreen {
     // ── Tree → render list ─────────────────────────────────────────────────
 
     private void rebuildRenderList() {
-        totalListH = FilterExprTree.flatten(root.children, renderItems,
-            COND_ROW_H, GROUP_ROW_H, GROUP_CLOSE_H, CONN_ROW_H, ROW_GAP);
+        totalListH = FilterExprTree.flatten(
+            root.children,
+            renderItems,
+            COND_ROW_H,
+            GROUP_ROW_H,
+            GROUP_CLOSE_H,
+            CONN_ROW_H,
+            ROW_GAP
+        );
     }
 
     // ── Serialisation + validation ─────────────────────────────────────────
@@ -234,8 +242,15 @@ public class GuiFilterEditor extends GuiScreen {
         }
     }
 
-    private void addCondButtons(int idx, RenderItem item, int base, int leftX, int screenY,
-                                boolean visible, int panelX) {
+    private void addCondButtons(
+        int idx,
+        RenderItem item,
+        int base,
+        int leftX,
+        int screenY,
+        boolean visible,
+        int panelX
+    ) {
         CondNode c = (CondNode) item.node;
         CondRowUI ui = condRowUI.computeIfAbsent(idx, k -> new CondRowUI());
         int x = leftX;
@@ -250,19 +265,33 @@ public class GuiFilterEditor extends GuiScreen {
             GuiTextField dx = makeIntField(x, screenY, 26, c.atX);
             GuiTextField dy = makeIntField(x + 29, screenY, 26, c.atY);
             GuiTextField dz = makeIntField(x + 58, screenY, 26, c.atZ);
-            ui.atFields = new GuiTextField[]{dx, dy, dz};
+            ui.atFields = new GuiTextField[] {
+                dx, dy, dz
+            };
             x += 90;
         } else {
-            GuiButton posBtn = new GuiButton(base + 1, x, screenY, 78, COND_ROW_H - 2,
-                FilterExprTree.POSITION_LABELS[c.posIdx] + " ▼");
+            GuiButton posBtn = new GuiButton(
+                base + 1,
+                x,
+                screenY,
+                78,
+                COND_ROW_H - 2,
+                FilterExprTree.POSITION_LABELS[c.posIdx] + " ▼"
+            );
             if (visible) {
                 buttonList.add(posBtn);
             }
             x += 82;
         }
 
-        GuiButton isBtn = new GuiButton(base + 2, x, screenY, 48, COND_ROW_H - 2,
-            c.negated ? "is not" : "is");
+        GuiButton isBtn = new GuiButton(
+            base + 2,
+            x,
+            screenY,
+            48,
+            COND_ROW_H - 2,
+            c.negated ? "is not" : "is"
+        );
         if (visible) {
             buttonList.add(isBtn);
         }
@@ -270,8 +299,13 @@ public class GuiFilterEditor extends GuiScreen {
 
         int blockRight = panelX + PANEL_W - 14 - 16;
         int blockFieldY = screenY + 2;
-        GuiTextField blockField = new GuiTextField(fontRendererObj, x, blockFieldY,
-            blockRight - x, COND_ROW_H - 4);
+        GuiTextField blockField = new GuiTextField(
+            fontRendererObj,
+            x,
+            blockFieldY,
+            blockRight - x,
+            COND_ROW_H - 4
+        );
         blockField.setMaxStringLength(200);
         blockField.setText(c.block);
         ui.blockField = blockField;
@@ -283,8 +317,14 @@ public class GuiFilterEditor extends GuiScreen {
         }
     }
 
-    private void addGroupButtons(RenderItem item, int base, int leftX, int screenY,
-                                 boolean visible, int panelX) {
+    private void addGroupButtons(
+        RenderItem item,
+        int base,
+        int leftX,
+        int screenY,
+        boolean visible,
+        int panelX
+    ) {
         GroupNode g = (GroupNode) item.node;
         int x = leftX;
 
@@ -352,9 +392,7 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     private void handleItemButton(int itemIdx, int subBtn) {
-        if (itemIdx >= renderItems.size()) {
-            return;
-        }
+        if (itemIdx >= renderItems.size()) { return; }
         RenderItem item = renderItems.get(itemIdx);
         switch (item.type) {
             case CONDITION:
@@ -435,9 +473,7 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void remove(ExprNode node) {
         GroupNode parent = node.parent;
-        if (parent == null) {
-            return;
-        }
+        if (parent == null) { return; }
         parent.children.remove(node);
         // Keep every group non-empty so the UI never enters an invalid state
         if (parent.children.isEmpty()) {
@@ -501,8 +537,12 @@ public class GuiFilterEditor extends GuiScreen {
         ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
         int sf = sr.getScaleFactor();
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        GL11.glScissor((panelX + 8) * sf, mc.displayHeight - vpBot * sf,
-            (PANEL_W - 16) * sf, VIEWPORT_H * sf);
+        GL11.glScissor(
+            (panelX + 8) * sf,
+            mc.displayHeight - vpBot * sf,
+            (PANEL_W - 16) * sf,
+            VIEWPORT_H * sf
+        );
 
         drawGroupBackgrounds(panelX, vpTop, vpBot);
 
@@ -563,8 +603,13 @@ public class GuiFilterEditor extends GuiScreen {
             if (screenY + GROUP_CLOSE_H <= vpTop || screenY >= vpBot) {
                 continue;
             }
-            drawString(fontRendererObj, "§7)",
-                panelX + 10 + item.depth * DEPTH_INDENT, screenY + 1, 0xFFFFFF);
+            drawString(
+                fontRendererObj,
+                "§7)",
+                panelX + 10 + item.depth * DEPTH_INDENT,
+                screenY + 1,
+                0xFFFFFF
+            );
         }
     }
 
@@ -581,9 +626,7 @@ public class GuiFilterEditor extends GuiScreen {
 
     private int findGroupCloseBottom(GroupNode grp, int vpTop) {
         for (RenderItem item : renderItems) {
-            if (item.type == RenderType.GROUP_FOOTER && item.node == grp) {
-                return vpTop + item.virtualY + item.rowHeight - scroll;
-            }
+            if (item.type == RenderType.GROUP_FOOTER && item.node == grp) { return vpTop + item.virtualY + item.rowHeight - scroll; }
         }
         return vpTop;
     }
@@ -607,8 +650,14 @@ public class GuiFilterEditor extends GuiScreen {
         for (int i = 0; i < FilterExprTree.POSITION_LABELS.length; i++) {
             int bx = px + 4 + (i % PICKER_COLS) * (PICKER_BTN_W + PICKER_GAP);
             int by = py + 4 + (i / PICKER_COLS) * (PICKER_BTN_H + PICKER_GAP);
-            GuiButton btn = new GuiButton(i, bx, by, PICKER_BTN_W, PICKER_BTN_H,
-                FilterExprTree.POSITION_LABELS[i]);
+            GuiButton btn = new GuiButton(
+                i,
+                bx,
+                by,
+                PICKER_BTN_W,
+                PICKER_BTN_H,
+                FilterExprTree.POSITION_LABELS[i]
+            );
             if (selectedPos == i) {
                 btn.packedFGColour = COLOR_ACTIVE;
             }
@@ -628,9 +677,7 @@ public class GuiFilterEditor extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
-        if (pickerForItem >= 0 && handlePickerClick(mouseX, mouseY)) {
-            return;
-        }
+        if (pickerForItem >= 0 && handlePickerClick(mouseX, mouseY)) { return; }
 
         super.mouseClicked(mouseX, mouseY, button);
 

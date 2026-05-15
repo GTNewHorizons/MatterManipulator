@@ -1,13 +1,12 @@
 package com.recursive_pineapple.matter_manipulator.common.building.filter;
 
-import cpw.mods.fml.common.registry.GameRegistry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import net.minecraft.block.Block;
 
-import cpw.mods.fml.common.registry.FMLControlledNamespacedRegistry;
+import cpw.mods.fml.common.registry.GameRegistry;
 
 import com.github.bsideup.jabel.Desugar;
 

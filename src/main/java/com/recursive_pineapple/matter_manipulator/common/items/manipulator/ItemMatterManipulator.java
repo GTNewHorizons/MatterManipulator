@@ -88,6 +88,7 @@ import com.gtnewhorizons.modularui.common.widget.textfield.NumericWidget;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.gui.DirectionDrawable;
+import com.recursive_pineapple.matter_manipulator.client.gui.GuiFilterEditor;
 import com.recursive_pineapple.matter_manipulator.client.gui.RadialMenuBuilder;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.IBuildable;
@@ -95,7 +96,6 @@ import com.recursive_pineapple.matter_manipulator.common.building.InteropConstan
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBuild;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
-import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRuleParser;
 import com.recursive_pineapple.matter_manipulator.common.building.filter.StringSerializableRule;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItemList;
@@ -109,7 +109,6 @@ import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
-import com.recursive_pineapple.matter_manipulator.client.gui.GuiFilterEditor;
 
 import org.joml.Vector3i;
 

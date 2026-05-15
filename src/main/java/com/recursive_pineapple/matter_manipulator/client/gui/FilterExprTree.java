@@ -10,6 +10,7 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 abstract class ExprNode {
+
     /** Logical connector that joins this node to the previous sibling. */
     String conn = "and";
     GroupNode parent;
@@ -17,6 +18,7 @@ abstract class ExprNode {
 
 @SideOnly(Side.CLIENT)
 class CondNode extends ExprNode {
+
     /**
      * 0–10 = named position; 11 (FilterExprTree.POS_AT) = "at dx dy dz".
      */
@@ -28,18 +30,25 @@ class CondNode extends ExprNode {
 
 @SideOnly(Side.CLIENT)
 class GroupNode extends ExprNode {
+
     final List<ExprNode> children = new ArrayList<>();
 }
 
 // ── Render list types ─────────────────────────────────────────────────────────
 
 @SideOnly(Side.CLIENT)
-enum RenderType {CONDITION, GROUP_HEADER, GROUP_FOOTER, CONNECTOR}
+enum RenderType {
+    CONDITION,
+    GROUP_HEADER,
+    GROUP_FOOTER,
+    CONNECTOR
+}
 
 @SideOnly(Side.CLIENT)
 class RenderItem {
+
     final RenderType type;
-    final ExprNode node;  // for CONN: the node that follows the connector
+    final ExprNode node; // for CONN: the node that follows the connector
     final int depth;
     int virtualY, rowHeight;
 
@@ -58,13 +67,32 @@ class FilterExprTree {
     static final int POS_AT = 11;
 
     static final String[] POSITION_NAMES = {
-        "self", "above", "below", "north", "south", "east", "west",
-        "any NSEW", "all NSEW", "any NSEWUD", "all NSEWUD"
+        "self",
+        "above",
+        "below",
+        "north",
+        "south",
+        "east",
+        "west",
+        "any NSEW",
+        "all NSEW",
+        "any NSEWUD",
+        "all NSEWUD"
     };
 
     static final String[] POSITION_LABELS = {
-        "self", "above", "below", "north", "south", "east", "west",
-        "any NSEW", "all NSEW", "any NSEWUD", "all NSEWUD", "at X Y Z"
+        "self",
+        "above",
+        "below",
+        "north",
+        "south",
+        "east",
+        "west",
+        "any NSEW",
+        "all NSEW",
+        "any NSEWUD",
+        "all NSEWUD",
+        "at X Y Z"
     };
 
     /**
@@ -73,16 +101,34 @@ class FilterExprTree {
      *
      * @return total virtual height of the list
      */
-    static int flatten(List<ExprNode> children, List<RenderItem> out,
-                       int condRowH, int groupRowH, int groupCloseH, int connRowH, int rowGap) {
+    static int flatten(
+        List<ExprNode> children,
+        List<RenderItem> out,
+        int condRowH,
+        int groupRowH,
+        int groupCloseH,
+        int connRowH,
+        int rowGap
+    ) {
         out.clear();
-        int[] cursor = {0};
+        int[] cursor = {
+            0
+        };
         flattenInto(children, 0, out, cursor, condRowH, groupRowH, groupCloseH, connRowH, rowGap);
         return cursor[0];
     }
 
-    private static void flattenInto(List<ExprNode> children, int depth, List<RenderItem> out,
-                                    int[] cursor, int condRowH, int groupRowH, int groupCloseH, int connRowH, int rowGap) {
+    private static void flattenInto(
+        List<ExprNode> children,
+        int depth,
+        List<RenderItem> out,
+        int[] cursor,
+        int condRowH,
+        int groupRowH,
+        int groupCloseH,
+        int connRowH,
+        int rowGap
+    ) {
 
         for (int i = 0; i < children.size(); i++) {
             ExprNode child = children.get(i);
@@ -110,8 +156,17 @@ class FilterExprTree {
                 out.add(header);
                 cursor[0] += header.rowHeight;
 
-                flattenInto(grp.children, depth + 1, out, cursor,
-                    condRowH, groupRowH, groupCloseH, connRowH, rowGap);
+                flattenInto(
+                    grp.children,
+                    depth + 1,
+                    out,
+                    cursor,
+                    condRowH,
+                    groupRowH,
+                    groupCloseH,
+                    connRowH,
+                    rowGap
+                );
 
                 RenderItem footer = new RenderItem(RenderType.GROUP_FOOTER, grp, depth);
                 footer.virtualY = cursor[0];
@@ -165,12 +220,8 @@ class FilterExprTree {
      */
     static boolean hasEmptyBlock(List<ExprNode> children) {
         for (ExprNode n : children) {
-            if (n instanceof CondNode && ((CondNode) n).block.isEmpty()) {
-                return true;
-            }
-            if (n instanceof GroupNode && hasEmptyBlock(((GroupNode) n).children)) {
-                return true;
-            }
+            if (n instanceof CondNode && ((CondNode) n).block.isEmpty()) { return true; }
+            if (n instanceof GroupNode && hasEmptyBlock(((GroupNode) n).children)) { return true; }
         }
         return false;
     }
