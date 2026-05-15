@@ -47,9 +47,9 @@ public class GuiFilterEditor extends GuiScreen {
     private static final int ID_CANCEL = 803;
 
     // Per render-item buttons: ID_ITEM_BASE + itemIndex * 20 + subButton
-    //   COND:       0=NOT  1=POS_BTN  2=IS  3=REMOVE
-    //   GROUP_OPEN: 0=NOT  3=REMOVE  4=ADD_COND  5=ADD_GROUP
-    //   CONN:       0=AND  1=OR
+    //   CONDITION:    1=POS_BTN  2=IS  3=REMOVE
+    //   GROUP_HEADER: 3=REMOVE  4=ADD_COND  5=ADD_GROUP
+    //   CONNECTOR:    0=AND  1=OR
     private static final int ID_ITEM_BASE = 1000;
 
     private static final int COLOR_ACTIVE = 0x55FF55;
@@ -240,16 +240,6 @@ public class GuiFilterEditor extends GuiScreen {
         CondRowUI ui = condRowUI.computeIfAbsent(idx, k -> new CondRowUI());
         int x = leftX;
 
-        GuiButton notBtn = new GuiButton(base, x, screenY, 28, COND_ROW_H - 2,
-            c.not ? "[NOT]" : " not ");
-        if (c.not) {
-            notBtn.packedFGColour = COLOR_ACTIVE;
-        }
-        if (visible) {
-            buttonList.add(notBtn);
-        }
-        x += 32;
-
         if (c.posIdx == FilterExprTree.POS_AT) {
             GuiButton atLabel = new GuiButton(base + 1, x, screenY, 22, COND_ROW_H - 2, "at");
             if (visible) {
@@ -297,16 +287,6 @@ public class GuiFilterEditor extends GuiScreen {
                                  boolean visible, int panelX) {
         GroupNode g = (GroupNode) item.node;
         int x = leftX;
-
-        GuiButton notBtn = new GuiButton(base, x, screenY, 28, GROUP_ROW_H - 2,
-            g.not ? "[NOT]" : " not ");
-        if (g.not) {
-            notBtn.packedFGColour = COLOR_ACTIVE;
-        }
-        if (visible) {
-            buttonList.add(notBtn);
-        }
-        x += 32;
 
         GuiButton addCondBtn = new GuiButton(base + 4, x, screenY, 70, GROUP_ROW_H - 2, "§a+ Cond");
         if (visible) {
@@ -394,10 +374,6 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void handleCondButton(CondNode c, int itemIdx, int subBtn) {
         switch (subBtn) {
-            case 0:
-                c.not = !c.not;
-                rebuild();
-                break;
             case 1:
                 if (c.posIdx == FilterExprTree.POS_AT) {
                     c.posIdx = 0;
@@ -420,10 +396,6 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void handleGroupButton(GroupNode g, int subBtn) {
         switch (subBtn) {
-            case 0:
-                g.not = !g.not;
-                rebuild();
-                break;
             case 3:
                 syncFieldsToNodes();
                 remove(g);

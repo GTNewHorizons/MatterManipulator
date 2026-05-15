@@ -10,10 +10,7 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 @SideOnly(Side.CLIENT)
 abstract class ExprNode {
-    boolean not = false;
-    /**
-     * Logical connector that joins this node to the previous sibling.
-     */
+    /** Logical connector that joins this node to the previous sibling. */
     String conn = "and";
     GroupNode parent;
 }
@@ -145,9 +142,6 @@ class FilterExprTree {
 
     private static void appendNode(ExprNode node, StringBuilder sb) {
         if (node instanceof final CondNode c) {
-            if (c.not) {
-                sb.append("not (");
-            }
             if (c.posIdx == POS_AT) {
                 sb.append("at ").append(c.atX).append(" ").append(c.atY).append(" ").append(c.atZ);
             } else {
@@ -158,14 +152,8 @@ class FilterExprTree {
                 sb.append(" not");
             }
             sb.append(" ").append(c.block.isEmpty() ? "<block>" : c.block);
-            if (c.not) {
-                sb.append(")");
-            }
 
         } else if (node instanceof final GroupNode g) {
-            if (g.not) {
-                sb.append("not ");
-            }
             sb.append("(");
             appendChildren(g.children, sb);
             sb.append(")");
