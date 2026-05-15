@@ -276,7 +276,7 @@ public class GuiFilterEditor extends GuiScreen {
                 screenY,
                 78,
                 COND_ROW_H - 2,
-                FilterExprTree.POSITION_LABELS[c.posIdx] + " ▼"
+                FilterExprTree.POSITION_LABELS[c.posIdx] + (pickerForItem == idx ? " ▲" : " ▼")
             );
             if (visible) {
                 buttonList.add(posBtn);
@@ -488,6 +488,7 @@ public class GuiFilterEditor extends GuiScreen {
         RenderItem item = renderItems.get(itemIdx);
         pickerScreenX = panelX() + 10 + item.depth * DEPTH_INDENT + 32;
         pickerScreenY = viewportTop() + item.virtualY - scroll + COND_ROW_H;
+        rebuild(); // updates the ▼→▲ label on the position button
     }
 
     // ── Rendering ──────────────────────────────────────────────────────────
@@ -718,6 +719,7 @@ public class GuiFilterEditor extends GuiScreen {
             }
         }
         pickerForItem = -1; // clicked outside → close without changing position
+        rebuild(); // updates the ▲→▼ label on the position button
         return false;
     }
 
@@ -725,6 +727,7 @@ public class GuiFilterEditor extends GuiScreen {
     protected void keyTyped(char typedChar, int keyCode) {
         if (keyCode == 1 && pickerForItem >= 0) {
             pickerForItem = -1;
+            rebuild();
             return;
         }
         super.keyTyped(typedChar, keyCode);
