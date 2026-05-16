@@ -7,14 +7,16 @@ public final class BlockEqualsFilterRule extends OffsetFilterRule {
 
     private final Block expected;
     private final int meta;
+    private final boolean negated;
 
-    public BlockEqualsFilterRule(FilterRuleParser.OffsetSet offsetSet, Block expected, int meta) {
+    public BlockEqualsFilterRule(FilterRuleParser.OffsetSet offsetSet, Block expected, int meta, boolean negated) {
         super(offsetSet);
 
         if (expected == null) { throw new IllegalArgumentException("expected block cannot be null"); }
 
         this.expected = expected;
         this.meta = meta;
+        this.negated = negated;
     }
 
     @Override
@@ -40,6 +42,8 @@ public final class BlockEqualsFilterRule extends OffsetFilterRule {
     }
 
     private boolean validateOffset(World world, int x, int y, int z, FilterRuleParser.Offset offset) {
-        return getBlock(world, x, y, z, offset) == expected && (this.meta < 0 || getBlockMetadata(world, x, y, z, offset) == meta);
+        boolean match = getBlock(world, x, y, z, offset) == expected
+            && (this.meta < 0 || getBlockMetadata(world, x, y, z, offset) == meta);
+        return negated != match;
     }
 }

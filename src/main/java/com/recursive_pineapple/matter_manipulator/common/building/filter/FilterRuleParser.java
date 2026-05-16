@@ -71,10 +71,7 @@ public final class FilterRuleParser {
         boolean negate = matchWord("not");
         FilterBlockSpec blockSpec = parseBlockSpec();
 
-        FilterRule rule = new BlockEqualsFilterRule(offsetSet, blockSpec.block, blockSpec.meta);
-        if (negate) { return new NotFilterRule(rule); }
-
-        return rule;
+        return new BlockEqualsFilterRule(offsetSet, blockSpec.block, blockSpec.meta, negate);
     }
 
     private Offset parseOffset() {
