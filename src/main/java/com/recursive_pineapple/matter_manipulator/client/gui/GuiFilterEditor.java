@@ -345,7 +345,7 @@ public class GuiFilterEditor extends GuiScreen {
         int centerX = panelX + PANEL_W / 2 - 46;
         boolean isAnd = "and".equals(item.node.conn);
 
-        GuiButton andBtn = new GuiButton(base, centerX, screenY, 44, CONN_ROW_H - 2, isAnd ? "[AND]" : " AND ");
+        GuiButton andBtn = new GuiButton(base, centerX, screenY, 44, CONN_ROW_H - 2, isAnd ? "[ AND ]" : " AND ");
         GuiButton orBtn = new GuiButton(base + 1, centerX + 48, screenY, 44, CONN_ROW_H - 2, isAnd ? "  OR  " : "[ OR ]");
         andBtn.packedFGColour = isAnd ? COLOR_ACTIVE : 0;
         orBtn.packedFGColour = isAnd ? 0 : COLOR_ACTIVE;
