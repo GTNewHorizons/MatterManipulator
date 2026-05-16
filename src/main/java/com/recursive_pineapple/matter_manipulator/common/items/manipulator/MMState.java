@@ -1061,6 +1061,7 @@ public class MMState {
         EXCH_SET_REPLACE,
         PICK_CABLE,
         MARK_ARRAY,
+        PICK_FILTER_BLOCK,
     }
 
     public static enum BlockSelectMode {

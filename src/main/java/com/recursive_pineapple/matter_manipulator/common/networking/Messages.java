@@ -32,6 +32,7 @@ import com.gtnewhorizons.modularui.common.internal.network.NetworkUtils;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.client.gui.GuiFilterEditor;
 import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRuleParser;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
@@ -405,6 +406,21 @@ public enum Messages {
                 packet.warnings = pair.right();
             }
 
+            return packet;
+        }
+    })),
+    PickedFilterBlock(client(new ISimplePacketHandler<Messages.StringPacket>() {
+
+        @Override
+        @SideOnly(Side.CLIENT)
+        public void handle(EntityPlayer player, StringPacket packet) {
+            GuiFilterEditor.onBlockPicked(packet.value);
+        }
+
+        @Override
+        public StringPacket getNewPacket(Messages message, @Nullable Object value) {
+            StringPacket packet = new StringPacket(message);
+            packet.value = (String) value;
             return packet;
         }
     })),

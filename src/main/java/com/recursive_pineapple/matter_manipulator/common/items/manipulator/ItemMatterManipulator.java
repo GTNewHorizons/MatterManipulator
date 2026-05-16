@@ -22,6 +22,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 
+import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
@@ -29,6 +30,7 @@ import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.inventory.Container;
 import net.minecraft.item.EnumAction;
 import net.minecraft.item.EnumRarity;
@@ -503,6 +505,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     case EXCH_SET_TARGET -> "Setting block to replace with";
                     case PICK_CABLE -> "Picking cable";
                     case MARK_ARRAY -> "Marking array bounds";
+                    case PICK_FILTER_BLOCK -> "Pick block for filter";
                 });
             }
 
@@ -766,6 +769,20 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
             case MARK_ARRAY: {
                 onMarkArray(world, player, itemStack, state);
+                state.config.action = null;
+                return true;
+            }
+            case PICK_FILTER_BLOCK: {
+                if (hit == null) return true;
+                if (!world.isRemote) {
+                    Block block = world.getBlock(hit.blockX, hit.blockY, hit.blockZ);
+                    int meta = world.getBlockMetadata(hit.blockX, hit.blockY, hit.blockZ);
+                    var uid = GameRegistry.findUniqueIdentifierFor(block);
+                    if (uid != null) {
+                        String blockName = uid.modId + ":" + uid.name + "@" + meta;
+                        Messages.PickedFilterBlock.sendToPlayer((EntityPlayerMP) player, blockName);
+                    }
+                }
                 state.config.action = null;
                 return true;
             }

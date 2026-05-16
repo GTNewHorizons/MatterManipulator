@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
@@ -14,6 +15,7 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRuleParser;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 
 import org.lwjgl.input.Mouse;
@@ -72,6 +74,13 @@ public class GuiFilterEditor extends GuiScreen {
 
     private boolean isDraggingScrollbar = false;
     private int scrollbarDragOffsetY = 0;
+
+    // ── Block pick-from-world state ────────────────────────────────────────
+    private static GuiFilterEditor pendingPickGui = null;
+    private static int pendingPickCondIdx = -1;
+
+    private String pendingBlockName = null;
+    private int pendingBlockCondIdx = -1;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -186,6 +195,16 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void rebuild() {
         syncFieldsToNodes();
+
+        if (pendingBlockName != null && pendingBlockCondIdx >= 0 && pendingBlockCondIdx < renderItems.size()) {
+            RenderItem item = renderItems.get(pendingBlockCondIdx);
+            if (item.type == RenderType.CONDITION) {
+                ((CondNode) item.node).block = pendingBlockName;
+            }
+            pendingBlockName = null;
+            pendingBlockCondIdx = -1;
+        }
+
         rebuildRenderList();
         clampScroll();
 
@@ -258,7 +277,7 @@ public class GuiFilterEditor extends GuiScreen {
         }
         x += 52;
 
-        int blockRight = panelX + PANEL_W - 14 - 16;
+        int blockRight = panelX + PANEL_W - 14 - 16 - 20;
         int blockFieldY = screenY + 1;
         GuiTextField blockField = new GuiTextField(fontRendererObj, x, blockFieldY, blockRight - x, COND_ROW_H - 4);
         blockField.setMaxStringLength(200);
@@ -266,9 +285,11 @@ public class GuiFilterEditor extends GuiScreen {
         ui.blockField = blockField;
         ui.fieldScreenY = blockFieldY;
 
-        GuiButton removeBtn = new GuiButton(base + 3, blockRight + 4, screenY, 16, COND_ROW_H - 2, "X");
+        GuiButton pickBtn = new GuiButton(base + 6, blockRight + 4, screenY, 16, COND_ROW_H - 2, "#");
+        GuiButton removeBtn = new GuiButton(base + 3, blockRight + 24, screenY, 16, COND_ROW_H - 2, "X");
         removeBtn.packedFGColour = 0xFF5555;
         if (visible) {
+            buttonList.add(pickBtn);
             buttonList.add(removeBtn);
         }
     }
@@ -368,7 +389,26 @@ public class GuiFilterEditor extends GuiScreen {
                 remove(c);
                 rebuild();
                 break;
+            case 6:
+                syncFieldsToNodes();
+                pendingPickGui = this;
+                pendingPickCondIdx = itemIdx;
+                Messages.SetPendingAction.sendToServer(PendingAction.PICK_FILTER_BLOCK);
+                mc.displayGuiScreen(null);
+                break;
         }
+    }
+
+    @SideOnly(Side.CLIENT)
+    public static void onBlockPicked(String blockName) {
+        if (pendingPickGui == null || pendingPickCondIdx < 0) return;
+        GuiFilterEditor gui = pendingPickGui;
+        int condIdx = pendingPickCondIdx;
+        pendingPickGui = null;
+        pendingPickCondIdx = -1;
+        gui.pendingBlockName = blockName;
+        gui.pendingBlockCondIdx = condIdx;
+        Minecraft.getMinecraft().displayGuiScreen(gui);
     }
 
     private void handleGroupButton(GroupNode g, int subBtn) {
