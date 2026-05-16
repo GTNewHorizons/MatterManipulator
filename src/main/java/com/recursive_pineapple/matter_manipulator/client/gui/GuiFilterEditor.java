@@ -73,9 +73,9 @@ public class GuiFilterEditor extends GuiScreen {
     private static final int PICKER_BTN_W = 80, PICKER_BTN_H = 14, PICKER_GAP = 2;
     private static final int PICKER_COLS = 2;
     private static final int PICKER_DIR_ROWS = (PICKER_DIR_LABELS.length + PICKER_COLS - 1) / PICKER_COLS; // 4
+    private static final int PICKER_SEPARATOR_H = 7; // gap + 1px line + gap between direction grid and any/all row
     private static final int PICKER_W = PICKER_COLS * (PICKER_BTN_W + PICKER_GAP) - PICKER_GAP + 8;
-    // dir rows + 1 any/all row, all with trailing gap, minus the very last gap, plus 8px padding
-    private static final int PICKER_H = 8 + (PICKER_DIR_ROWS + 1) * (PICKER_BTN_H + PICKER_GAP) - PICKER_GAP;
+    private static final int PICKER_H = 8 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP) + PICKER_SEPARATOR_H + PICKER_BTN_H;
 
     // ── Text field state for a single condition row ────────────────────────
 
@@ -650,9 +650,14 @@ public class GuiFilterEditor extends GuiScreen {
             btn.drawButton(mc, mouseX, mouseY);
         }
 
+        // Separator line between direction grid and any/all row
+        int dirGridBottom = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP) - PICKER_GAP;
+        int sepY = dirGridBottom + PICKER_SEPARATOR_H / 2;
+        drawRect(px + 3, sepY, px + PICKER_W - 3, sepY + 1, 0xFF555555);
+
         // Any / All toggle row (enabled only when 2+ directions are selected)
         boolean multiSelect = c != null && !c.posAt && Integer.bitCount(c.posMask) >= 2;
-        int anyAllY = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP);
+        int anyAllY = dirGridBottom + PICKER_SEPARATOR_H;
         int anyX = px + 4;
         int allX = px + 4 + PICKER_BTN_W + PICKER_GAP;
 
@@ -756,7 +761,8 @@ public class GuiFilterEditor extends GuiScreen {
         // Any / All buttons (only active when 2+ directions selected)
         boolean multiSelect = c != null && !c.posAt && Integer.bitCount(c.posMask) >= 2;
         if (multiSelect) {
-            int anyAllY = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP);
+            int dirGridBottom = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP) - PICKER_GAP;
+            int anyAllY = dirGridBottom + PICKER_SEPARATOR_H;
             if (mouseY >= anyAllY && mouseY < anyAllY + PICKER_BTN_H) {
                 int anyX = px + 4;
                 int allX = px + 4 + PICKER_BTN_W + PICKER_GAP;
