@@ -42,8 +42,7 @@ public final class BlockEqualsFilterRule extends OffsetFilterRule {
     }
 
     private boolean validateOffset(World world, int x, int y, int z, FilterRuleParser.Offset offset) {
-        boolean match = getBlock(world, x, y, z, offset) == expected
-            && (this.meta < 0 || getBlockMetadata(world, x, y, z, offset) == meta);
+        boolean match = getBlock(world, x, y, z, offset) == expected && (this.meta < 0 || getBlockMetadata(world, x, y, z, offset) == meta);
         return negated != match;
     }
 }
