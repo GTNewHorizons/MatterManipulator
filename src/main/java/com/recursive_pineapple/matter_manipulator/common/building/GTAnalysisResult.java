@@ -2,7 +2,6 @@ package com.recursive_pineapple.matter_manipulator.common.building;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.nullIfUnknown;
 
-import java.lang.invoke.MethodHandle;
 import java.util.List;
 import java.util.Objects;
 
@@ -10,6 +9,8 @@ import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
@@ -37,6 +38,7 @@ import gregtech.common.tileentities.machines.multi.MTEIntegratedOreFactory;
 import appeng.helpers.ICustomNameObject;
 
 import com.google.gson.JsonElement;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.structurelib.alignment.IAlignment;
 import com.gtnewhorizon.structurelib.alignment.IAlignmentProvider;
 import com.gtnewhorizon.structurelib.alignment.enumerable.ExtendedFacing;
@@ -49,7 +51,6 @@ import com.recursive_pineapple.matter_manipulator.mixin.interfaces.BlockFrameBox
 
 import gtnhlanth.common.beamline.MTEBeamlinePipe;
 import lombok.EqualsAndHashCode;
-import lombok.SneakyThrows;
 import tectech.thing.metaTileEntity.hatch.MTEHatchDynamoTunnel;
 import tectech.thing.metaTileEntity.hatch.MTEHatchEnergyTunnel;
 import tectech.thing.metaTileEntity.multi.base.TTMultiblockBase;
@@ -62,7 +63,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     public byte mConnections = 0;
     public byte mGTColour = -1;
     public ForgeDirection mGTFront = null, mGTMainFacing = null;
-    public short mGTFlags = 0;
+    public int mGTFlags = 0;
     public ExtendedFacing mGTFacing = null;
     public CoverData[] mCovers = null;
     public byte mStrongRedstone = 0;
@@ -75,23 +76,26 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     public double[] mTTParams = null;
     public int mAmperes = 0;
     public byte mFluidPipeRestriction = 0;
+    public int mMaxParallels = 0;
 
     private static int counter = 0;
-    private static final short GT_MACHINE_ENABLED = (short) (0b1 << counter++);
-    private static final short GT_BASIC_IO_PUSH_ITEMS = (short) (0b1 << counter++);
-    private static final short GT_BASIC_IO_PUSH_FLUIDS = (short) (0b1 << counter++);
-    private static final short GT_BASIC_IO_DISABLE_FILTER = (short) (0b1 << counter++);
-    private static final short GT_BASIC_IO_DISABLE_MULTISTACK = (short) (0b1 << counter++);
-    private static final short GT_BASIC_IO_INPUT_FROM_OUTPUT_SIDE = (short) (0b1 << counter++);
-    private static final short GT_INPUT_BUS_NO_SORTING = (short) (0b1 << counter++);
-    private static final short GT_INPUT_BUS_NO_LIMITING = (short) (0b1 << counter++);
-    private static final short GT_INPUT_BUS_NO_FILTERING = (short) (0b1 << counter++);
-    private static final short GT_MULTI_PROTECT_ITEMS = (short) (0b1 << counter++);
-    private static final short GT_MULTI_PROTECT_FLUIDS = (short) (0b1 << counter++);
-    private static final short GT_MULTI_BATCH_MODE = (short) (0b1 << counter++);
-    private static final short GT_MULTI_INPUT_SEPARATION = (short) (0b1 << counter++);
-    private static final short GT_MULTI_RECIPE_LOCK = (short) (0b1 << counter++);
-    private static final short GT_ME_CONNECT_ALL_SIDES = (short) (0b1 << counter++);
+    private static final int GT_MACHINE_ENABLED = 0b1 << counter++;
+    private static final int GT_BASIC_IO_PUSH_ITEMS = 0b1 << counter++;
+    private static final int GT_BASIC_IO_PUSH_FLUIDS = 0b1 << counter++;
+    private static final int GT_BASIC_IO_DISABLE_FILTER = 0b1 << counter++;
+    private static final int GT_BASIC_IO_DISABLE_MULTISTACK = 0b1 << counter++;
+    private static final int GT_BASIC_IO_INPUT_FROM_OUTPUT_SIDE = 0b1 << counter++;
+    private static final int GT_INPUT_BUS_NO_SORTING = 0b1 << counter++;
+    private static final int GT_INPUT_BUS_NO_LIMITING = 0b1 << counter++;
+    private static final int GT_INPUT_BUS_NO_FILTERING = 0b1 << counter++;
+    private static final int GT_MULTI_PROTECT_ITEMS = 0b1 << counter++;
+    private static final int GT_MULTI_PROTECT_FLUIDS = 0b1 << counter++;
+    private static final int GT_MULTI_BATCH_MODE = 0b1 << counter++;
+    private static final int GT_MULTI_INPUT_SEPARATION = 0b1 << counter++;
+    private static final int GT_MULTI_RECIPE_LOCK = 0b1 << counter++;
+    private static final int GT_ME_CONNECT_ALL_SIDES = 0b1 << counter++;
+    private static final int GT_MAX_PARALLELS = 0b1 << counter++;
+    private static final int GT_POWERFAIL_EVENTS = 0b1 << counter++;
 
     private static final GTAnalysisResult NO_OP = new GTAnalysisResult();
 
@@ -212,7 +216,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         // check if the machine is a multi and store its settings
         if (mte instanceof MTEMultiBlockBase multi) {
             if (multi instanceof MTEIntegratedOreFactory iof) {
-                mGTMode = getIOFMode(iof);
+                mGTMode = iof.getMachineMode();
             } else {
                 mGTMode = multi.machineMode;
             }
@@ -223,6 +227,11 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             if (multi.isBatchModeEnabled()) mGTFlags |= GT_MULTI_BATCH_MODE;
             if (multi.isInputSeparationEnabled()) mGTFlags |= GT_MULTI_INPUT_SEPARATION;
             if (multi.isRecipeLockingEnabled()) mGTFlags |= GT_MULTI_RECIPE_LOCK;
+
+            if (multi.isAlwaysMaxParallel()) mGTFlags |= GT_MAX_PARALLELS;
+            mMaxParallels = multi.getPowerPanelMaxParallel();
+
+            if (multi.makesPowerfailEvents()) mGTFlags |= GT_POWERFAIL_EVENTS;
         }
 
         // Check if the machine can be copied with a data stick
@@ -256,22 +265,6 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         if (mte instanceof IMEConnectable me && me.connectsToAllSides()) {
             mGTFlags |= GT_ME_CONNECT_ALL_SIDES;
         }
-    }
-
-    private static final MethodHandle GET_IOF_MODE = MMUtils
-        .exposeFieldGetter(MTEIntegratedOreFactory.class, "sMode");
-
-    @SneakyThrows
-    private static int getIOFMode(MTEIntegratedOreFactory cal) {
-        return (int) GET_IOF_MODE.invokeExact(cal);
-    }
-
-    private static final MethodHandle SET_IOF_MODE = MMUtils
-        .exposeFieldSetter(MTEIntegratedOreFactory.class, "sMode");
-
-    @SneakyThrows
-    private static void setIOFMode(MTEIntegratedOreFactory cal, int mode) {
-        SET_IOF_MODE.invokeExact(cal, mode);
     }
 
     @Override
@@ -350,7 +343,12 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                         gte.setFrontFacing(facing.getDirection());
                         alignment.toolSetExtendedFacing(facing);
                     } else {
-                        ctx.error("Could not set direction to '" + facing.getLocalizedName() + "'");
+                        ctx.error(
+                            new ChatComponentTranslation(
+                                "mm.info.error.could_not_set_direction_to",
+                                new ChatComponentTranslation(MMUtils.getFacingUnlocalizedName(facing))
+                            )
+                        );
                     }
                 }
             } else {
@@ -425,7 +423,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             // set the various multi options
             if (mte instanceof MTEMultiBlockBase multi) {
                 if (mte instanceof MTEIntegratedOreFactory iof) {
-                    setIOFMode(iof, mGTMode);
+                    iof.setMachineMode(mGTMode);
                 } else {
                     multi.machineMode = mGTMode;
                 }
@@ -457,6 +455,16 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                 if (multi.supportsBatchMode()) multi.setBatchMode((mGTFlags & GT_MULTI_BATCH_MODE) != 0);
                 if (multi.supportsInputSeparation()) multi.setInputSeparation((mGTFlags & GT_MULTI_INPUT_SEPARATION) != 0);
                 if (multi.supportsSingleRecipeLocking()) multi.setRecipeLocking((mGTFlags & GT_MULTI_RECIPE_LOCK) != 0);
+
+                if ((mGTFlags & GT_MAX_PARALLELS) != 0) {
+                    multi.setAlwaysMaxParallel(true);
+                    multi.setPowerPanelMaxParallel(multi.getMaxParallelRecipes());
+                } else {
+                    multi.setAlwaysMaxParallel(false);
+                    multi.setPowerPanelMaxParallel(mMaxParallels);
+                }
+
+                multi.setPowerfailEventCreationStatus((mGTFlags & GT_POWERFAIL_EVENTS) != 0);
             }
 
             // paste the data
@@ -511,12 +519,23 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         ItemStack stack = cover.getCoverStack();
 
         if (!canPlace(gte, side, cover)) {
-            context.error("Was not allowed to put cover on " + side.name().toLowerCase() + "side: " + stack.getDisplayName());
+            context.error(
+                new ChatComponentTranslation(
+                    "mm.info.error.was_not_allowed_to_put_cover_on",
+                    new ChatComponentTranslation(MMUtils.getDirectionUnlocalizedName(side, true)),
+                    new ChatComponentItemName(stack)
+                )
+            );
             return;
         }
 
         if (!context.tryConsumeItems(stack)) {
-            context.error("Could not find cover: " + stack.getDisplayName());
+            context.error(
+                new ChatComponentTranslation(
+                    "mm.info.error.could_not_find_cover",
+                    new ChatComponentItemName(stack)
+                )
+            );
             return;
         }
 
@@ -610,7 +629,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     }
 
     @Override
-    public void getItemDetails(List<String> details) {
+    public void getItemDetailsChat(List<IChatComponent> details) {
 
     }
 
@@ -664,6 +683,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         dup.mTTParams = mTTParams == null ? null : mTTParams.clone();
         dup.mAmperes = mAmperes;
         dup.mFluidPipeRestriction = mFluidPipeRestriction;
+        dup.mMaxParallels = mMaxParallels;
 
         return dup;
     }

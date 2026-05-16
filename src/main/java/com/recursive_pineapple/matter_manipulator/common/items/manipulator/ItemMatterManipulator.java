@@ -1,9 +1,9 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.BLUE;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.GREEN;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.RED;
-import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.formatNumbers;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMValues.V;
@@ -37,6 +37,7 @@ import net.minecraft.item.EnumRarity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.MovingObjectPosition;
@@ -103,6 +104,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.filter.StringS
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItemList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockRemoveMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockSelectMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
@@ -113,7 +115,9 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
+import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3i;
+import org.joml.Vector3ic;
 
 import ic2.api.item.IElectricItemManager;
 import ic2.api.item.ISpecialElectricItem;
@@ -409,7 +413,34 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     public static void setState(ItemStack itemStack, MMState state) {
-        itemStack.setTagCompound(state.save());
+
+        // Reads the NBT Tags of already existing Manipulator
+        NBTTagCompound existingTags;
+        existingTags = getOrCreateNbtData(itemStack);
+        // Gets tags for the state change
+        NBTTagCompound newTags;
+        newTags = state.save();
+
+        // Manually set each tag
+        existingTags.setInteger("jv", newTags.getInteger("jv"));
+        existingTags.setInteger("dv", newTags.getInteger("dv"));
+        existingTags.setTag("config", newTags.getTag("config"));
+        existingTags.setTag("installedUpgrades", newTags.getTag("installedUpgrades"));
+        existingTags.setDouble("charge", newTags.getDouble("charge"));
+
+        // needs to get rid of null if it exists otherwise gets omitted, GSON behaviour
+        if (newTags.hasKey("encKey")) {
+            existingTags.setTag("encKey", newTags.getTag("encKey"));
+        } else {
+            existingTags.removeTag("encKey");
+        }
+
+        if (newTags.hasKey("uplinkAddress")) {
+            existingTags.setTag("uplinkAddress", newTags.getTag("uplinkAddress"));
+        } else {
+            existingTags.removeTag("uplinkAddress");
+        }
+
     }
 
     public static NBTTagCompound getOrCreateNbtData(ItemStack itemStack) {
@@ -443,7 +474,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         // spotless:off
         if (!GuiScreen.isShiftKeyDown()) {
-            desc.add("Hold shift for more information.");
+            desc.add(StatCollector.translateToLocal("mm.tooltip.hold_shift"));
         } else {
             if (state.hasCap(CONNECTS_TO_AE) || state.hasCap(CONNECTS_TO_UPLINK)) {
                 long time = System.currentTimeMillis();
@@ -470,89 +501,89 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (state.hasCap(CONNECTS_TO_AE)) {
                 if (state.encKey != null) {
                     if (ttAEWorks) {
-                        desc.add("Has an ME connection. (Can interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.me_conn.can_interact"));
                     } else {
-                        desc.add("Has an ME connection. (Cannot interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.me_conn.cannot_interact"));
                     }
                 } else {
-                    desc.add("Does not have an ME connection.");
+                    desc.add(StatCollector.translateToLocal("mm.tooltip.me_conn.no_conn"));
                 }
             }
 
             if (state.hasCap(CONNECTS_TO_UPLINK)) {
                 if (state.uplinkAddress != null) {
                     if (ttUplinkWorks) {
-                        desc.add("Has an Uplink connection. (Can interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.uplink_conn.can_interact"));
                     } else {
-                        desc.add("Has an Uplink connection. (Cannot interact currently)");
+                        desc.add(StatCollector.translateToLocal("mm.tooltip.uplink_conn.cannot_interact"));
                     }
-                    addInfoLine(desc, "Uplink address: %s", state.uplinkAddress, Long::toHexString);
+                    addInfoLine(desc, "mm.tooltip.uplink_conn.address", state.uplinkAddress, Long::toHexString);
                 } else {
-                    desc.add("Does not have an Uplink connection.");
+                    desc.add(StatCollector.translateToLocal("mm.tooltip.uplink_conn.no_conn"));
                 }
             }
 
             if (state.config.action != null) {
-                addInfoLine(desc, "Pending Action: %s", switch (state.config.action) {
-                    case MOVING_COORDS -> "Moving coordinates";
-                    case GEOM_SELECTING_BLOCK -> "Selecting blocks to place";
-                    case MARK_COPY_A -> "Marking first copy corner";
-                    case MARK_COPY_B -> "Marking second copy corner";
-                    case MARK_CUT_A -> "Marking first cut corner";
-                    case MARK_CUT_B -> "Marking second cut corner";
-                    case MARK_PASTE -> "Marking paste location";
-                    case EXCH_ADD_REPLACE -> "Adding block to replace whitelist";
-                    case EXCH_SET_REPLACE -> "Setting block in replace whitelist";
-                    case EXCH_SET_TARGET -> "Setting block to replace with";
-                    case PICK_CABLE -> "Picking cable";
-                    case MARK_ARRAY -> "Marking array bounds";
-                    case PICK_FILTER_BLOCK -> "Pick block for filter";
-                });
+                addInfoLine(desc, "mm.tooltip.pending_action", StatCollector.translateToLocal(switch (state.config.action) {
+                    case MOVING_COORDS -> "mm.tooltip.pending_action.moving_coords";
+                    case GEOM_SELECTING_BLOCK -> "mm.tooltip.pending_action.geom_selecting_block";
+                    case MARK_COPY_A -> "mm.tooltip.pending_action.mark_copy_a";
+                    case MARK_COPY_B -> "mm.tooltip.pending_action.mark_copy_b";
+                    case MARK_CUT_A -> "mm.tooltip.pending_action.mark_cut_a";
+                    case MARK_CUT_B -> "mm.tooltip.pending_action.mark_cut_b";
+                    case MARK_PASTE -> "mm.tooltip.pending_action.mark_paste";
+                    case EXCH_ADD_REPLACE -> "mm.tooltip.pending_action.exch_add_replace";
+                    case EXCH_SET_REPLACE -> "mm.tooltip.pending_action.exch_set_replace";
+                    case EXCH_SET_TARGET -> "mm.tooltip.pending_action.exch_set_target";
+                    case PICK_CABLE -> "mm.tooltip.pending_action.pick_cable";
+                    case MARK_ARRAY -> "mm.tooltip.pending_action.mark_array";
+                    case PICK_FILTER_BLOCK -> "Pick block for filter"; // TODO: dipo33
+                }));
             }
 
             if (Integer.bitCount(tier.capabilities & ALL_MODES) > 1) {
-                addInfoLine(desc, "Mode: %s", switch (state.config.placeMode) {
-                    case GEOMETRY -> "Geometry";
-                    case MOVING -> "Moving";
-                    case COPYING -> "Copying";
-                    case EXCHANGING -> "Exchanging";
-                    case CABLES -> "Cables";
-                });
+                addInfoLine(desc, "mm.tooltip.mode", StatCollector.translateToLocal(switch (state.config.placeMode) {
+                    case GEOMETRY -> "mm.tooltip.mode.geometry";
+                    case MOVING -> "mm.tooltip.mode.moving";
+                    case COPYING -> "mm.tooltip.mode.copying";
+                    case EXCHANGING -> "mm.tooltip.mode.exchanging";
+                    case CABLES -> "mm.tooltip.mode.cables";
+                }));
             }
 
             if (state.hasCap(ALLOW_REMOVING)) {
-                addInfoLine(desc, "Removing: %s", switch (state.config.removeMode) {
-                    case ALL -> "All blocks";
-                    case REPLACEABLE -> "Replaceable blocks";
-                    case NONE -> "No blocks";
-                });
+                addInfoLine(desc, "mm.tooltip.removing", StatCollector.translateToLocal(switch (state.config.removeMode) {
+                    case ALL -> "mm.tooltip.removing.all";
+                    case REPLACEABLE -> "mm.tooltip.removing.replaceable";
+                    case NONE -> "mm.tooltip.removing.none";
+                }));
             }
 
             if (state.config.placeMode == PlaceMode.GEOMETRY) {
-                addInfoLine(desc, "Shape: %s", switch (state.config.shape) {
-                    case LINE -> "Line";
-                    case CUBE -> "Cube";
-                    case SPHERE -> "Sphere";
-                    case CYLINDER -> "Cylinder";
-                });
+                addInfoLine(desc, "mm.tooltip.shape", StatCollector.translateToLocal(switch (state.config.shape) {
+                    case LINE -> "mm.tooltip.shape.line";
+                    case CUBE -> "mm.tooltip.shape.cube";
+                    case SPHERE -> "mm.tooltip.shape.sphere";
+                    case CYLINDER -> "mm.tooltip.shape.cylinder";
+                }));
 
-                addInfoLine(desc, "Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.coord_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.coord_b", state.config.coordB);
 
-                addInfoLine(desc, "Corner block: %s", state.config.corners);
-                addInfoLine(desc, "Edge block: %s", state.config.edges);
-                addInfoLine(desc, "Face block: %s", state.config.faces);
-                addInfoLine(desc, "Volume block: %s", state.config.volumes);
+                addInfoLine(desc, "mm.tooltip.corner_block", state.config.corners);
+                addInfoLine(desc, "mm.tooltip.edge_block", state.config.edges);
+                addInfoLine(desc, "mm.tooltip.face_block", state.config.faces);
+                addInfoLine(desc, "mm.tooltip.volume_block", state.config.volumes);
             }
 
             if (state.config.placeMode == PlaceMode.COPYING) {
-                addInfoLine(desc, "Copy Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Copy Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.copying.copy_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.copying.copy_b", state.config.coordB);
 
-                addInfoLine(desc, "Paste Coordinate: %s", state.config.coordC);
+                addInfoLine(desc, "mm.tooltip.paste", state.config.coordC);
 
                 addInfoLine(desc,
-                    "Stack: %s",
+                    "mm.tooltip.copying.stack",
                     state.config.arraySpan,
                     span -> String.format(
                         "X: %dx, Y: %dx, Z: %dx",
@@ -562,15 +593,16 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {
-                addInfoLine(desc, "Cut Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Cut Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.moving.cut_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.moving.cut_b", state.config.coordB);
 
-                addInfoLine(desc, "Paste Coordinate: %s", state.config.coordC);
+                addInfoLine(desc, "mm.tooltip.paste", state.config.coordC);
             }
 
             if (state.config.placeMode == PlaceMode.EXCHANGING) {
-                addInfoLine(desc, "Removable blocks: %s", state.config.replaceWhitelist);
-                addInfoLine(desc, "Replacing blocks with: %s", state.config.replaceWith);
+                addInfoLine(desc, "mm.tooltip.exchanging.removable", state.config.replaceWhitelist);
+                addInfoLine(desc, "mm.tooltip.exchanging.replacing", state.config.replaceWith);
+                // TODO: dipo33 translations
                 if (state.config.filterRule instanceof StringSerializableRule rule) {
                     addInfoLine(desc, "Current filter: %s", rule.asString());
                 } else {
@@ -579,10 +611,10 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
 
             if (state.config.placeMode == PlaceMode.CABLES) {
-                addInfoLine(desc, "Coordinate A: %s", state.config.coordA);
-                addInfoLine(desc, "Coordinate B: %s", state.config.coordB);
+                addInfoLine(desc, "mm.tooltip.coord_a", state.config.coordA);
+                addInfoLine(desc, "mm.tooltip.coord_b", state.config.coordB);
 
-                addInfoLine(desc, "Cable: %s", state.config.cables);
+                addInfoLine(desc, "mm.tooltip.cable", state.config.cables, BlockSpec::toDisplayString);
             }
 
             List<MMUpgrades> upgrades = new ArrayList<>(state.getInstalledUpgrades());
@@ -601,30 +633,32 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             EnumChatFormatting.AQUA
                 + I18n.format(
                     "mm.tooltip.voltage",
-                    formatNumbers(MMUtils.clamp(Math.round(state.charge), 0, tier.maxCharge)),
-                    formatNumbers(tier.maxCharge),
-                    formatNumbers(V[tier.voltageTier]))
+                    formatNumber(MMUtils.clamp(Math.round(state.charge), 0, tier.maxCharge)),
+                    formatNumber(tier.maxCharge),
+                    formatNumber(V[tier.voltageTier]))
                 + EnumChatFormatting.GRAY);
 
         // spotless:on
     }
 
-    private <T> void addInfoLine(List<String> desc, String format, T value) {
-        addInfoLine(desc, format, value, T::toString);
+    private <T> void addInfoLine(List<String> desc, String formatKey, T value) {
+        addInfoLine(desc, formatKey, value, T::toString);
     }
 
-    private <T> void addInfoLine(List<String> desc, String format, T value, Function<T, String> toString) {
+    private <T> void addInfoLine(List<String> desc, String formatKey, T value, Function<T, String> toString) {
         if (value != null) {
             desc.add(
-                String.format(
-                    format,
-                    EnumChatFormatting.BLUE.toString() + toString.apply(value) + EnumChatFormatting.RESET.toString()
+                StatCollector.translateToLocalFormatted(
+                    formatKey,
+                    EnumChatFormatting.BLUE + toString.apply(value) + EnumChatFormatting.RESET
                 )
             );
         } else {
             desc.add(
-                String
-                    .format(format, EnumChatFormatting.GRAY.toString() + "None" + EnumChatFormatting.RESET.toString())
+                StatCollector.translateToLocalFormatted(
+                    formatKey,
+                    EnumChatFormatting.GRAY + StatCollector.translateToLocal("mm.tooltip.none") + EnumChatFormatting.RESET
+                )
             );
         }
     }
@@ -818,7 +852,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         BlockSpec block = BlockSpec.fromPickBlock(world, player, hit);
 
-        String what = null;
+        String whatKey = null;
 
         boolean add = player.isSneaking();
 
@@ -826,25 +860,25 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             case CORNERS: {
                 if (state.config.corners == null || !add) state.config.corners = new WeightedSpecList();
                 state.config.corners.add(block);
-                what = "corners";
+                whatKey = "mm.enum.what.corners";
                 break;
             }
             case EDGES: {
                 if (state.config.edges == null || !add) state.config.edges = new WeightedSpecList();
                 state.config.edges.add(block);
-                what = "edges";
+                whatKey = "mm.enum.what.edges";
                 break;
             }
             case FACES: {
                 if (state.config.faces == null || !add) state.config.faces = new WeightedSpecList();
                 state.config.faces.add(block);
-                what = "faces";
+                whatKey = "mm.enum.what.faces";
                 break;
             }
             case VOLUMES: {
                 if (state.config.volumes == null || !add) state.config.volumes = new WeightedSpecList();
                 state.config.volumes.add(block);
-                what = "volumes";
+                whatKey = "mm.enum.what.volumes";
                 break;
             }
             case ALL: {
@@ -856,7 +890,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 state.config.edges.add(block);
                 state.config.faces.add(block);
                 state.config.volumes.add(block);
-                what = "all blocks";
+                whatKey = "mm.enum.what.all";
                 break;
             }
         }
@@ -864,12 +898,16 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         if (add) {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted("mm.info.added", block.getDisplayName(), what)
+                "mm.info.added",
+                block.getChatComponent(),
+                new ChatComponentTranslation(whatKey)
             );
         } else {
             sendInfoToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted("mm.info.set", what, block.getDisplayName())
+                "mm.info.set",
+                new ChatComponentTranslation(whatKey),
+                block.getChatComponent()
             );
         }
     }
@@ -891,10 +929,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.set_block_to_replace_with",
-                block.getDisplayName()
-            )
+            "mm.info.set_block_to_replace_with",
+            block.getChatComponent()
         );
     }
 
@@ -918,10 +954,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.added_block_to_exchange_whitelist",
-                block.getDisplayName()
-            )
+            "mm.info.added_block_to_exchange_whitelist",
+            block.getChatComponent()
         );
     }
 
@@ -935,10 +969,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted(
-                "mm.info.set_exchange_whitelist_to_only_contain",
-                block.getDisplayName()
-            )
+            "mm.info.set_exchange_whitelist_to_only_contain",
+            block.getChatComponent()
         );
     }
 
@@ -959,7 +991,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         sendInfoToPlayer(
             player,
-            StatCollector.translateToLocalFormatted("mm.info.set_cable", cable.getDisplayName())
+            "mm.info.set_cable",
+            cable.getChatComponent()
         );
     }
 
@@ -975,13 +1008,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
 
         if (!Location.areCompatible(state.config.coordA, state.config.coordB)) {
-            sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.cannot_mark_copy"));
+            sendErrorToPlayer(player, "mm.info.error.cannot_mark_copy");
             state.config.arraySpan = null;
             return;
         }
 
         if (state.config.coordC == null || !state.config.coordC.isInWorld(world)) {
-            sendErrorToPlayer(player, StatCollector.translateToLocal("mm.info.error.cannot_mark_paste"));
+            sendErrorToPlayer(player, "mm.info.error.cannot_mark_paste");
             state.config.arraySpan = null;
             return;
         }
@@ -1059,7 +1092,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     MMMod.LOG.error("Could not place blocks", t);
                     sendErrorToPlayer(
                         player,
-                        "Could not place blocks due to a crash. Check the logs for more info."
+                        "mm.info.error.could_not_place_blocks"
                     );
                 }
             }
@@ -1727,48 +1760,105 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         .setSize(40, 36 + 30))
             };
 
-            Widget[] right = {
-                makeHeader(StatCollector.translateToLocal("mm.transform.header.copy")),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), -1, 0),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), -1, 1),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), -1, 2),
-                padding(2, 2),
-                makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_a")),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 0, 0),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 0, 1),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 0, 2),
-                padding(10, 2),
-                makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_b")),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 1, 0),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 1, 1),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 1, 2),
-                padding(10, 2),
-                makeHeader(StatCollector.translateToLocal("mm.transform.header.paste")),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 2, 0),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 2, 1),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 2, 2),
-                padding(10, 2),
-                makeHeader(StatCollector.translateToLocal("mm.transform.header.stacking")),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 3, 0),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 3, 1),
-                padding(2, 2),
-                makeCoordinateEditor(buildContext.getPlayer(), 3, 2),
-                padding(10, 2)
-            };
+            Widget[] right, lessRight;
+
+            if (Minecraft.getMinecraft().gameSettings.guiScale <= 2) {
+                right = new Widget[] {
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Z),
+                    padding(2, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_a")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Z),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_b")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Z),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.paste")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Z),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.stacking")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Stack, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Stack, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Stack, CoordComponent.Z),
+                    padding(10, 2)
+                };
+
+                lessRight = new Widget[0];
+            } else {
+                right = new Widget[] {
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_a")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Z),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_b")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Z),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.paste")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Z),
+                };
+
+                lessRight = new Widget[] {
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Z),
+                    padding(2, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.stacking")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Stack, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Stack, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Stack, CoordComponent.Z),
+                };
+            }
 
             builder.widget(
                 new Row().widgets(
@@ -1777,14 +1867,22 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
                         .widgets(left)).fillParent());
 
-            Column cr;
+            Column columnRight, columnLessRight;
 
             builder.widget(
-                (cr = new Column())
+                (columnRight = new Column())
                     .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.END)
                     .widgets(right)
                     .setPosProvider((screenSize, window, parent) -> {
-                        return new Pos2d(screenSize.width - cr.getSize().width - 10, 0);
+                        return new Pos2d(screenSize.width - columnRight.getSize().width - 10, 0);
+                    }));
+
+            builder.widget(
+                (columnLessRight = new Column())
+                    .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.END)
+                    .widgets(lessRight)
+                    .setPosProvider((screenSize, window, parent) -> {
+                        return new Pos2d(screenSize.width - columnRight.getSize().width - columnLessRight.getSize().width - 20, 0);
                     }));
         }
 
@@ -1813,180 +1911,54 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     private static final AdaptableUITexture DISPLAY = AdaptableUITexture
         .of("modularui:gui/background/display", 143, 75, 2);
 
+    private enum Coord {
+        Copy,
+        CopyA,
+        CopyB,
+        Paste,
+        Stack
+    }
+
+    private enum CoordComponent {
+        X,
+        Y,
+        Z;
+
+        public int get(Vector3ic v) {
+            return switch (this) {
+                case X -> v.x();
+                case Y -> v.y();
+                case Z -> v.z();
+            };
+        }
+
+        public void set(Vector3i v, int k) {
+            switch (this) {
+                case X -> v.x = k;
+                case Y -> v.y = k;
+                case Z -> v.z = k;
+            };
+        }
+    }
+
     @SideOnly(Side.CLIENT)
-    private Row makeCoordinateEditor(EntityPlayer player, int coord, int component) {
-        IntSupplier getter = () -> {
-            MMState currState = getState(player.getHeldItem());
-
-            Vector3i l = switch (coord) {
-                case -1 -> new Vector3i(0);
-                case 0 -> currState.config.coordA == null ? null : currState.config.coordA.toVec();
-                case 1 -> currState.config.coordB == null ? null : currState.config.coordB.toVec();
-                case 2 -> currState.config.coordC == null ? null : currState.config.coordC.toVec();
-                case 3 -> currState.config.arraySpan;
-                default -> throw new IllegalArgumentException("coord");
-            };
-
-            if (l == null) {
-                if (coord == 3) {
-                    l = new Vector3i(0);
-                } else {
-                    l = getDefaultLocation(player);
-                }
-            }
-
-            return switch (component) {
-                case 0 -> l.x;
-                case 1 -> l.y;
-                case 2 -> l.z;
-                default -> throw new IllegalArgumentException("component");
-            };
-        };
+    private Row makeCoordinateEditor(EntityPlayer player, Coord coord, CoordComponent component) {
+        IntSupplier getter = createGetter(player, coord, component);
+        IntConsumer setter = createSetter(player, coord, component);
+        SizeStorage storage = new SizeStorage(player, coord, component);
 
         IntSupplier getterVisual = () -> {
             int k = getter.getAsInt();
 
-            if (coord == 3) {
+            if (coord == Coord.Stack) {
                 if (k >= 0) k++;
             }
 
             return k;
         };
 
-        IntConsumer setter = i -> {
-            MMState currState = getState(player.getHeldItem());
-
-            Vector3i l = switch (coord) {
-                case -1 -> new Vector3i(0);
-                case 0 -> currState.config.coordA == null ? null : currState.config.coordA.toVec();
-                case 1 -> currState.config.coordB == null ? null : currState.config.coordB.toVec();
-                case 2 -> currState.config.coordC == null ? null : currState.config.coordC.toVec();
-                case 3 -> currState.config.arraySpan;
-                default -> throw new IllegalArgumentException("coord");
-            };
-
-            if (l == null) {
-                if (coord == 3) {
-                    l = new Vector3i(0);
-                } else {
-                    l = getDefaultLocation(player);
-                }
-            }
-
-            switch (component) {
-                case 0 -> l.x = i;
-                case 1 -> l.y = i;
-                case 2 -> l.z = i;
-                default -> throw new IllegalArgumentException("component");
-            }
-
-            switch (coord) {
-                case -1 -> {
-                    if (currState.config.coordA != null) {
-                        currState.config.coordA = new Location(player.worldObj, currState.config.coordA.toVec().add(l));
-                    }
-
-                    if (currState.config.coordB != null) {
-                        currState.config.coordB = new Location(player.worldObj, currState.config.coordB.toVec().add(l));
-                    }
-                }
-                case 0 -> currState.config.coordA = new Location(player.worldObj, l);
-                case 1 -> currState.config.coordB = new Location(player.worldObj, l);
-                case 2 -> currState.config.coordC = new Location(player.worldObj, l);
-                case 3 -> currState.config.arraySpan = l;
-                default -> throw new IllegalArgumentException("coord");
-            }
-
-            ItemMatterManipulator.setState(player.getHeldItem(), currState);
-
-            switch (coord) {
-                case -1 -> {
-                    if (currState.config.coordA != null) {
-                        Messages.SetA.sendToServer(currState.config.coordA.toVec().add(l));
-                    }
-
-                    if (currState.config.coordB != null) {
-                        Messages.SetB.sendToServer(currState.config.coordB.toVec().add(l));
-                    }
-                }
-                case 0 -> {
-                    Messages.SetA.sendToServer(l);
-                }
-                case 1 -> {
-                    Messages.SetB.sendToServer(l);
-                }
-                case 2 -> {
-                    Messages.SetC.sendToServer(l);
-                }
-                case 3 -> {
-                    Messages.SetArray.sendToServer(l);
-                }
-                default -> throw new IllegalArgumentException("coord");
-            }
-        };
-
-        String compName = switch (component) {
-            case 0 -> "X";
-            case 1 -> "Y";
-            case 2 -> "Z";
-            default -> throw new IllegalArgumentException("component");
-        };
-
-        class SizeStorage {
-            public int x, y, z;
-            public boolean present = false;
-
-            public Vector3i get() {
-                if (!present && GuiScreen.isCtrlKeyDown()) {
-                    MMState currState = getState(player.getHeldItem());
-
-                    Vector3i size;
-
-                    if (coord == 2) {
-                        size = currState.config.getPasteVisualDeltas(null, false).size();
-                    } else {
-                        size = currState.config.getCopyVisualDeltas(null).size();
-                    }
-
-                    x = size.x;
-                    y = size.y;
-                    z = size.z;
-                    present = true;
-                }
-
-                if (!GuiScreen.isCtrlKeyDown()) {
-                    present = false;
-                }
-
-                return present ? new Vector3i(x, y, z) : new Vector3i(1);
-            }
-
-            public int getOffset() {
-                int offset = 1;
-
-                if (GuiScreen.isShiftKeyDown()) {
-                    offset = 10;
-                } else if (coord != 3 && GuiScreen.isCtrlKeyDown()) {
-                    Vector3i size = get();
-
-                    offset = switch (component) {
-                        case 0 -> size.x;
-                        case 1 -> size.y;
-                        case 2 -> size.z;
-                        default -> throw new IllegalArgumentException("component");
-                    };
-                } else {
-                    present = false;
-                }
-
-                return offset;
-            }
-        }
-
-        SizeStorage storage = new SizeStorage();
-
         return new Row().widgets(
-            new VanillaButtonWidget().setDisplayString(compName + " - 1")
+            new VanillaButtonWidget().setDisplayString(component.name() + " - 1")
                 .setOnClick(
                     (t, u) -> {
                         int i = getter.getAsInt();
@@ -1998,11 +1970,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .setSynced(false, false)
                 .setSize(40, 18)
                 .setTicker(w -> {
-                    ((VanillaButtonWidget) w).setDisplayString(compName + " - " + storage.getOffset());
+                    ((VanillaButtonWidget) w).setDisplayString(component.name() + " - " + storage.getOffset());
                 }),
             padding(5, 5),
             new MultiChildWidget()
-                .addChild(coord != -1 ? (
+                .addChild(coord != Coord.Copy ? (
                     new NumericWidget()
                         .setSynced(false, false)
                         .setIntegerOnly(true)
@@ -2029,7 +2001,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 ))
                 .setSize(40, 18),
             padding(5, 5),
-            new VanillaButtonWidget().setDisplayString(compName + " + 1")
+            new VanillaButtonWidget().setDisplayString(component.name() + " + 1")
                 .setOnClick(
                     (t, u) -> {
                         int i = getter.getAsInt();
@@ -2041,8 +2013,150 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .setSynced(false, false)
                 .setSize(40, 18)
                 .setTicker(w -> {
-                    ((VanillaButtonWidget) w).setDisplayString(compName + " + " + storage.getOffset());
+                    ((VanillaButtonWidget) w).setDisplayString(component.name() + " + " + storage.getOffset());
                 }));
+    }
+
+    private static @NotNull Vector3i getTransformLocation(EntityPlayer player, Coord coord, MMState currState) {
+        Vector3i loc = switch (coord) {
+            case Copy -> new Vector3i(0);
+            case CopyA -> currState.config.coordA == null ? null : currState.config.coordA.toVec();
+            case CopyB -> currState.config.coordB == null ? null : currState.config.coordB.toVec();
+            case Paste -> currState.config.coordC == null ? null : currState.config.coordC.toVec();
+            case Stack -> currState.config.arraySpan;
+        };
+
+        if (loc == null) {
+            if (coord == Coord.Stack) {
+                loc = new Vector3i(0);
+            } else {
+                loc = getDefaultLocation(player);
+            }
+        }
+
+        return loc;
+    }
+
+    private static @NotNull IntSupplier createGetter(EntityPlayer player, Coord coord, CoordComponent component) {
+        return () -> {
+            MMState currState = getState(player.getHeldItem());
+
+            Vector3i loc = getTransformLocation(player, coord, currState);
+
+            return component.get(loc);
+        };
+    }
+
+    private static @NotNull IntConsumer createSetter(EntityPlayer player, Coord coord, CoordComponent component) {
+        return i -> {
+            MMState currState = getState(player.getHeldItem());
+
+            Vector3i loc = getTransformLocation(player, coord, currState);
+
+            component.set(loc, i);
+
+            switch (coord) {
+                case Copy -> {
+                    if (currState.config.coordA != null) {
+                        currState.config.coordA = new Location(player.worldObj, currState.config.coordA.toVec().add(loc));
+                    }
+
+                    if (currState.config.coordB != null) {
+                        currState.config.coordB = new Location(player.worldObj, currState.config.coordB.toVec().add(loc));
+                    }
+                }
+                case CopyA -> currState.config.coordA = new Location(player.worldObj, loc);
+                case CopyB -> currState.config.coordB = new Location(player.worldObj, loc);
+                case Paste -> currState.config.coordC = new Location(player.worldObj, loc);
+                case Stack -> currState.config.arraySpan = loc;
+            }
+
+            ItemMatterManipulator.setState(player.getHeldItem(), currState);
+
+            switch (coord) {
+                case Copy -> {
+                    if (currState.config.coordA != null) {
+                        Messages.SetA.sendToServer(currState.config.coordA.toVec());
+                    }
+
+                    if (currState.config.coordB != null) {
+                        Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                    }
+                }
+                case CopyA -> {
+                    Messages.SetA.sendToServer(loc);
+                }
+                case CopyB -> {
+                    Messages.SetB.sendToServer(loc);
+                }
+                case Paste -> {
+                    Messages.SetC.sendToServer(loc);
+                }
+                case Stack -> {
+                    Messages.SetArray.sendToServer(loc);
+                }
+            }
+        };
+    }
+
+    private static class SizeStorage {
+
+        private final EntityPlayer player;
+        private final Coord coord;
+        private final CoordComponent component;
+        public int x, y, z;
+        public boolean present;
+
+        SizeStorage(EntityPlayer player, Coord coord, CoordComponent component) {
+            this.player = player;
+            this.coord = coord;
+            this.component = component;
+            present = false;
+        }
+
+        public Vector3i get() {
+            if (!present && GuiScreen.isCtrlKeyDown()) {
+                MMState currState = getState(player.getHeldItem());
+
+                Vector3i size;
+                VoxelAABB deltas;
+
+                if (coord == Coord.Paste) {
+                    deltas = currState.config.getPasteVisualDeltas(null, false);
+                } else {
+                    deltas = currState.config.getCopyVisualDeltas(null);
+                }
+
+                size = deltas == null ? new Vector3i(1, 1, 1) : deltas.size();
+
+                x = size.x;
+                y = size.y;
+                z = size.z;
+                present = true;
+            }
+
+            if (!GuiScreen.isCtrlKeyDown()) {
+                present = false;
+            }
+
+            return present ? new Vector3i(x, y, z) : new Vector3i(1);
+        }
+
+        public int getOffset() {
+            int offset = 1;
+
+            if (GuiScreen.isShiftKeyDown()) {
+                offset = 10;
+            } else if (coord != Coord.Stack && GuiScreen.isCtrlKeyDown()) {
+                Vector3i size = get();
+
+                offset = component.get(size);
+            } else {
+                present = false;
+            }
+
+            return offset;
+        }
     }
     // spotless:on
 
@@ -2112,6 +2226,5 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 stopBuildable(player);
             }
         }
-
     }
 }

@@ -27,12 +27,12 @@ public class EntityItemLarge extends EntityItem {
         super(world);
     }
 
-    public EntityItemLarge(World world, double x, double y, double z) {
-        super(world, x, y, z);
-    }
-
     public EntityItemLarge(World worldIn, double x, double y, double z, ItemStack stack) {
         super(worldIn, x, y, z, stack);
+
+        motionX = 0;
+        motionY = 0;
+        motionZ = 0;
     }
 
     public static void registerCommon() {

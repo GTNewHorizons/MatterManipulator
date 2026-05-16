@@ -13,11 +13,15 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
@@ -67,6 +71,7 @@ public class PendingBlock extends Location {
         this.gt = null;
         this.ae = null;
         this.arch = null;
+        this.mp = null;
         this.inventory = null;
         this.renderOrder = 0;
         this.buildOrder = 0;
@@ -109,6 +114,21 @@ public class PendingBlock extends Location {
         return spec.getBlock();
     }
 
+    public Block getPreviewBlock() {
+        for (var integration : getIntegrations()) {
+            Block preview = integration.getPreviewBlock();
+            if (preview != null) return preview;
+        }
+        return null;
+    }
+
+    public int getPreviewMeta() {
+        for (var integration : getIntegrations()) {
+            if (integration.getPreviewBlock() != null) return integration.getPreviewMeta();
+        }
+        return 0;
+    }
+
     public Item getItem() {
         return spec.getItem();
     }
@@ -119,21 +139,28 @@ public class PendingBlock extends Location {
         if (gt != null) list.add(gt);
         if (ae != null) list.add(ae);
         if (arch != null) list.add(arch);
-        // if (mp != null) list.add(mp);
+        if (mp != null) list.add(mp);
 
         return list;
     }
 
-    private String getItemDetails() {
-        List<String> details = new ArrayList<>(0);
+    private IChatComponent getItemDetailsChat() {
+        List<IChatComponent> details = new ArrayList<>(0);
 
-        spec.getItemDetails(details);
+        spec.getItemDetailsChat(details);
 
         for (var analysis : getIntegrations()) {
-            analysis.getItemDetails(details);
+            analysis.getItemDetailsChat(details);
         }
 
-        return details.isEmpty() ? "" : String.format(" (%s)", String.join(", ", details));
+        if (details.isEmpty()) { return new ChatComponentText(""); }
+
+        IChatComponent out = details.get(0);
+        for (int i = 1; i < details.size(); i++) {
+            out.appendText(", ").appendSibling(details.get(i));
+        }
+
+        return new ChatComponentText(" (").appendSibling(out).appendText(")");
     }
 
     public ItemStack getStack() {
@@ -192,8 +219,8 @@ public class PendingBlock extends Location {
         return true;
     }
 
-    public String getDisplayName() {
-        return getStack().getDisplayName() + getItemDetails();
+    public IChatComponent getDisplayNameChat() {
+        return new ChatComponentItemName(getStack()).appendSibling(getItemDetailsChat());
     }
 
     public boolean isFree() {
@@ -323,7 +350,13 @@ public class PendingBlock extends Location {
                 try {
                     prop.setValueFromText(world, x, y, z, value);
                 } catch (Exception e) {
-                    context.error("Could not apply property " + property + ": " + e.getMessage());
+                    context.error(
+                        new ChatComponentTranslation(
+                            "mm.info.error.could_not_apply_property",
+                            new ChatComponentTranslation(property.getUnlocalizedName()),
+                            e.getMessage()
+                        )
+                    );
                 }
             }
         }
@@ -428,9 +461,9 @@ public class PendingBlock extends Location {
                 this.arch = ArchitectureCraftAnalysisResult.analyze(te);
             }
 
-            // if ((flags & ANALYZE_MP) != 0 && Mods.ForgeMultipart.isModLoaded()) {
-            // this.mp = MultipartAnalysisResult.analyze(te);
-            // }
+            if ((flags & ANALYZE_MP) != 0 && Mods.ForgeMultipart.isModLoaded()) {
+                this.mp = MultipartAnalysisResult.analyze(te);
+            }
 
             if ((flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory) {
                 this.inventory = InventoryAnalysis.fromInventory(inventory, false);

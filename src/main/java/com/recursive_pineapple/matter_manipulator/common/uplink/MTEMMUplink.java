@@ -3,17 +3,18 @@ package com.recursive_pineapple.matter_manipulator.common.uplink;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.AdvancedIridiumPlatedMachineCasing;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.MatterGenerationCoil;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.RadiantNaquadahAlloyCasing;
-import static gregtech.api.enums.GTValues.AuthorPineapple;
+import static gregtech.api.enums.GTAuthors.AuthorPineapple;
 import static gregtech.api.enums.HatchElement.Energy;
 import static gregtech.api.enums.HatchElement.ExoticEnergy;
 import static gregtech.api.enums.HatchElement.InputHatch;
 import static gregtech.api.enums.HatchElement.Maintenance;
+import static gregtech.api.enums.Textures.BlockIcons.custom;
+import static gregtech.api.enums.Textures.BlockIcons.customOptional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -23,7 +24,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumChatFormatting;
-import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
@@ -35,9 +35,9 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.enums.Materials;
 import gregtech.api.enums.StructureError;
-import gregtech.api.enums.Textures.BlockIcons.CustomIcon;
 import gregtech.api.enums.TierEU;
 import gregtech.api.interfaces.IHatchElement;
+import gregtech.api.interfaces.IIconContainer;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -59,19 +59,13 @@ import gregtech.api.util.GTUtility;
 import gregtech.api.util.IGTHatchAdder;
 import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.api.util.shutdown.ShutDownReason;
-import gregtech.common.tileentities.machines.MTEHatchInputME;
 
 import appeng.api.config.Actionable;
 import appeng.api.config.FuzzyMode;
-import appeng.api.config.PowerMultiplier;
-import appeng.api.networking.security.IActionHost;
-import appeng.api.networking.security.MachineSource;
 import appeng.api.networking.storage.IStorageGrid;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.me.GridAccessException;
-import appeng.util.item.AEFluidStack;
 
 import com.google.common.collect.ImmutableList;
 import com.gtnewhorizon.structurelib.alignment.constructable.ISurvivalConstructable;
@@ -266,17 +260,20 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
         return tt;
     }
 
-    private static final CustomIcon ACTIVE_GLOW = new CustomIcon(
+    private static final IIconContainer ACTIVE_GLOW = customOptional(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_ACTIVE_GLOW")
     );
-    private static final CustomIcon IDLE_GLOW = new CustomIcon(
+
+    private static final IIconContainer IDLE_GLOW = customOptional(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_IDLE_GLOW")
     );
-    private static final CustomIcon OFF = new CustomIcon(
+
+    private static final IIconContainer OFF = custom(
         Mods.MatterManipulator.getResourcePath("machines", "uplink", "OVERLAY_FRONT_OFF")
     );
 
     @Override
+    @SideOnly(Side.CLIENT)
     public ITexture[] getTexture(
         IGregTechTileEntity baseMetaTileEntity,
         ForgeDirection side,
@@ -651,9 +648,6 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
         }
     }
 
-    private static final Function<MTEHatchInputME, FluidStack[]> ME_HATCH_STORED_FLUIDS = MMUtils
-        .exposeFieldGetterLambda(MTEHatchInputME.class, "storedFluids");
-
     /**
      * Converts plasma in hatches to EU.
      */
@@ -661,69 +655,27 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
         FuelBackend fuels = RecipeMaps.plasmaFuels.getBackend();
 
         for (MTEHatchInput input : mInputHatches) {
-            if (input instanceof MTEHatchInputME me) {
-                try {
-                    var inv = me.getProxy().getStorage().getFluidInventory();
-                    var energy = me.getProxy().getEnergy();
+            for (FluidTankInfo tank : input.getTankInfo(ForgeDirection.UNKNOWN)) {
+                if (tank.fluid == null) continue;
 
-                    FluidStack[] fluids = ME_HATCH_STORED_FLUIDS.apply(me);
+                GTRecipe fuel = fuels.findFuel(tank.fluid);
 
-                    for (FluidStack fluid : fluids) {
-                        if (fluid == null) continue;
+                if (fuel != null) {
+                    long euPerLitre = fuel.mSpecialValue;
 
-                        GTRecipe fuel = fuels.findFuel(fluid);
+                    int litresToConsume = (int) Math.min(Integer.MAX_VALUE, MMUtils.ceilDiv(euToGenerate, euPerLitre));
 
-                        if (fuel != null) {
-                            long euPerLitre = fuel.mSpecialValue;
+                    FluidStack toConsume = tank.fluid.copy();
+                    toConsume.amount = litresToConsume;
 
-                            int litresToConsume = (int) Math.min(Integer.MAX_VALUE, MMUtils.ceilDiv(euToGenerate, euPerLitre));
+                    FluidStack drained = input.drain(ForgeDirection.UNKNOWN, toConsume, true);
 
-                            FluidStack toConsume = fluid.copy();
-                            toConsume.amount = litresToConsume;
-
-                            IAEFluidStack drained = inv.extractItems(
-                                AEFluidStack.create(toConsume),
-                                Actionable.MODULATE,
-                                new MachineSource((IActionHost) me.getBaseMetaTileEntity())
-                            );
-
-                            if (drained == null) continue;
-
-                            energy.extractAEPower(drained.getStackSize(), Actionable.MODULATE, PowerMultiplier.CONFIG);
-
-                            long generated = drained.getStackSize() * euPerLitre;
-                            euToGenerate -= generated;
-                            pendingPlasmaEU += generated;
-                        }
-
-                        if (euToGenerate <= 0) { return; }
-                    }
-                } catch (GridAccessException e) {
-                    // :P
+                    long generated = drained.amount * euPerLitre;
+                    euToGenerate -= generated;
+                    pendingPlasmaEU += generated;
                 }
-            } else {
-                for (FluidTankInfo tank : input.getTankInfo(ForgeDirection.UNKNOWN)) {
-                    if (tank.fluid == null) continue;
 
-                    GTRecipe fuel = fuels.findFuel(tank.fluid);
-
-                    if (fuel != null) {
-                        long euPerLitre = fuel.mSpecialValue;
-
-                        int litresToConsume = (int) Math.min(Integer.MAX_VALUE, MMUtils.ceilDiv(euToGenerate, euPerLitre));
-
-                        FluidStack toConsume = tank.fluid.copy();
-                        toConsume.amount = litresToConsume;
-
-                        FluidStack drained = input.drain(ForgeDirection.UNKNOWN, toConsume, true);
-
-                        long generated = drained.amount * euPerLitre;
-                        euToGenerate -= generated;
-                        pendingPlasmaEU += generated;
-                    }
-
-                    if (euToGenerate <= 0) { return; }
-                }
+                if (euToGenerate <= 0) { return; }
             }
         }
     }
@@ -758,10 +710,9 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
 
             MMUtils.sendInfoToPlayer(
                 submitter,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.new_virtual_me_pattern",
-                    patternName
-                )
+                "mm.info.new_virtual_me_pattern",
+                // FIXME: localize it
+                patternName
             );
         }
     }

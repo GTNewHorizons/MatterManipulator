@@ -1,5 +1,6 @@
 package com.recursive_pineapple.matter_manipulator.common.building;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatFluid;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendWarningToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.AppliedEnergistics2;
@@ -16,7 +17,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
-import net.minecraft.util.StatCollector;
+import net.minecraft.util.ChatComponentTranslation;
 
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidContainerItem;
@@ -29,6 +30,7 @@ import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
 
 import com.google.common.collect.ImmutableList;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentFluidName;
 import com.gtnewhorizon.gtnhlib.util.map.ItemStackMap;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.entities.EntityItemLarge;
@@ -236,8 +238,13 @@ public class MMInventory implements IPseudoInventory {
             if (stack.getStackSize() == 0) continue;
 
             if (stack.amount > 0 && !player.capabilities.isCreativeMode) {
-                sendWarningToPlayer(player, StatCollector.translateToLocal("mm.info.warning.not_find_container_for_fluid"));
-                sendWarningToPlayer(player, String.format("  %sL of %s", MMUtils.formatNumbers(stack.amount), stack.getFluidStack().getLocalizedName()));
+                sendWarningToPlayer(player, "mm.info.warning.not_find_container_for_fluid");
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.of_fluid",
+                    formatFluid(stack.amount),
+                    new ChatComponentFluidName(stack.getFluidStack())
+                );
             }
         }
 
@@ -251,10 +258,8 @@ public class MMInventory implements IPseudoInventory {
             printedUplinkWarning = true;
             sendErrorToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.error.could_not_push_items_to_uplink",
-                    status.toString()
-                )
+                "mm.info.error.could_not_push_items_to_uplink",
+                new ChatComponentTranslation(status.toUnlocalizedString())
             );
         }
     }
@@ -334,10 +339,8 @@ public class MMInventory implements IPseudoInventory {
             printedUplinkWarning = true;
             sendErrorToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.error.could_not_push_fluids_to_uplink",
-                    status.toString()
-                )
+                "mm.info.error.could_not_push_fluids_to_uplink",
+                new ChatComponentTranslation(status.toUnlocalizedString())
             );
         }
     }
@@ -347,13 +350,16 @@ public class MMInventory implements IPseudoInventory {
 
         // spotless:off
         ItemStack idealCell = MMUtils.streamInventory(player.inventory)
+            .filter(x -> (
+                x != null &&
+                x.getItem() instanceof IFluidContainerItem container &&
+                x.stackSize == 1
+            ))
             .sorted(Comparator.comparingInt((ItemStack x) -> (
                 x != null && x.getItem() instanceof IFluidContainerItem container ? container.getCapacity(x) : 0
             )))
             .filter(x -> (
-                x != null &&
-                x.getItem() instanceof IFluidContainerItem container &&
-                container.fill(x, fluid, false) == fluid.amount
+                ((IFluidContainerItem) x.getItem()).fill(x, fluid, false) == fluid.amount
             ))
             .findFirst()
             .orElse(null);
@@ -372,6 +378,7 @@ public class MMInventory implements IPseudoInventory {
             .filter(x -> (
                 x != null &&
                 x.getItem() instanceof IFluidContainerItem container &&
+                x.stackSize == 1 &&
                 container.fill(x, fluid, false) > 0
             ))
             .collect(Collectors.toList());
@@ -586,11 +593,8 @@ public class MMInventory implements IPseudoInventory {
             printedUplinkWarning = true;
             sendErrorToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.error.could_not_request_items_from_uplink",
-                    result.left()
-                        .toString()
-                )
+                "mm.info.error.could_not_request_items_from_uplink",
+                result.left().toUnlocalizedString()
             );
         }
 

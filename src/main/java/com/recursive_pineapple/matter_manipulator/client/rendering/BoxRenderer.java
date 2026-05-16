@@ -1,7 +1,6 @@
 package com.recursive_pineapple.matter_manipulator.client.rendering;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.OpenGlHelper;
@@ -10,7 +9,6 @@ import net.minecraft.util.AxisAlignedBB;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.CapturingTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
-import com.gtnewhorizon.gtnhlib.client.renderer.quad.QuadView;
 import com.gtnewhorizon.gtnhlib.client.renderer.shader.ShaderProgram;
 import com.gtnewhorizon.gtnhlib.client.renderer.vbo.VertexBuffer;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
@@ -27,6 +25,8 @@ public class BoxRenderer {
     private final ShaderProgram program;
     private final int time_location;
 
+    private final VertexBuffer buffer = new VertexBuffer(DefaultVertexFormat.POSITION_COLOR_TEXTURE, GL11.GL_QUADS);
+
     public BoxRenderer() {
         program = new ShaderProgram(
             Mods.MatterManipulator.resourceDomain,
@@ -41,8 +41,6 @@ public class BoxRenderer {
 
     /**
      * Starts rendering fancy boxes. Should only be called once per frame, to allow quad sorting.
-     *
-     * @param partialTickTime
      */
     public void start(double partialTickTime) {
         TessellatorManager.startCapturing();
@@ -150,7 +148,7 @@ public class BoxRenderer {
      * Actually draws the stored boxes.
      */
     public void finish() {
-        List<QuadView> quads = TessellatorManager.stopCapturingToPooledQuads();
+        final var quads = TessellatorManager.stopCapturingToPooledQuads();
 
         QuadViewComparator quadSorter = new QuadViewComparator();
         quads.sort(quadSorter);
@@ -165,13 +163,10 @@ public class BoxRenderer {
 
         program.use();
 
-        // this should only be done once a frame, but there aren't any side effects from calling it more
         GL20.glUniform1f(time_location, (((float) (System.currentTimeMillis() % 2500)) / 1000f));
 
-        try (VertexBuffer buffer = new VertexBuffer(DefaultVertexFormat.POSITION_COLOR_TEXTURE, GL11.GL_QUADS);) {
-            buffer.upload(bytes);
-            buffer.render();
-        }
+        buffer.upload(bytes);
+        buffer.render();
 
         ShaderProgram.clear();
 

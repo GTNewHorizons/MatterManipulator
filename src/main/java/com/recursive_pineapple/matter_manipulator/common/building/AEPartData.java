@@ -15,6 +15,7 @@ import appeng.api.parts.IPart;
 import appeng.api.parts.IPartHost;
 import appeng.api.parts.IPartItem;
 import appeng.api.parts.PartItemStack;
+import appeng.api.storage.StorageName;
 import appeng.api.util.IConfigurableObject;
 import appeng.helpers.ICustomNameObject;
 import appeng.helpers.IOreFilterable;
@@ -24,10 +25,15 @@ import appeng.me.cache.P2PCache;
 import appeng.parts.automation.UpgradeInventory;
 import appeng.parts.p2p.PartP2PTunnel;
 import appeng.parts.p2p.PartP2PTunnelNormal;
+import appeng.tile.inventory.IAEStackInventory;
+import appeng.tile.inventory.IIAEStackInventory;
 
+import com.glodblock.github.inventory.IDualHost;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
 /**
  * Stores data for AE facade parts. Also stores the data for AE cables.
@@ -39,8 +45,11 @@ public class AEPartData {
     public NBTTagCompound mSettings = null;
     public String mCustomName = null;
 
+    public NBTTagCompound mBusConfig = null;
+
     public PortableItemStack[] mAEUpgrades = null;
     public InventoryAnalysis mConfig = null;
+    public InventoryAnalysis mFluidConfig = null;
     public InventoryAnalysis mAEPatterns = null;
     public String mOreDict = null;
 
@@ -103,8 +112,30 @@ public class AEPartData {
             }
         }
 
+        if (part instanceof IIAEStackInventory aeInv) {
+            IAEStackInventory aeConfig = aeInv.getAEInventoryByName(StorageName.CONFIG);
+            if (aeConfig != null && !aeConfig.isEmpty()) {
+                mBusConfig = new NBTTagCompound();
+                aeConfig.writeToNBT(mBusConfig, "cfg");
+            }
+        }
+
+        if (Mods.AE2FluidCraft.isModLoaded()) {
+            analyzeFluidConfig(part);
+        }
+
         if (part instanceof IPriorityHost priorityHost) {
             priority = priorityHost.getPriority();
+        }
+    }
+
+    @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
+    private void analyzeFluidConfig(IPart part) {
+        if (part instanceof IDualHost dualHost) {
+            IInventory fluidConfig = dualHost.getConfig();
+            if (fluidConfig != null) {
+                mFluidConfig = InventoryAnalysis.fromInventory(fluidConfig, false);
+            }
         }
     }
 
@@ -196,6 +227,19 @@ public class AEPartData {
             }
         }
 
+        if (part instanceof IIAEStackInventory aeInv && mBusConfig != null) {
+            IAEStackInventory aeConfig = aeInv.getAEInventoryByName(StorageName.CONFIG);
+            if (aeConfig != null) {
+                aeConfig.readFromNBT(mBusConfig, "cfg");
+            }
+        }
+
+        if (Mods.AE2FluidCraft.isModLoaded() && mFluidConfig != null) {
+            if (!applyFluidConfig(context, part)) {
+                success = false;
+            }
+        }
+
         if (part instanceof IOreFilterable filterable) {
             filterable.setFilter(mOreDict == null ? "" : mOreDict);
         }
@@ -205,6 +249,19 @@ public class AEPartData {
         }
 
         return success;
+    }
+
+    @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
+    private boolean applyFluidConfig(IBlockApplyContext context, IPart part) {
+        if (part instanceof IDualHost dualHost) {
+            IInventory fluidConfig = dualHost.getConfig();
+            if (fluidConfig != null) {
+                boolean result = mFluidConfig.apply(context, fluidConfig, false, false);
+                dualHost.getDualityFluid().loadConfigFromPacket(fluidConfig);
+                return result;
+            }
+        }
+        return true;
     }
 
     /**
@@ -280,9 +337,11 @@ public class AEPartData {
         dup.mPart = mPart == null ? null : mPart.clone();
         dup.mSettingsName = mSettingsName;
         dup.mSettings = mSettings == null ? null : (NBTTagCompound) mSettings.copy();
+        dup.mBusConfig = mBusConfig == null ? null : (NBTTagCompound) mBusConfig.copy();
         dup.mCustomName = mCustomName;
         dup.mAEUpgrades = mAEUpgrades == null ? null : MMUtils.mapToArray(mAEUpgrades, PortableItemStack[]::new, x -> x == null ? null : x.clone());
         dup.mConfig = mConfig == null ? null : mConfig.clone();
+        dup.mFluidConfig = mFluidConfig == null ? null : mFluidConfig.clone();
         dup.mAEPatterns = mAEPatterns == null ? null : mAEPatterns.clone();
         dup.mOreDict = mOreDict;
         dup.mP2POutput = mP2POutput;
@@ -299,9 +358,11 @@ public class AEPartData {
         result = prime * result + ((mPart == null) ? 0 : mPart.hashCode());
         result = prime * result + ((mSettingsName == null) ? 0 : mSettingsName.hashCode());
         result = prime * result + ((mSettings == null) ? 0 : mSettings.hashCode());
+        result = prime * result + ((mBusConfig == null) ? 0 : mBusConfig.hashCode());
         result = prime * result + ((mCustomName == null) ? 0 : mCustomName.hashCode());
         result = prime * result + Arrays.hashCode(mAEUpgrades);
         result = prime * result + ((mConfig == null) ? 0 : mConfig.hashCode());
+        result = prime * result + ((mFluidConfig == null) ? 0 : mFluidConfig.hashCode());
         result = prime * result + ((mAEPatterns == null) ? 0 : mAEPatterns.hashCode());
         result = prime * result + ((mOreDict == null) ? 0 : mOreDict.hashCode());
         result = prime * result + Boolean.hashCode(mP2POutput);
@@ -325,6 +386,9 @@ public class AEPartData {
         if (mSettings == null) {
             if (other.mSettings != null) return false;
         } else if (!mSettings.equals(other.mSettings)) return false;
+        if (mBusConfig == null) {
+            if (other.mBusConfig != null) return false;
+        } else if (!mBusConfig.equals(other.mBusConfig)) return false;
         if (mCustomName == null) {
             if (other.mCustomName != null) return false;
         } else if (!mCustomName.equals(other.mCustomName)) return false;
@@ -332,6 +396,9 @@ public class AEPartData {
         if (mConfig == null) {
             if (other.mConfig != null) return false;
         } else if (!mConfig.equals(other.mConfig)) return false;
+        if (mFluidConfig == null) {
+            if (other.mFluidConfig != null) return false;
+        } else if (!mFluidConfig.equals(other.mFluidConfig)) return false;
         if (mAEPatterns == null) {
             if (other.mAEPatterns != null) return false;
         } else if (!mAEPatterns.equals(other.mAEPatterns)) return false;

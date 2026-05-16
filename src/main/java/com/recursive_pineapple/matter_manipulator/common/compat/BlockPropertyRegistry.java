@@ -40,6 +40,8 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntitySign;
 import net.minecraft.tileentity.TileEntitySkull;
+import net.minecraft.util.ChatComponentTranslation;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
@@ -50,14 +52,15 @@ import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.common.blocks.ItemMachines;
-import gregtech.common.tileentities.machines.MTEHatchOutputBusME;
-import gregtech.common.tileentities.machines.MTEHatchOutputME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 
 import appeng.util.ReadableNumberConverter;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonPrimitive;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.compat.BooleanProperty.FlagBooleanProperty;
@@ -65,9 +68,11 @@ import com.recursive_pineapple.matter_manipulator.common.compat.DirectionBlockPr
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
+import com.rwtema.extrautils.block.BlockSpike;
 
 import net.bdew.ae2stuff.machines.wireless.TileWireless;
 
+import bartworks.API.enums.CircuitImprint;
 import bartworks.common.tileentities.multis.MTECircuitAssemblyLine;
 import codechicken.enderstorage.common.TileFrequencyOwner;
 import codechicken.enderstorage.storage.item.TileEnderChest;
@@ -262,6 +267,7 @@ public class BlockPropertyRegistry {
         if (Mods.GregTech.isModLoaded()) initGT5u();
         if (Mods.AE2Stuff.isModLoaded()) initAE2Stuff();
         if (Mods.EnderStorage.isModLoaded()) initEnderStorage();
+        if (Mods.ExtraUtilities.isModLoaded()) initEXU();
     }
 
     // #region Vanilla
@@ -1137,6 +1143,35 @@ public class BlockPropertyRegistry {
 
     // #endregion
 
+    // #region Extra Utilities
+
+    private static void initEXU() {
+        registerBlockInterfaceProperty(
+            BlockSpike.class,
+            new DirectionBlockProperty() {
+
+                @Override
+                public String getName() {
+                    return "facing";
+                }
+
+                @Override
+                public ForgeDirection getValue(World world, int x, int y, int z) {
+                    return MMUtils.getIndexSafe(VALID_DIRECTIONS, world.getBlockMetadata(x, y, z) % 6);
+                }
+
+                @Override
+                public void setValue(World world, int x, int y, int z, ForgeDirection forgeDirection) {
+                    boolean enchanted = world.getBlockMetadata(x, y, z) >= 6;
+
+                    world.setBlockMetadataWithNotify(x, y, z, (enchanted ? 6 : 0) + forgeDirection.ordinal(), 3);
+                }
+            }
+        );
+    }
+
+    // #endregion
+
     @SneakyThrows
     public static DirectionBlockProperty methodIntDirectionTile(Class<?> clazz, String getterName, String setterName) {
         Method getter = clazz.getDeclaredMethod(getterName);
@@ -1325,9 +1360,9 @@ public class BlockPropertyRegistry {
         }
 
         @Override
-        public void getItemDetails(List<String> details, JsonElement value) {
+        public void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {
             ReadableNumberConverter nc = ReadableNumberConverter.INSTANCE;
-            details.add(String.format("Cache Capacity: %s", nc.toWideReadableForm(value.getAsLong())));
+            details.add(new ChatComponentTranslation("mm.chat.item.details.cache_capacity", nc.toWideReadableForm(value.getAsLong())));
         }
     }
 
@@ -1371,21 +1406,14 @@ public class BlockPropertyRegistry {
         }
 
         @Override
-        public void getItemDetails(List<String> details, JsonElement value) {
+        public void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {
             if (value.getAsBoolean()) {
-                details.add("Hub");
+                details.add(new ChatComponentTranslation("mm.chat.item.details.hub"));
             }
         }
     }
 
     private static class CALImprintProperty extends IntrinsicMTEProperty<MTECircuitAssemblyLine> {
-
-        private static final MethodHandle GET_CAL_TYPE = MMUtils.exposeFieldGetter(MTECircuitAssemblyLine.class, "type");
-
-        @SneakyThrows
-        public static NBTTagCompound getCALType(MTECircuitAssemblyLine cal) {
-            return (NBTTagCompound) GET_CAL_TYPE.invokeExact(cal);
-        }
 
         public CALImprintProperty() {
             super(MTECircuitAssemblyLine.class);
@@ -1398,11 +1426,11 @@ public class BlockPropertyRegistry {
 
         @Override
         public JsonElement getValue(MTECircuitAssemblyLine mte) {
-            NBTTagCompound imprint = getCALType(mte);
+            CircuitImprint imprint = mte.getCircuitImprint();
 
             if (imprint == null) return null;
 
-            return MMUtils.toJsonObjectExact(imprint);
+            return new JsonPrimitive(imprint.id);
         }
 
         @Override
@@ -1412,29 +1440,36 @@ public class BlockPropertyRegistry {
 
         @Override
         public JsonElement getValue(NBTTagCompound itemTag) {
-            if (itemTag == null || !itemTag.hasKey(MTECircuitAssemblyLine.IMPRINT_KEY)) return null;
+            if (itemTag == null || !itemTag.hasKey(MTECircuitAssemblyLine.IMPRINT_ID_KEY)) return null;
 
-            return MMUtils.toJsonObjectExact(itemTag.getCompoundTag(MTECircuitAssemblyLine.IMPRINT_KEY));
+            return new JsonPrimitive(itemTag.getInteger(MTECircuitAssemblyLine.IMPRINT_ID_KEY));
         }
 
         @Override
         public void setValue(NBTTagCompound itemTag, JsonElement value) {
             if (value == null) {
-                itemTag.removeTag(MTECircuitAssemblyLine.IMPRINT_KEY);
-            } else {
-                itemTag.setTag(MTECircuitAssemblyLine.IMPRINT_KEY, MMUtils.toNbtExact(value));
+                itemTag.removeTag(MTECircuitAssemblyLine.IMPRINT_ID_KEY);
+            } else if (value instanceof JsonPrimitive circuit) {
+                itemTag.setInteger(MTECircuitAssemblyLine.IMPRINT_ID_KEY, circuit.getAsInt());
             }
         }
 
         @Override
-        public void getItemDetails(List<String> details, JsonElement value) {
-            ItemStack stack = null;
+        public void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {
+            int circuitID = 0;
+            CircuitImprint imprint = null;
 
-            if (value != null) {
-                stack = ItemStack.loadItemStackFromNBT((NBTTagCompound) MMUtils.toNbtExact(value));
+            if (value != null && value instanceof JsonPrimitive primitive) {
+                circuitID = primitive.getAsInt();
+                imprint = CircuitImprint.IMPRINT_LOOKUPS_BY_IDS.get(circuitID);
             }
 
-            details.add(String.format("Imprint: %s", stack == null ? "None" : stack.getDisplayName()));
+            details.add(
+                new ChatComponentTranslation(
+                    "mm.chat.item.details.imprint",
+                    imprint == null ? "mm.chat.item.details.imprint" : new ChatComponentItemName(imprint.imprint.get(1))
+                )
+            );
         }
     }
 

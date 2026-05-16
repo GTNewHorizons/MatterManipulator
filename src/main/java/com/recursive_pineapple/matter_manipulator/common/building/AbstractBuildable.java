@@ -1,23 +1,22 @@
 package com.recursive_pineapple.matter_manipulator.common.building;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendWarningToPlayer;
+import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.AppliedEnergistics2;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregTech;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.function.Function;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
@@ -33,8 +32,8 @@ import gregtech.api.interfaces.tileentity.ICoverable;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.IRedstoneEmitter;
 import gregtech.api.util.GTUtility;
-import gregtech.common.tileentities.machines.MTEHatchOutputBusME;
-import gregtech.common.tileentities.machines.MTEHatchOutputME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
+import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 import gregtech.common.tileentities.storage.MTEDigitalChestBase;
 
 import appeng.api.config.Actionable;
@@ -46,7 +45,6 @@ import appeng.api.parts.IPartHost;
 import appeng.api.parts.PartItemStack;
 import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
-import appeng.api.storage.data.IItemList;
 import appeng.api.util.AEColor;
 import appeng.helpers.ICustomNameObject;
 import appeng.parts.AEBasePart;
@@ -180,8 +178,8 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
 
         if (block instanceof IFluidBlock fluidBlock && fluidBlock.canDrain(world, x, y, z)) {
             givePlayerFluids(fluidBlock.drain(world, x, y, z, true));
-        } else if (block == Blocks.water || block == Blocks.lava) {
-            givePlayerFluids(new FluidStack(block == Blocks.water ? FluidRegistry.WATER : FluidRegistry.LAVA, 1000));
+        } else if ((block.getMaterial() == Material.water || block.getMaterial() == Material.lava) && meta == 0) {
+            givePlayerFluids(new FluidStack(block.getMaterial() == Material.water ? FluidRegistry.WATER : FluidRegistry.LAVA, 1000));
         } else {
             ArrayList<ItemStack> items = block.getDrops(world, x, y, z, meta, 0);
             float chance = ForgeEventFactory.fireBlockHarvesting(items, world, block, x, y, z, meta, 0, 1, false, player);
@@ -224,23 +222,15 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
         }
     }
 
-    private static class MEOutputCaches {
-
-        private static final Function<MTEHatchOutputBusME, IItemList<IAEItemStack>> GET_ITEM_STACK_LIST = MMUtils
-            .exposeFieldGetterLambda(MTEHatchOutputBusME.class, "itemCache");
-        private static final Function<MTEHatchOutputME, IItemList<IAEFluidStack>> GET_FLUID_STACK_LIST = MMUtils
-            .exposeFieldGetterLambda(MTEHatchOutputME.class, "fluidCache");
-    }
-
     @Optional({
         Names.GREG_TECH_NH, Names.APPLIED_ENERGISTICS2
     })
     protected void emptyMEOutput(TileEntity te) {
         if (te instanceof IGregTechTileEntity igte) {
             if (igte.getMetaTileEntity() instanceof MTEHatchOutputBusME bus) {
-                IItemList<IAEItemStack> items = MEOutputCaches.GET_ITEM_STACK_LIST.apply(bus);
+                var provider = bus.getProvider();
 
-                for (IAEItemStack item : items) {
+                for (IAEItemStack item : provider.getCacheList()) {
                     if (item.getStackSize() == 0) continue;
 
                     givePlayerItems(Arrays.asList(BigItemStack.create(item)));
@@ -248,9 +238,9 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
             }
 
             if (igte.getMetaTileEntity() instanceof MTEHatchOutputME hatch) {
-                IItemList<IAEFluidStack> fluids = MEOutputCaches.GET_FLUID_STACK_LIST.apply(hatch);
+                var provider = hatch.getProvider();
 
-                for (IAEFluidStack fluid : fluids) {
+                for (IAEFluidStack fluid : provider.getCacheList()) {
                     if (fluid.getStackSize() == 0) continue;
 
                     givePlayerFluids(Arrays.asList(BigFluidStack.create(fluid)));
@@ -268,6 +258,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
     protected void emptyTank(TileEntity te) {
         if (te instanceof IFluidHandler handler) {
             if (GregTech.isModLoaded() && MMUtils.isStockingHatch(handler)) return;
+            if (AppliedEnergistics2.isModLoaded() && MMUtils.isPartHost(handler)) return;
 
             int i = 0;
             FluidStack fluid;
@@ -447,7 +438,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
             if (!printedProtectedBlockWarning) {
                 sendWarningToPlayer(
                     player,
-                    StatCollector.translateToLocal("mm.info.warning.protected_area")
+                    "mm.info.warning.protected_area"
                 );
                 printedProtectedBlockWarning = true;
             }

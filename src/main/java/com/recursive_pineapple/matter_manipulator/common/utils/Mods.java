@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 
 public enum Mods implements IMod, ITargetMod {
 
+    AE2FluidCraft(Names.AE2_FLUID_CRAFT),
     AE2Stuff(Names.AE2STUFF),
     Angelica(Names.ANGELICA),
     AppliedEnergistics2(Names.APPLIED_ENERGISTICS2),
@@ -23,6 +24,7 @@ public enum Mods implements IMod, ITargetMod {
     CarpentersBlocks(Names.CARPENTERS_BLOCKS),
     EnderIO(Names.ENDER_I_O),
     EnderStorage(Names.ENDER_STORAGE),
+    ExtraUtilities(Names.EXTRA_UTILITIES),
     /** Creates the actual block parts from blocks. */
     ForgeMicroblocks(Names.FORGE_MICROBLOCKS),
     /** The forge multipart library. */
@@ -60,6 +62,7 @@ public enum Mods implements IMod, ITargetMod {
 
     public static class Names {
 
+        public static final String AE2_FLUID_CRAFT = "ae2fc";
         public static final String AE2STUFF = "ae2stuff";
         public static final String ANGELICA = "angelica";
         public static final String APPLIED_ENERGISTICS2 = "appliedenergistics2";
@@ -69,6 +72,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String CARPENTERS_BLOCKS = "CarpentersBlocks";
         public static final String ENDER_I_O = "EnderIO";
         public static final String ENDER_STORAGE = "EnderStorage";
+        public static final String EXTRA_UTILITIES = "ExtraUtilities";
         public static final String FORGE_MICROBLOCKS = "ForgeMicroblock";
         public static final String FORGE_MULTIPART = "ForgeMultipart";
         public static final String FLOOD_LIGHTS = "FloodLights";

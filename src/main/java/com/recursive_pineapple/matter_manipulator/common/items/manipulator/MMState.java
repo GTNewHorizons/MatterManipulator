@@ -44,6 +44,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.SerializedName;
 import com.gtnewhorizon.structurelib.util.XSTR;
+import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.AEAnalysisResult;
 import com.recursive_pineapple.matter_manipulator.common.building.AEPartData;
@@ -58,6 +59,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterR
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
+import com.recursive_pineapple.matter_manipulator.common.persist.BitSetJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.persist.FilterRuleJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.persist.NBTJsonAdapter;
 import com.recursive_pineapple.matter_manipulator.common.persist.StaticEnumJsonAdapter;
@@ -81,13 +83,14 @@ public class MMState {
         .registerTypeAdapter(NBTTagCompound.class, new NBTJsonAdapter())
         .registerTypeAdapter(ForgeDirection.class, new StaticEnumJsonAdapter<>(ForgeDirection.class))
         .registerTypeAdapter(WeightedSpecList.class, new WeightedListJsonAdapter())
+        .registerTypeAdapter(BitSet.class, new BitSetJsonAdapter())
         .registerTypeAdapter(FilterRule.class, new FilterRuleJsonAdapter())
         .create();
 
     @SerializedName("jv")
-    private int jsonVersion = 0;
+    private int jsonVersion = LASTEST_JSON_VERSION;
     @SerializedName("dv")
-    private int dataVersion = 0;
+    private int dataVersion = LASTEST_DATA_VERSION;
 
     public MMConfig config = new MMConfig();
 
@@ -97,7 +100,7 @@ public class MMState {
     public double charge;
 
     public BitSet installedUpgrades = new BitSet();
-    public int upgradeProvidedCapabilities;
+    public transient int upgradeProvidedCapabilities;
 
     public transient ItemMatterManipulator manipulator;
 
@@ -147,8 +150,11 @@ public class MMState {
         return copy;
     }
 
+    private static final int LASTEST_JSON_VERSION = 2;
+    private static final int LASTEST_DATA_VERSION = 0;
+
     private static void migrateJson(JsonObject obj) {
-        int version = obj.has("jv") ? obj.get("jv").getAsInt() : 0;
+        int version = obj.has("jv") ? obj.get("jv").getAsInt() : LASTEST_JSON_VERSION;
 
         if (version == 0) {
             if (obj.get("config") instanceof JsonObject config) {
@@ -160,7 +166,24 @@ public class MMState {
                 config.remove("replaceWhitelist");
                 config.remove("replaceWith");
             }
+
             version = 1;
+        }
+
+        if (version == 1) {
+            try {
+                if (obj.get("installedUpgrades") != null && obj.get("installedUpgrades").isJsonArray()) {
+                    // Load with the default encoder
+                    BitSet bitSet = new Gson().fromJson(obj.get("installedUpgrades"), BitSet.class);
+
+                    // Save with the new encoder
+                    obj.add("installedUpgrades", GSON.toJsonTree(bitSet));
+                }
+            } catch (Throwable t) {
+                MMMod.LOG.error("Could not migrate installedUpgrades: your MM upgrades may have been deleted.", t);
+            }
+
+            version = 2;
         }
 
         obj.addProperty("jv", version);

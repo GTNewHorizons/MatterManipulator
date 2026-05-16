@@ -35,6 +35,8 @@ public class DeMemberator implements IClassTransformer {
     @Override
     public byte[] transform(String name, String transformedName, byte[] basicClass) {
 
+        if (!name.startsWith("com.recursive_pineapple.matter_manipulator")) return basicClass;
+
         if (parser.find(basicClass)) {
             ClassReader reader = new ClassReader(basicClass);
             ClassNode node = new ClassNode(Opcodes.ASM5);

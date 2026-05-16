@@ -44,7 +44,6 @@ public class InteropConstants {
         if (block.getMaterial() instanceof MaterialLiquid) return true;
 
         if (Mods.GregTech.isModLoaded() && isGTRenderer(block)) return true;
-        if (FMP_BLOCK.matches(block, meta)) return true;
         if (BRIGHT_AIR.matches(block, meta)) return true;
         if (ARCANE_LAMP_LIGHT.matches(block, meta)) return true;
 

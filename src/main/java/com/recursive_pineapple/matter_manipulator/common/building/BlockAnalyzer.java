@@ -11,7 +11,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.StatCollector;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
@@ -62,6 +62,12 @@ public class BlockAnalyzer {
                 pending.analyze(world.getTileEntity(voxel.x, voxel.y, voxel.z), PendingBlock.ANALYZE_ALL & ~PendingBlock.ANALYZE_ARCH);
             }
 
+            // FMP blocks (multiparts) depend on adjacent blocks for support,
+            // so they must be placed after regular blocks.
+            if (pending.mp != null) {
+                pending.buildOrder = Math.max(pending.buildOrder, 100);
+            }
+
             pending.x -= a.x;
             pending.y -= a.y;
             pending.z -= a.z;
@@ -105,9 +111,9 @@ public class BlockAnalyzer {
 
         public boolean tryApplyAction(double complexity);
 
-        public void warn(String message);
+        public void warn(IChatComponent message);
 
-        public void error(String message);
+        public void error(IChatComponent message);
     }
 
     /**
@@ -261,30 +267,26 @@ public class BlockAnalyzer {
         }
 
         @Override
-        public void warn(String message) {
+        public void warn(IChatComponent message) {
             sendWarningToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.warning",
-                    x,
-                    y,
-                    z,
-                    message
-                )
+                "mm.info.warning.only_message",
+                x,
+                y,
+                z,
+                message
             );
         }
 
         @Override
-        public void error(String message) {
+        public void error(IChatComponent message) {
             sendErrorToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.error",
-                    x,
-                    y,
-                    z,
-                    message
-                )
+                "mm.info.error.only_message",
+                x,
+                y,
+                z,
+                message
             );
         }
     }
