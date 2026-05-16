@@ -25,17 +25,17 @@ public class GuiFilterEditor extends GuiScreen {
     // ── Panel layout ───────────────────────────────────────────────────────
     private static final int PANEL_W = 420, PANEL_H = 252;
     private static final int VIEWPORT_TOP_OFFSET = 38;
-    private static final int VIEWPORT_H = 140;
+    private static final int VIEWPORT_H = 160;
     private static final int VIEWPORT_BOT_OFFSET = VIEWPORT_TOP_OFFSET + VIEWPORT_H;
     private static final int PREVIEW_Y_OFFSET = VIEWPORT_BOT_OFFSET + 5;
     private static final int STATUS_Y_OFFSET = PREVIEW_Y_OFFSET + 12;
     private static final int FOOTER_Y_OFFSET = STATUS_Y_OFFSET + 14;
 
     // ── Row heights ────────────────────────────────────────────────────────
-    private static final int COND_ROW_H = 18;
-    private static final int GROUP_ROW_H = 14;
-    private static final int GROUP_CLOSE_H = 10;
-    private static final int CONN_ROW_H = 12;
+    private static final int COND_ROW_H = 22;
+    private static final int GROUP_ROW_H = 22;
+    private static final int GROUP_CLOSE_H = 12; // label only, no button
+    private static final int CONN_ROW_H = 22;
     private static final int ROW_GAP = 2;
     private static final int DEPTH_INDENT = 10;
 
@@ -70,7 +70,7 @@ public class GuiFilterEditor extends GuiScreen {
         0 // 0 = posAt mode
     };
     private static final int PICKER_AT_IDX = 7; // index of "at X Y Z" in PICKER_DIR_*
-    private static final int PICKER_BTN_W = 80, PICKER_BTN_H = 14, PICKER_GAP = 2;
+    private static final int PICKER_BTN_W = 80, PICKER_BTN_H = 20, PICKER_GAP = 2;
     private static final int PICKER_COLS = 2;
     private static final int PICKER_DIR_ROWS = (PICKER_DIR_LABELS.length + PICKER_COLS - 1) / PICKER_COLS; // 4
     private static final int PICKER_SEPARATOR_H = 7; // gap + 1px line + gap between direction grid and any/all row
@@ -225,11 +225,11 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void addStaticButtons() {
         int px = panelX(), py = panelY();
-        buttonList.add(new GuiButton(ID_ADD_COND_ROOT, px + 10, py + 22, 95, 14, "§a+ Condition"));
-        buttonList.add(new GuiButton(ID_ADD_GROUP_ROOT, px + 109, py + 22, 80, 14, "§9+ Group"));
-        applyBtn = new GuiButton(ID_APPLY, px + 10, py + FOOTER_Y_OFFSET, 90, 16, "Apply");
+        buttonList.add(new GuiButton(ID_ADD_COND_ROOT, px + 10, py + 17, 95, 20, "§a+ Condition"));
+        buttonList.add(new GuiButton(ID_ADD_GROUP_ROOT, px + 109, py + 17, 80, 20, "§9+ Group"));
+        applyBtn = new GuiButton(ID_APPLY, px + 10, py + FOOTER_Y_OFFSET, 90, 20, "Apply");
         buttonList.add(applyBtn);
-        buttonList.add(new GuiButton(ID_CANCEL, px + PANEL_W - 100, py + FOOTER_Y_OFFSET, 90, 16, "Cancel"));
+        buttonList.add(new GuiButton(ID_CANCEL, px + PANEL_W - 100, py + FOOTER_Y_OFFSET, 90, 20, "Cancel"));
     }
 
     private void addItemButtons() {
@@ -507,10 +507,10 @@ public class GuiFilterEditor extends GuiScreen {
         drawRect(panelX, panelY, panelX + PANEL_W, panelY + PANEL_H, 0xFF1E1E1E);
 
         drawCenteredString(fontRendererObj, "§eFilter Editor", panelX + PANEL_W / 2, panelY + 6, 0xFFFFFF);
-        drawRect(panelX + 8, panelY + 17, panelX + PANEL_W - 8, panelY + 18, 0xFF666666);
+        drawRect(panelX + 8, panelY + 15, panelX + PANEL_W - 8, panelY + 16, 0xFF666666);
 
         if (totalListH > VIEWPORT_H) {
-            drawString(fontRendererObj, "§7[scroll]", panelX + PANEL_W - 72, panelY + 23, 0xFFFFFF);
+            drawString(fontRendererObj, "§7[scroll]", panelX + PANEL_W - 72, panelY + 6, 0xFFFFFF);
         }
 
         // Viewport divider lines
