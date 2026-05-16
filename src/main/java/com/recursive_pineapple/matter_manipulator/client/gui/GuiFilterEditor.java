@@ -86,6 +86,39 @@ public class GuiFilterEditor extends GuiScreen {
         int fieldScreenY; // used for viewport visibility culling
     }
 
+    private class IntTextField extends GuiTextField {
+
+        private final int min, max;
+
+        IntTextField(int x, int y, int w, int h, int min, int max) {
+            super(fontRendererObj, x, y, w, h);
+            this.min = min;
+            this.max = max;
+        }
+
+        @Override
+        public boolean textboxKeyTyped(char typedChar, int keyCode) {
+            if (typedChar >= 32 && typedChar != '-' && !Character.isDigit(typedChar)) return false;
+            String before = getText();
+            boolean result = super.textboxKeyTyped(typedChar, keyCode);
+            String text = getText();
+            if (text.isEmpty() || text.equals("-")) return result;
+            try {
+                int val = Integer.parseInt(text);
+                if (val < min || val > max) {
+                    setText(before);
+                    setCursorPositionEnd();
+                    return false;
+                }
+            } catch (NumberFormatException e) {
+                setText(before);
+                setCursorPositionEnd();
+                return false;
+            }
+            return result;
+        }
+    }
+
     // ── State ──────────────────────────────────────────────────────────────
 
     private final GroupNode root = new GroupNode();
@@ -282,13 +315,13 @@ public class GuiFilterEditor extends GuiScreen {
 
         // Inline at-offset fields shown when "at X Y Z" mode is active
         if (c.posAt) {
-            GuiTextField dx = makeIntField(x, screenY, 26, c.atX);
-            GuiTextField dy = makeIntField(x + 29, screenY, 26, c.atY);
-            GuiTextField dz = makeIntField(x + 58, screenY, 26, c.atZ);
+            GuiTextField dx = makeIntField(x, screenY, 20, c.atX);
+            GuiTextField dy = makeIntField(x + 23, screenY, 20, c.atY);
+            GuiTextField dz = makeIntField(x + 46, screenY, 20, c.atZ);
             ui.atFields = new GuiTextField[] {
                 dx, dy, dz
             };
-            x += 90;
+            x += 72;
         }
 
         GuiButton isBtn = new GuiButton(base + 2, x, screenY, 48, COND_ROW_H - 2, c.negated ? "is not" : "is");
@@ -356,8 +389,8 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     private GuiTextField makeIntField(int x, int screenY, int w, int value) {
-        GuiTextField f = new GuiTextField(fontRendererObj, x, screenY + 1, w, COND_ROW_H - 4);
-        f.setMaxStringLength(5);
+        IntTextField f = new IntTextField(x, screenY + 1, w, COND_ROW_H - 4, -9, 9);
+        f.setMaxStringLength(2);
         f.setText(String.valueOf(value));
         return f;
     }
