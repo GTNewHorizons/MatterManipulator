@@ -428,6 +428,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         existingTags.setTag("installedUpgrades", newTags.getTag("installedUpgrades"));
         existingTags.setDouble("charge", newTags.getDouble("charge"));
 
+        if (newTags.hasKey("savedConfigs")) {
+            existingTags.setTag("savedConfigs", newTags.getTag("savedConfigs"));
+        } else {
+            existingTags.removeTag("savedConfigs");
+        }
+
         // needs to get rid of null if it exists otherwise gets omitted, GSON behaviour
         if (newTags.hasKey("encKey")) {
             existingTags.setTag("encKey", newTags.getTag("encKey"));
