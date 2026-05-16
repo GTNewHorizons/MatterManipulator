@@ -34,7 +34,7 @@ public class GuiFilterEditor extends GuiScreen {
     // ── Row heights ────────────────────────────────────────────────────────
     private static final int COND_ROW_H = 22;
     private static final int GROUP_ROW_H = 22;
-    private static final int GROUP_CLOSE_H = 12; // label only, no button
+    private static final int GROUP_CLOSE_H = 0;
     private static final int CONN_ROW_H = 22;
     private static final int ROW_GAP = 2;
     private static final int DEPTH_INDENT = 14;
@@ -321,7 +321,7 @@ public class GuiFilterEditor extends GuiScreen {
         int panelX
     ) {
         GroupNode g = (GroupNode) item.node;
-        int x = leftX;
+        int x = leftX + 4;
 
         GuiButton addCondBtn = new GuiButton(base + 4, x, screenY, 70, GROUP_ROW_H - 2, "§a+ Cond");
         if (visible) {
@@ -561,8 +561,8 @@ public class GuiFilterEditor extends GuiScreen {
             }
             GroupNode grp = (GroupNode) item.node;
             int left = panelX + 8 + item.depth * DEPTH_INDENT;
-            int top = vpTop + item.virtualY - scroll;
-            int bottom = findGroupCloseBottom(grp, vpTop);
+            int top = vpTop + item.virtualY - scroll - 2;
+            int bottom = findGroupCloseBottom(grp, vpTop) - 2;
             if (bottom <= vpTop || top >= vpBot) {
                 continue;
             }

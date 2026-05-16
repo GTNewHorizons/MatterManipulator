@@ -142,7 +142,7 @@ class FilterExprTree {
                 flattenInto(grp.children, depth + 1, out, cursor, condRowH, groupRowH, groupCloseH, connRowH, rowGap);
                 RenderItem footer = new RenderItem(RenderType.GROUP_FOOTER, grp, depth);
                 footer.virtualY = cursor[0];
-                footer.rowHeight = groupCloseH + rowGap;
+                footer.rowHeight = groupCloseH;
                 out.add(footer);
                 cursor[0] += footer.rowHeight;
             }
