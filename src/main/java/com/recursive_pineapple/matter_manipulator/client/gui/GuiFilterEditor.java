@@ -5,13 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.minecraft.block.Block;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
 
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
@@ -49,7 +46,7 @@ public class GuiFilterEditor extends GuiScreen {
     private static final int ID_APPLY = 802;
     private static final int ID_CANCEL = 803;
 
-    // Per render-item buttons: ID_ITEM_BASE + itemIndex * 20 + subButton
+    // Per render-item: ID_ITEM_BASE + itemIndex * 20 + subButton
     // CONDITION: 1=POS_BTN 2=IS 3=REMOVE
     // GROUP_HEADER: 3=REMOVE 4=ADD_COND 5=ADD_GROUP
     // CONNECTOR: 0=AND 1=OR
@@ -59,75 +56,6 @@ public class GuiFilterEditor extends GuiScreen {
 
     // ── Scrollbar ──────────────────────────────────────────────────────────
     private static final int SCROLLBAR_W = 6;
-
-    // ── Preview marquee ────────────────────────────────────────────────────
-    private static final int PREVIEW_SCROLL_PAUSE = 40; // ticks at rest before scrolling starts
-    private static final int PREVIEW_SCROLL_GAP = 80; // pixel gap between loop repetitions
-
-    // ── Position picker layout ─────────────────────────────────────────────
-    // 8 direction toggles in 2 columns, then an any/all row below
-    private static final String[] PICKER_DIR_LABELS = {
-        "north", "south", "west", "east", "above", "below", "self", "at X Y Z"
-    };
-    private static final int[] PICKER_DIR_BITS = {
-        FilterExprTree.DIR_NORTH,
-        FilterExprTree.DIR_SOUTH,
-        FilterExprTree.DIR_WEST,
-        FilterExprTree.DIR_EAST,
-        FilterExprTree.DIR_ABOVE,
-        FilterExprTree.DIR_BELOW,
-        FilterExprTree.DIR_SELF,
-        0 // 0 = posAt mode
-    };
-    private static final int PICKER_AT_IDX = 7; // index of "at X Y Z" in PICKER_DIR_*
-    private static final int PICKER_BTN_W = 80, PICKER_BTN_H = 20, PICKER_GAP = 2;
-    private static final int PICKER_COLS = 2;
-    private static final int PICKER_DIR_ROWS = (PICKER_DIR_LABELS.length + PICKER_COLS - 1) / PICKER_COLS; // 4
-    private static final int PICKER_SEPARATOR_H = 7; // gap + 1px line + gap between direction grid and any/all row
-    private static final int PICKER_W = PICKER_COLS * (PICKER_BTN_W + PICKER_GAP) - PICKER_GAP + 8;
-    private static final int PICKER_H = 8 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP) + PICKER_SEPARATOR_H + PICKER_BTN_H;
-
-    // ── Text field state for a single condition row ────────────────────────
-
-    private static class CondRowUI {
-
-        GuiTextField blockField;
-        GuiTextField[] atFields; // [dx, dy, dz] when in "at" mode; null otherwise
-        int fieldScreenY; // used for viewport visibility culling
-    }
-
-    private class IntTextField extends GuiTextField {
-
-        private final int min, max;
-
-        IntTextField(int x, int y, int w, int h, int min, int max) {
-            super(fontRendererObj, x, y, w, h);
-            this.min = min;
-            this.max = max;
-        }
-
-        @Override
-        public boolean textboxKeyTyped(char typedChar, int keyCode) {
-            if (typedChar >= 32 && typedChar != '-' && !Character.isDigit(typedChar)) return false;
-            String before = getText();
-            boolean result = super.textboxKeyTyped(typedChar, keyCode);
-            String text = getText();
-            if (text.isEmpty() || text.equals("-")) return result;
-            try {
-                int val = Integer.parseInt(text);
-                if (val < min || val > max) {
-                    setText(before);
-                    setCursorPositionEnd();
-                    return false;
-                }
-            } catch (NumberFormatException e) {
-                setText(before);
-                setCursorPositionEnd();
-                return false;
-            }
-            return result;
-        }
-    }
 
     // ── State ──────────────────────────────────────────────────────────────
 
@@ -140,13 +68,10 @@ public class GuiFilterEditor extends GuiScreen {
     private boolean valid = false;
     private GuiButton applyBtn;
 
-    // Position picker: -1 = closed; ≥0 = render-item index whose picker is open
-    private int pickerForItem = -1;
-    private int pickerScreenX, pickerScreenY;
+    private final FilterPickerOverlay picker = new FilterPickerOverlay();
 
     private boolean isDraggingScrollbar = false;
     private int scrollbarDragOffsetY = 0;
-    private int previewScrollTick = 0;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -197,9 +122,8 @@ public class GuiFilterEditor extends GuiScreen {
     private void updatePreview() {
         syncFieldsToNodes();
         preview = FilterExprTree.serialize(root.children);
-        String newFilterPreview = buildFilterPreview();
-        if (!newFilterPreview.equals(filterPreview)) previewScrollTick = 0;
-        filterPreview = newFilterPreview;
+
+        filterPreview = FilterPreviewRenderer.build(root);
 
         if (FilterExprTree.hasEmptyBlock(root.children)) {
             status = "§eFill in all block names";
@@ -303,47 +227,34 @@ public class GuiFilterEditor extends GuiScreen {
                 case CONNECTOR:
                     addConnButtons(item, base, screenY, visible, panelX);
                     break;
-                case GROUP_FOOTER:
-                    break; // visual only — no buttons
+                default:
+                    break;
             }
         }
     }
 
-    private void addCondButtons(
-        int idx,
-        RenderItem item,
-        int base,
-        int leftX,
-        int screenY,
-        boolean visible,
-        int panelX
-    ) {
+    private void addCondButtons(int idx, RenderItem item, int base, int leftX, int screenY, boolean visible, int panelX) {
         CondNode c = (CondNode) item.node;
         CondRowUI ui = condRowUI.computeIfAbsent(idx, k -> new CondRowUI());
         int x = leftX;
 
-        // Position dropdown — label reflects current selection
-        String posLabel = FilterExprTree.posSummary(c) + (pickerForItem == idx ? " ▲" : " ▼");
-        GuiButton posBtn = new GuiButton(base + 1, x, screenY, 90, COND_ROW_H - 2, posLabel);
+        String posLabel = FilterExprTree.posSummary(c) + (picker.linkedItem() == idx ? " ▲" : " ▼");
         if (visible) {
-            buttonList.add(posBtn);
+            buttonList.add(new GuiButton(base + 1, x, screenY, 90, COND_ROW_H - 2, posLabel));
         }
         x += 94;
 
-        // Inline at-offset fields shown when "at X Y Z" mode is active
         if (c.posAt) {
-            GuiTextField dx = makeIntField(x, screenY, 20, c.atX);
-            GuiTextField dy = makeIntField(x + 23, screenY, 20, c.atY);
-            GuiTextField dz = makeIntField(x + 46, screenY, 20, c.atZ);
             ui.atFields = new GuiTextField[] {
-                dx, dy, dz
+                makeIntField(x, screenY, 20, c.atX),
+                makeIntField(x + 23, screenY, 20, c.atY),
+                makeIntField(x + 46, screenY, 20, c.atZ)
             };
             x += 72;
         }
 
-        GuiButton isBtn = new GuiButton(base + 2, x, screenY, 48, COND_ROW_H - 2, c.negated ? "is not" : "is");
         if (visible) {
-            buttonList.add(isBtn);
+            buttonList.add(new GuiButton(base + 2, x, screenY, 48, COND_ROW_H - 2, c.negated ? "is not" : "is"));
         }
         x += 52;
 
@@ -362,31 +273,15 @@ public class GuiFilterEditor extends GuiScreen {
         }
     }
 
-    private void addGroupButtons(
-        RenderItem item,
-        int base,
-        int leftX,
-        int screenY,
-        boolean visible,
-        int panelX
-    ) {
-        GroupNode g = (GroupNode) item.node;
+    private void addGroupButtons(RenderItem item, int base, int leftX, int screenY, boolean visible, int panelX) {
         int x = leftX + 4;
-
         GuiButton addCondBtn = new GuiButton(base + 4, x, screenY, 70, GROUP_ROW_H - 2, "§a+ Cond");
-        if (visible) {
-            buttonList.add(addCondBtn);
-        }
-        x += 74;
-
-        GuiButton addGroupBtn = new GuiButton(base + 5, x, screenY, 60, GROUP_ROW_H - 2, "§b+ Group");
-        if (visible) {
-            buttonList.add(addGroupBtn);
-        }
-
+        GuiButton addGroupBtn = new GuiButton(base + 5, x + 74, screenY, 60, GROUP_ROW_H - 2, "§b+ Group");
         GuiButton removeBtn = new GuiButton(base + 3, panelX + PANEL_W - 26, screenY, 16, GROUP_ROW_H - 2, "X");
         removeBtn.packedFGColour = 0xFF5555;
         if (visible) {
+            buttonList.add(addCondBtn);
+            buttonList.add(addGroupBtn);
             buttonList.add(removeBtn);
         }
     }
@@ -406,7 +301,7 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     private GuiTextField makeIntField(int x, int screenY, int w, int value) {
-        IntTextField f = new IntTextField(x, screenY + 1, w, COND_ROW_H - 4, -9, 9);
+        IntTextField f = new IntTextField(fontRendererObj, x, screenY + 1, w, COND_ROW_H - 4, -9, 9);
         f.setMaxStringLength(2);
         f.setText(String.valueOf(value));
         return f;
@@ -417,10 +312,8 @@ public class GuiFilterEditor extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         int id = button.id;
-
-        // Close picker unless the same position-button was clicked again
-        if (pickerForItem >= 0 && id != ID_ITEM_BASE + pickerForItem * 20 + 1) {
-            pickerForItem = -1;
+        if (picker.isOpen() && id != ID_ITEM_BASE + picker.linkedItem() * 20 + 1) {
+            picker.close();
         }
 
         if (id == ID_ADD_COND_ROOT) {
@@ -459,8 +352,8 @@ public class GuiFilterEditor extends GuiScreen {
     private void handleCondButton(CondNode c, int itemIdx, int subBtn) {
         switch (subBtn) {
             case 1:
-                if (pickerForItem == itemIdx) {
-                    pickerForItem = -1;
+                if (picker.linkedItem() == itemIdx) {
+                    picker.close();
                     rebuild();
                 } else {
                     openPicker(itemIdx);
@@ -530,59 +423,20 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     private void openPicker(int itemIdx) {
-        pickerForItem = itemIdx;
         RenderItem item = renderItems.get(itemIdx);
-        pickerScreenX = panelX() + 10 + item.depth * DEPTH_INDENT;
-        pickerScreenY = viewportTop() + item.virtualY - scroll + COND_ROW_H;
-        rebuild(); // updates the ▼→▲ label on the position button
+        picker.open(
+            itemIdx,
+            panelX() + 10 + item.depth * DEPTH_INDENT,
+            viewportTop() + item.virtualY - scroll + COND_ROW_H
+        );
+        rebuild();
     }
 
-    // ── Human-readable preview ─────────────────────────────────────────────
-
-    private String buildFilterPreview() {
-        StringBuilder sb = new StringBuilder();
-        appendPreviewChildren(root.children, sb);
-        return sb.toString();
-    }
-
-    private void appendPreviewChildren(List<ExprNode> children, StringBuilder sb) {
-        for (int i = 0; i < children.size(); i++) {
-            if (i > 0) {
-                sb.append(" ").append(children.get(i).conn).append(" ");
-            }
-            appendPreviewNode(children.get(i), sb);
-        }
-    }
-
-    private void appendPreviewNode(ExprNode node, StringBuilder sb) {
-        if (node instanceof final CondNode c) {
-            FilterExprTree.appendPosition(c, sb);
-            sb.append(" is");
-            if (c.negated) sb.append(" not");
-            sb.append(" ").append(localizedBlockName(c.block));
-        } else if (node instanceof final GroupNode g) {
-            sb.append("(");
-            appendPreviewChildren(g.children, sb);
-            sb.append(")");
-        }
-    }
-
-    private static String localizedBlockName(String blockStr) {
-        if (blockStr.isEmpty()) return "<block>";
-        int meta = 0;
-        String registryName = blockStr;
-        int atIdx = blockStr.indexOf('@');
-        if (atIdx >= 0) {
-            try {
-                meta = Integer.parseInt(blockStr.substring(atIdx + 1));
-            } catch (NumberFormatException ignored) {}
-            registryName = blockStr.substring(0, atIdx);
-        }
-        Block block = FilterRuleParser.findBlock(registryName);
-        if (block == null) return "\"" + blockStr + "\"";
-        Item item = Item.getItemFromBlock(block);
-        if (item == null) return "\"" + block.getLocalizedName() + "\"";
-        return "\"" + new ItemStack(item, 1, meta).getDisplayName() + "\"";
+    private CondNode pickerCondNode() {
+        int idx = picker.linkedItem();
+        if (idx < 0 || idx >= renderItems.size()) { return null; }
+        RenderItem item = renderItems.get(idx);
+        return item.type == RenderType.CONDITION ? (CondNode) item.node : null;
     }
 
     // ── Scrollbar ──────────────────────────────────────────────────────────
@@ -592,27 +446,30 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     private int scrollbarThumbH() {
-        if (totalListH <= VIEWPORT_H) return VIEWPORT_H;
+        if (totalListH <= VIEWPORT_H) { return VIEWPORT_H; }
         return Math.max(10, VIEWPORT_H * VIEWPORT_H / totalListH);
     }
 
     private int scrollbarThumbY(int vpTop) {
         int thumbH = scrollbarThumbH();
         int travel = VIEWPORT_H - thumbH - 4;
-        if (travel <= 0) return vpTop;
+        if (travel <= 0) { return vpTop; }
         return vpTop + scroll * travel / (totalListH - VIEWPORT_H);
     }
 
     private void setScrollFromThumbY(int thumbTop, int vpTop) {
         int thumbH = scrollbarThumbH();
         int travel = VIEWPORT_H - thumbH - 4;
-        if (travel <= 0) { scroll = 0; return; }
+        if (travel <= 0) {
+            scroll = 0;
+            return;
+        }
         scroll = (thumbTop - vpTop) * (totalListH - VIEWPORT_H) / travel;
         clampScroll();
     }
 
     private void drawScrollbar(int panelX, int vpTop, int vpBot, int mouseX, int mouseY) {
-        if (totalListH <= VIEWPORT_H) return;
+        if (totalListH <= VIEWPORT_H) { return; }
         int tx = scrollbarTrackX(panelX);
         drawRect(tx, vpTop, tx + SCROLLBAR_W, vpBot, 0xFF2A2A2A);
         int thumbH = scrollbarThumbH();
@@ -622,10 +479,10 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     private boolean handleScrollbarClick(int mouseX, int mouseY) {
-        if (totalListH <= VIEWPORT_H) return false;
+        if (totalListH <= VIEWPORT_H) { return false; }
         int panelX = panelX();
         int tx = scrollbarTrackX(panelX);
-        if (mouseX < tx || mouseX >= tx + SCROLLBAR_W) return false;
+        if (mouseX < tx || mouseX >= tx + SCROLLBAR_W) { return false; }
         int vpTop = viewportTop();
         int thumbH = scrollbarThumbH();
         int thumbY = scrollbarThumbY(vpTop);
@@ -647,8 +504,8 @@ public class GuiFilterEditor extends GuiScreen {
         drawPanelFrame(mouseX, mouseY);
         drawViewportContent(mouseX, mouseY);
         drawFooterText(mouseX, mouseY);
-        if (pickerForItem >= 0) {
-            drawPickerOverlay(mouseX, mouseY);
+        if (picker.isOpen()) {
+            picker.draw(mc, mouseX, mouseY, width, height, pickerCondNode(), COLOR_ACTIVE);
         }
     }
 
@@ -670,8 +527,9 @@ public class GuiFilterEditor extends GuiScreen {
         drawScrollbar(panelX, vpTop, vpBot - 4, mouseX, mouseY);
 
         // Static buttons (header + footer) drawn before scissor so they are never clipped
-        int smx = isMouseInPicker(mouseX, mouseY) ? -1 : mouseX;
-        int smy = isMouseInPicker(mouseX, mouseY) ? -1 : mouseY;
+        boolean mouseInPickerFrame = picker.isMouseOver(mouseX, mouseY, width, height);
+        int smx = mouseInPickerFrame ? -1 : mouseX;
+        int smy = mouseInPickerFrame ? -1 : mouseY;
         for (GuiButton btn : buttonList) {
             if (isStaticButton(btn.id)) {
                 btn.drawButton(mc, smx, smy);
@@ -686,17 +544,12 @@ public class GuiFilterEditor extends GuiScreen {
         ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
         int sf = sr.getScaleFactor();
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        GL11.glScissor(
-            (panelX + 8) * sf,
-            mc.displayHeight - vpBot * sf,
-            (PANEL_W - 16) * sf,
-            (VIEWPORT_H + 4) * sf
-        );
+        GL11.glScissor((panelX + 8) * sf, mc.displayHeight - vpBot * sf, (PANEL_W - 16) * sf, (VIEWPORT_H + 4) * sf);
 
         drawGroupBackgrounds(panelX, vpTop, vpBot);
 
-        int vmx = isMouseInPicker(mouseX, mouseY) ? -1 : mouseX;
-        int vmy = isMouseInPicker(mouseX, mouseY) ? -1 : mouseY;
+        boolean mouseInPicker = picker.isMouseOver(mouseX, mouseY, width, height);
+        int vmx = mouseInPicker ? -1 : mouseX, vmy = mouseInPicker ? -1 : mouseY;
         for (GuiButton btn : buttonList) {
             if (!isStaticButton(btn.id)) {
                 btn.drawButton(mc, vmx, vmy);
@@ -704,7 +557,6 @@ public class GuiFilterEditor extends GuiScreen {
         }
 
         drawCondTextFields(vpTop, vpBot);
-
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
     }
 
@@ -747,67 +599,22 @@ public class GuiFilterEditor extends GuiScreen {
         int panelX = panelX(), panelY = panelY();
         int textY = panelY + PREVIEW_Y_OFFSET;
         int startX = panelX + 10;
-        int previewW = fontRendererObj.getStringWidth("§7▷ §rPreview");
-        int textEndX = startX + previewW;
+        int labelW = fontRendererObj.getStringWidth("§7▷ §rPreview");
 
         drawString(fontRendererObj, "§7▷ §rPreview", startX, textY, 0xFFFFFF);
-        if (mouseX >= startX && mouseX < textEndX && mouseY >= textY && mouseY < textY + 10) {
-            drawPreviewTooltip(mouseX, mouseY);
+
+        if (mouseX >= startX && mouseX < startX + labelW && mouseY >= textY && mouseY < textY + 10) {
+            FilterPreviewRenderer.drawTooltip(
+                fontRendererObj,
+                FilterPreviewRenderer.buildFormattedLines(root),
+                mouseX,
+                mouseY,
+                width,
+                height
+            );
         }
 
         drawString(fontRendererObj, status, panelX + 10, panelY + STATUS_Y_OFFSET, 0xFFFFFF);
-    }
-
-    private void drawPreviewTooltip(int mouseX, int mouseY) {
-        List<String> lines = buildFormattedTooltipLines();
-        int maxW = 0;
-        for (String line : lines)
-            maxW = Math.max(maxW, fontRendererObj.getStringWidth(line));
-        int boxW = maxW + 8;
-        int boxH = lines.size() * 10 + 6;
-        int bx = Math.min(mouseX, width - boxW - 4);
-        int by = mouseY - boxH - 4;
-        if (by < 4) by = mouseY + 14;
-        drawRect(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1, 0xFF555555);
-        drawRect(bx, by, bx + boxW, by + boxH, 0xFF1E1E1E);
-        for (int i = 0; i < lines.size(); i++) {
-            drawString(fontRendererObj, lines.get(i), bx + 4, by + 3 + i * 10, 0xFFFFFF);
-        }
-    }
-
-    private List<String> buildFormattedTooltipLines() {
-        List<String> lines = new ArrayList<>();
-        appendFormattedChildren(root.children, lines, 0, null);
-        return lines;
-    }
-
-    private void appendFormattedChildren(List<ExprNode> children, List<String> lines, int depth, String firstConn) {
-        for (int i = 0; i < children.size(); i++) {
-            appendFormattedNode(children.get(i), lines, depth, i == 0 ? firstConn : children.get(i).conn);
-        }
-    }
-
-    private void appendFormattedNode(ExprNode node, List<String> lines, int depth, String conn) {
-        StringBuilder indSb = new StringBuilder();
-        for (int d = 0; d < depth; d++)
-            indSb.append("  ");
-        String ind = indSb.toString();
-        String connStr = conn == null ? "" : ("and".equals(conn) ? "§6and §r" : "§6or §r");
-        if (node instanceof final CondNode c) {
-            StringBuilder sb = new StringBuilder(ind).append(connStr);
-            if (c.posAt) {
-                sb.append("§bat §3").append(c.atX).append(" ").append(c.atY).append(" ").append(c.atZ);
-            } else {
-                sb.append("§b").append(FilterExprTree.posSummary(c));
-            }
-            sb.append(c.negated ? " §eis not§r " : " §eis§r ");
-            sb.append("§a").append(localizedBlockName(c.block));
-            lines.add(sb.toString());
-        } else if (node instanceof final GroupNode g) {
-            lines.add(ind + connStr + "§7(");
-            appendFormattedChildren(g.children, lines, depth + 1, null);
-            lines.add(ind + "§7)");
-        }
     }
 
     private boolean isStaticButton(int id) {
@@ -821,87 +628,22 @@ public class GuiFilterEditor extends GuiScreen {
         return vpTop;
     }
 
-    // ── Position picker overlay ────────────────────────────────────────────
-
-    private void drawPickerOverlay(int mouseX, int mouseY) {
-        int px = clampedPickerX(), py = clampedPickerY();
-
-        drawRect(px - 1, py - 1, px + PICKER_W + 1, py + PICKER_H + 1, 0xFFAAAAAA);
-        drawRect(px, py, px + PICKER_W, py + PICKER_H, 0xFF333333);
-
-        CondNode c = pickerCondNode();
-
-        // Direction toggle buttons
-        for (int i = 0; i < PICKER_DIR_LABELS.length; i++) {
-            int bx = px + 4 + (i % PICKER_COLS) * (PICKER_BTN_W + PICKER_GAP);
-            int by = py + 4 + (i / PICKER_COLS) * (PICKER_BTN_H + PICKER_GAP);
-            GuiButton btn = new GuiButton(i, bx, by, PICKER_BTN_W, PICKER_BTN_H, PICKER_DIR_LABELS[i]);
-            if (c != null) {
-                boolean active = (i == PICKER_AT_IDX) ? c.posAt : (!c.posAt && (c.posMask & PICKER_DIR_BITS[i]) != 0);
-                if (active) {
-                    btn.packedFGColour = COLOR_ACTIVE;
-                }
-            }
-            btn.drawButton(mc, mouseX, mouseY);
-        }
-
-        // Separator line between direction grid and any/all row
-        int dirGridBottom = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP) - PICKER_GAP;
-        int sepY = dirGridBottom + PICKER_SEPARATOR_H / 2;
-        drawRect(px + 3, sepY, px + PICKER_W - 3, sepY + 1, 0xFF555555);
-
-        // Any / All toggle row (enabled only when 2+ directions are selected)
-        boolean multiSelect = c != null && !c.posAt && Integer.bitCount(c.posMask) >= 2;
-        int anyAllY = dirGridBottom + PICKER_SEPARATOR_H;
-        int anyX = px + 4;
-        int allX = px + 4 + PICKER_BTN_W + PICKER_GAP;
-
-        GuiButton anyBtn = new GuiButton(PICKER_DIR_LABELS.length, anyX, anyAllY, PICKER_BTN_W, PICKER_BTN_H, "any");
-        GuiButton allBtn = new GuiButton(PICKER_DIR_LABELS.length + 1, allX, anyAllY, PICKER_BTN_W, PICKER_BTN_H, "all");
-        anyBtn.enabled = multiSelect;
-        allBtn.enabled = multiSelect;
-        if (multiSelect && c.posAny) {
-            anyBtn.packedFGColour = COLOR_ACTIVE;
-        }
-        if (multiSelect && !c.posAny) {
-            allBtn.packedFGColour = COLOR_ACTIVE;
-        }
-        anyBtn.drawButton(mc, mouseX, mouseY);
-        allBtn.drawButton(mc, mouseX, mouseY);
-    }
-
-    private CondNode pickerCondNode() {
-        if (pickerForItem < 0 || pickerForItem >= renderItems.size()) { return null; }
-        RenderItem item = renderItems.get(pickerForItem);
-        return item.type == RenderType.CONDITION ? (CondNode) item.node : null;
-    }
-
-    private int clampedPickerX() {
-        return Math.min(pickerScreenX, width - PICKER_W - 2);
-    }
-
-    private int clampedPickerY() {
-        return Math.min(pickerScreenY, height - PICKER_H - 2);
-    }
-
-    private boolean isMouseInPicker(int mouseX, int mouseY) {
-        if (pickerForItem < 0) return false;
-        int px = clampedPickerX(), py = clampedPickerY();
-        return mouseX >= px && mouseX < px + PICKER_W && mouseY >= py && mouseY < py + PICKER_H;
-    }
-
     // ── Input ──────────────────────────────────────────────────────────────
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
-        if (pickerForItem >= 0 && handlePickerClick(mouseX, mouseY)) { return; }
+        if (picker.isOpen() && picker.handleClick(mouseX, mouseY, width, height, pickerCondNode())) {
+            rebuild();
+            return;
+        }
         if (button == 0 && handleScrollbarClick(mouseX, mouseY)) { return; }
 
-        int currentPicker = pickerForItem;
+        boolean pickerWasOpen = picker.isOpen();
+        int pickerWasLinked = picker.linkedItem();
         super.mouseClicked(mouseX, mouseY, button);
 
-        if (currentPicker == pickerForItem) {
-            pickerForItem = -1;
+        if (pickerWasOpen && picker.linkedItem() == pickerWasLinked) {
+            picker.close();
             rebuild();
         }
 
@@ -919,70 +661,6 @@ public class GuiFilterEditor extends GuiScreen {
                 }
             }
         }
-    }
-
-    /**
-     * Handles a click while the picker is open.
-     * Direction buttons toggle; any/all buttons switch the combinator.
-     * The picker stays open after each toggle.
-     *
-     * @return true if the click was inside the picker (consumed)
-     */
-    private boolean handlePickerClick(int mouseX, int mouseY) {
-        int px = clampedPickerX(), py = clampedPickerY();
-        CondNode c = pickerCondNode();
-
-        // Direction toggle buttons
-        for (int i = 0; i < PICKER_DIR_LABELS.length; i++) {
-            int bx = px + 4 + (i % PICKER_COLS) * (PICKER_BTN_W + PICKER_GAP);
-            int by = py + 4 + (i / PICKER_COLS) * (PICKER_BTN_H + PICKER_GAP);
-            if (mouseX >= bx && mouseX < bx + PICKER_BTN_W && mouseY >= by && mouseY < by + PICKER_BTN_H) {
-                if (c != null) {
-                    if (i == PICKER_AT_IDX) {
-                        c.posAt = !c.posAt;
-                        if (!c.posAt && c.posMask == 0) {
-                            c.posMask = FilterExprTree.DIR_NORTH;
-                        }
-                    } else {
-                        int bit = PICKER_DIR_BITS[i];
-                        if (c.posAt) {
-                            c.posAt = false;
-                            c.posMask = bit;
-                        } else if ((c.posMask & bit) != 0 && Integer.bitCount(c.posMask) == 1) {
-                            // Don't deselect the last remaining direction
-                        } else {
-                            c.posMask ^= bit;
-                        }
-                    }
-                }
-                rebuild(); // picker stays open; label + highlights update
-                return true;
-            }
-        }
-
-        // Any / All buttons (only active when 2+ directions selected)
-        boolean multiSelect = c != null && !c.posAt && Integer.bitCount(c.posMask) >= 2;
-        if (multiSelect) {
-            int dirGridBottom = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP) - PICKER_GAP;
-            int anyAllY = dirGridBottom + PICKER_SEPARATOR_H;
-            if (mouseY >= anyAllY && mouseY < anyAllY + PICKER_BTN_H) {
-                int anyX = px + 4;
-                int allX = px + 4 + PICKER_BTN_W + PICKER_GAP;
-                if (mouseX >= anyX && mouseX < anyX + PICKER_BTN_W) {
-                    c.posAny = true;
-                    rebuild();
-                    return true;
-                }
-                if (mouseX >= allX && mouseX < allX + PICKER_BTN_W) {
-                    c.posAny = false;
-                    rebuild();
-                    return true;
-                }
-            }
-        }
-
-        // Consume any click inside the picker bounds to prevent click-through
-        return isMouseInPicker(mouseX, mouseY);
     }
 
     @Override
@@ -1005,8 +683,8 @@ public class GuiFilterEditor extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
-        if (keyCode == 1 && pickerForItem >= 0) {
-            pickerForItem = -1;
+        if (keyCode == 1 && picker.isOpen()) {
+            picker.close();
             rebuild();
             return;
         }
@@ -1043,19 +721,6 @@ public class GuiFilterEditor extends GuiScreen {
             }
         }
 
-        // Advance marquee, reset when one full loop completes
-        if (fontRendererObj != null) {
-            int prefixW = fontRendererObj.getStringWidth("§7▷ ");
-            int availableW = PANEL_W - 20 - prefixW;
-            int textW = fontRendererObj.getStringWidth(filterPreview);
-            if (textW > availableW) {
-                previewScrollTick++;
-                int scrollAmt = Math.max(0, previewScrollTick - PREVIEW_SCROLL_PAUSE);
-                if (scrollAmt >= textW + PREVIEW_SCROLL_GAP) previewScrollTick = PREVIEW_SCROLL_PAUSE;
-            } else {
-                previewScrollTick = 0;
-            }
-        }
     }
 
     @Override
@@ -1063,7 +728,7 @@ public class GuiFilterEditor extends GuiScreen {
         super.handleMouseInput();
         int dWheel = Mouse.getEventDWheel();
         if (dWheel != 0) {
-            pickerForItem = -1;
+            picker.close();
             scroll -= Integer.signum(dWheel) * (COND_ROW_H + ROW_GAP);
             clampScroll();
             rebuild();
