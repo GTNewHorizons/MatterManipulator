@@ -4,6 +4,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.Appli
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregTech;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.function.BiConsumer;
 
 import net.minecraft.client.Minecraft;
@@ -226,6 +227,28 @@ public enum Messages {
             state.config.filterRule = FilterRuleParser.parse(value);
             state.config.action = null;
         } catch (Exception ignored) {}
+    }))),
+    SaveConfig(server(stringPacket((player, stack, manipulator, state, value) -> {
+        if (value == null || value.trim().isEmpty()) return;
+        if (state.savedConfigs == null) state.savedConfigs = new LinkedHashMap<>();
+        state.savedConfigs.put(value, MMState.cloneConfig(state.config));
+    }))),
+    LoadConfig(server(stringPacket((player, stack, manipulator, state, value) -> {
+        if (state.savedConfigs == null || !state.savedConfigs.containsKey(value)) return;
+        Location coordA = state.config.coordA;
+        Location coordB = state.config.coordB;
+        Location coordC = state.config.coordC;
+        state.config = MMState.cloneConfig(state.savedConfigs.get(value));
+        state.config.coordA = coordA;
+        state.config.coordB = coordB;
+        state.config.coordC = coordC;
+        state.config.coordAOffset = null;
+        state.config.coordBOffset = null;
+        state.config.coordCOffset = null;
+        state.config.action = null;
+    }))),
+    DeleteConfig(server(stringPacket((player, stack, manipulator, state, value) -> {
+        if (state.savedConfigs != null) state.savedConfigs.remove(value);
     }))),
     UpdateUplinkState(client(new ISimplePacketHandler<UplinkPacket>() {
 

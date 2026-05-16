@@ -98,6 +98,16 @@ mm.gui.add_block=Add Block
 mm.gui.set_block=Set Block
 mm.gui.set_block_to_replace_with=Set Block To Replace With
 mm.gui.set_cable=Set Cable
+mm.gui.saved_configs=Saved Configs
+
+# Saved Configs GUI
+mm.gui.saved_configs.title=Saved Configs
+mm.gui.saved_configs.load=Load
+mm.gui.saved_configs.delete=Delete
+mm.gui.saved_configs.save=Save
+mm.gui.saved_configs.close=Close
+mm.gui.saved_configs.name_label=Config name:
+mm.gui.saved_configs.empty=(no saved configs)
 
 # Filter Editor
 mm.gui.filter_editor.title=Filter Editor

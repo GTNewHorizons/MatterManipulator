@@ -91,6 +91,7 @@ import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.gui.DirectionDrawable;
 import com.recursive_pineapple.matter_manipulator.client.gui.GuiFilterEditor;
+import com.recursive_pineapple.matter_manipulator.client.gui.GuiSavedConfigs;
 import com.recursive_pineapple.matter_manipulator.client.gui.RadialMenuBuilder;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.IBuildable;
@@ -1150,7 +1151,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         return new RadialMenuBuilder(buildContext)
             .innerIcon(new ItemStack(this))
             .pipe(builder -> {
-                addCommonOptions(builder, initialState);
+                addCommonOptions(builder, initialState, heldStack);
             })
             .pipe(builder -> {
                 switch (initialState.config.placeMode) {
@@ -1163,7 +1164,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             });
     }
 
-    private void addCommonOptions(RadialMenuBuilder builder, MMState state) {
+    private void addCommonOptions(RadialMenuBuilder builder, MMState state, ItemStack heldStack) {
         builder
             .branch()
                 .label(StatCollector.translateToLocal("mm.gui.set_mode"))
@@ -1246,6 +1247,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         Messages.SetRemoveMode.sendToServer(BlockRemoveMode.ALL);
                     })
                 .done()
+            .done()
+            .option()
+                .label(StatCollector.translateToLocal("mm.gui.saved_configs"))
+                .onClicked((menu, option, mouseButton, doubleClicked) -> {
+                    MMState currState = getState(heldStack);
+                    FMLCommonHandler.instance().showGuiScreen(new GuiSavedConfigs(currState.savedConfigs));
+                })
             .done();
     }
 

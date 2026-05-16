@@ -7,6 +7,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregT
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -90,6 +91,8 @@ public class MMState {
 
     public MMConfig config = new MMConfig();
 
+    public LinkedHashMap<String, MMConfig> savedConfigs = new LinkedHashMap<>();
+
     public Long encKey, uplinkAddress;
     public double charge;
 
@@ -118,6 +121,7 @@ public class MMState {
 
         if (state == null) state = new MMState();
         if (state.config == null) state.config = new MMConfig();
+        if (state.savedConfigs == null) state.savedConfigs = new LinkedHashMap<>();
 
         state.migrate();
         state.onLoad();
@@ -127,6 +131,11 @@ public class MMState {
 
     public NBTTagCompound save() {
         return (NBTTagCompound) MMUtils.toNbt(GSON.toJsonTree(this));
+    }
+
+    public static MMConfig cloneConfig(MMConfig config) {
+        if (config == null) return new MMConfig();
+        return GSON.fromJson(GSON.toJsonTree(config), MMConfig.class);
     }
 
     @SuppressWarnings("MethodDoesntCallSuperMethod")
