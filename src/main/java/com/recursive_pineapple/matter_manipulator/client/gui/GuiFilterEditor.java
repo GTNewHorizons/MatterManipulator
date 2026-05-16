@@ -86,9 +86,12 @@ public class GuiFilterEditor extends GuiScreen {
     // ── Constructor ────────────────────────────────────────────────────────
 
     public GuiFilterEditor(String existingFilter) {
-        CondNode first = new CondNode();
-        first.parent = root;
-        root.children.add(first);
+        FilterExprTree.loadFrom(existingFilter, root);
+        if (root.children.isEmpty()) {
+            CondNode first = new CondNode();
+            first.parent = root;
+            root.children.add(first);
+        }
     }
 
     // ── Screen-coordinate helpers ──────────────────────────────────────────

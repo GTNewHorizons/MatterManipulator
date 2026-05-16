@@ -92,6 +92,7 @@ mm.gui.mark_paste=Mark Paste
 mm.gui.edit_replace_whitelist=Edit Replace Whitelist
 mm.gui.edit_filter_rules=Edit Filter Rules
 mm.gui.set_filter_rule=Set Filter Rule
+mm.gui.edit_filter_rule=Edit Filter Rule
 mm.gui.clear=Clear
 mm.gui.add_block=Add Block
 mm.gui.set_block=Set Block

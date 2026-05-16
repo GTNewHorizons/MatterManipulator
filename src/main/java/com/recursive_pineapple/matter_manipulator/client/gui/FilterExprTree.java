@@ -244,6 +244,157 @@ class FilterExprTree {
     }
 
     /**
+     * Reconstructs the expression tree from a filter rule string produced by {@link #serialize}.
+     * Populates root.children; on any parse failure the root is left unchanged.
+     */
+    static void loadFrom(String text, GroupNode root) {
+        if (text == null || text.trim().isEmpty()) return;
+        try {
+            List<String> tokens = tokenizeFilter(text);
+            int[] pos = {
+                0
+            };
+            List<ExprNode> children = parseFilterSeq(tokens, pos, root);
+            if (!children.isEmpty()) {
+                root.children.clear();
+                root.children.addAll(children);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static List<String> tokenizeFilter(String text) {
+        List<String> tokens = new ArrayList<>();
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c)) {
+                i++;
+            } else if (c == '(' || c == ')') {
+                tokens.add(String.valueOf(c));
+                i++;
+            } else if (isFilterWordChar(c)) {
+                int start = i;
+                while (i < text.length() && isFilterWordChar(text.charAt(i)))
+                    i++;
+                tokens.add(text.substring(start, i));
+            } else {
+                i++;
+            }
+        }
+        return tokens;
+    }
+
+    private static boolean isFilterWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.' || c == '@';
+    }
+
+    private static List<ExprNode> parseFilterSeq(List<String> tokens, int[] pos, GroupNode parent) {
+        List<ExprNode> result = new ArrayList<>();
+        ExprNode first = parseFilterItem(tokens, pos, parent);
+        if (first == null) return result;
+        result.add(first);
+        while (pos[0] < tokens.size()) {
+            String tok = tokens.get(pos[0]);
+            if (!tok.equals("and") && !tok.equals("or")) break;
+            pos[0]++;
+            ExprNode next = parseFilterItem(tokens, pos, parent);
+            if (next == null) break;
+            next.conn = tok;
+            result.add(next);
+        }
+        return result;
+    }
+
+    private static ExprNode parseFilterItem(List<String> tokens, int[] pos, GroupNode parent) {
+        if (pos[0] >= tokens.size()) return null;
+        if (tokens.get(pos[0]).equals("(")) {
+            pos[0]++;
+            GroupNode group = new GroupNode();
+            group.parent = parent;
+            List<ExprNode> children = parseFilterSeq(tokens, pos, group);
+            group.children.addAll(children);
+            if (pos[0] < tokens.size() && tokens.get(pos[0]).equals(")")) pos[0]++;
+            if (group.children.isEmpty()) {
+                CondNode ph = new CondNode();
+                ph.parent = group;
+                group.children.add(ph);
+            }
+            return group;
+        }
+        return parseFilterCond(tokens, pos, parent);
+    }
+
+    private static CondNode parseFilterCond(List<String> tokens, int[] pos, GroupNode parent) {
+        CondNode c = new CondNode();
+        c.parent = parent;
+        if (pos[0] >= tokens.size()) return c;
+
+        String posWord = tokens.get(pos[0]++);
+        switch (posWord) {
+            case "at":
+                c.posAt = true;
+                c.atX = parseFilterInt(tokens, pos);
+                c.atY = parseFilterInt(tokens, pos);
+                c.atZ = parseFilterInt(tokens, pos);
+                break;
+            case "any":
+            case "all":
+                c.posAny = posWord.equals("any");
+                c.posMask = 0;
+                if (pos[0] < tokens.size()) c.posMask = parseLetterMask(tokens.get(pos[0]++));
+                break;
+            default:
+                c.posMask = posWordToMask(posWord);
+        }
+
+        if (pos[0] < tokens.size() && tokens.get(pos[0]).equals("is")) pos[0]++;
+        if (pos[0] < tokens.size() && tokens.get(pos[0]).equals("not")) {
+            c.negated = true;
+            pos[0]++;
+        }
+        if (pos[0] < tokens.size()) c.block = tokens.get(pos[0]++);
+        return c;
+    }
+
+    private static int parseFilterInt(List<String> tokens, int[] pos) {
+        if (pos[0] >= tokens.size()) return 0;
+        try {
+            return Integer.parseInt(tokens.get(pos[0]++));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static int posWordToMask(String word) {
+        return switch (word.toLowerCase()) {
+            case "north", "n" -> DIR_NORTH;
+            case "south", "s" -> DIR_SOUTH;
+            case "west", "w" -> DIR_WEST;
+            case "east", "e" -> DIR_EAST;
+            case "above", "up", "u" -> DIR_ABOVE;
+            case "below", "down", "d" -> DIR_BELOW;
+            default -> DIR_SELF;
+        };
+    }
+
+    private static int parseLetterMask(String letters) {
+        int mask = 0;
+        for (char ch : letters.toUpperCase().toCharArray()) {
+            mask |= switch (ch) {
+                case 'N' -> DIR_NORTH;
+                case 'S' -> DIR_SOUTH;
+                case 'W' -> DIR_WEST;
+                case 'E' -> DIR_EAST;
+                case 'U' -> DIR_ABOVE;
+                case 'D' -> DIR_BELOW;
+                case 'X' -> DIR_SELF;
+                default -> 0;
+            };
+        }
+        return mask == 0 ? DIR_SELF : mask;
+    }
+
+    /**
      * Returns true if any condition node in the tree has an empty block name.
      */
     static boolean hasEmptyBlock(List<ExprNode> children) {

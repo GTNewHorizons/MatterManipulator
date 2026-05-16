@@ -1495,6 +1495,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .done()
                 .option()
                     .label(StatCollector.translateToLocal("mm.gui.set_filter_rule"))
+                    .onClicked((menu, option, mouseButton, doubleClicked) ->
+                        FMLCommonHandler.instance().showGuiScreen(new GuiFilterEditor(null)))
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.edit_filter_rule"))
                     .onClicked((menu, option, mouseButton, doubleClicked) -> {
                         MMState currState = getState(heldStack);
                         String existing = (currState.config.filterRule instanceof StringSerializableRule)
