@@ -7,6 +7,7 @@ import java.util.Map;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.util.StatCollector;
 
 import cpw.mods.fml.relauncher.Side;
@@ -16,6 +17,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMCon
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 
 @SideOnly(Side.CLIENT)
 public class GuiSavedConfigs extends GuiScreen {
@@ -27,28 +29,31 @@ public class GuiSavedConfigs extends GuiScreen {
 
     // ── List ───────────────────────────────────────────────────────────────
     private static final int LIST_TOP = 22;
-    private static final int ENTRY_H = 22; // 20px button + 1px padding top/bottom
+    private static final int ENTRY_H = 22; // 20px button + 1px padding each side
     private static final int MAX_VIS = 6;
     private static final int LIST_BOT = LIST_TOP + MAX_VIS * ENTRY_H; // 154
+    private static final int SCROLL_STEP = 8; // pixels per mouse-wheel tick
 
-    // ── Horizontal columns (panel-relative) ───────────────────────────────
-    // text: 4..191 load: 196..239 delete: 244..287 scrollbar: 292..296
+    // ── Columns (panel-relative) ───────────────────────────────────────────
+    // text: 4..191 | load: 196..239 | delete: 244..287 | scrollbar: 292..296
     private static final int COL_LOAD = 196;
     private static final int COL_DEL = 244;
     private static final int COL_SB = 292;
     private static final int SB_W = 5;
 
+    // MAX_VIS + 1 slots so a partial entry is visible at the bottom while scrolling
+    private static final int SLOT_COUNT = MAX_VIS + 1;
+
     // ── Button IDs ─────────────────────────────────────────────────────────
-    private static final int ID_LOAD = 100; // 100..105
-    private static final int ID_DEL = 200; // 200..205
+    private static final int ID_LOAD = 100; // 100..106
+    private static final int ID_DEL = 200; // 200..206
     private static final int ID_SAVE = 300;
     private static final int ID_CLOSE = 301;
 
     // ── State ──────────────────────────────────────────────────────────────
     private final List<String> names = new ArrayList<>();
-    private int scroll = 0;
+    private int pixelScroll = 0;
     private GuiTextField nameField;
-
     private boolean isDraggingScrollbar = false;
     private int scrollbarDragOffsetY = 0;
 
@@ -66,6 +71,22 @@ public class GuiSavedConfigs extends GuiScreen {
         return (height - PANEL_H) / 2;
     }
 
+    private int viewportH() {
+        return LIST_BOT - LIST_TOP;
+    }
+
+    private int maxScroll() {
+        return Math.max(0, names.size() * ENTRY_H - viewportH());
+    }
+
+    private int slotOffset() {
+        return pixelScroll % ENTRY_H;
+    }
+
+    private int entryForSlot(int slot) {
+        return pixelScroll / ENTRY_H + slot;
+    }
+
     // ── Init ───────────────────────────────────────────────────────────────
 
     @Override
@@ -73,31 +94,11 @@ public class GuiSavedConfigs extends GuiScreen {
         buttonList.clear();
         int px = px(), py = py();
 
-        for (int i = 0; i < MAX_VIS; i++) {
-            int ry = py + LIST_TOP + i * ENTRY_H;
-            buttonList.add(
-                new GuiButton(
-                    ID_LOAD + i,
-                    px + COL_LOAD,
-                    ry + 1,
-                    44,
-                    20,
-                    StatCollector.translateToLocal("mm.gui.saved_configs.load")
-                )
-            );
-            buttonList.add(
-                new GuiButton(
-                    ID_DEL + i,
-                    px + COL_DEL,
-                    ry + 1,
-                    44,
-                    20,
-                    StatCollector.translateToLocal("mm.gui.saved_configs.delete")
-                )
-            );
+        for (int slot = 0; slot < SLOT_COUNT; slot++) {
+            buttonList.add(new GuiButton(ID_LOAD + slot, 0, 0, 44, 20, ""));
+            buttonList.add(new GuiButton(ID_DEL + slot, 0, 0, 44, 20, ""));
         }
 
-        // Save & Close – same Y, equal margin to sides and bottom
         int btnY = py + PANEL_H - MARGIN - 20;
         buttonList.add(
             new GuiButton(
@@ -130,14 +131,37 @@ public class GuiSavedConfigs extends GuiScreen {
         nameField.setMaxStringLength(64);
         nameField.setFocused(true);
 
-        syncButtons();
+        rebuildRowButtons();
     }
 
-    private void syncButtons() {
-        for (int i = 0; i < MAX_VIS; i++) {
-            boolean exists = (i + scroll) < names.size();
-            findButton(ID_LOAD + i).enabled = exists;
-            findButton(ID_DEL + i).enabled = exists;
+    /**
+     * Repositions and shows/hides all row buttons based on the current pixelScroll.
+     */
+    private void rebuildRowButtons() {
+        int px = px(), py = py();
+        int offset = slotOffset();
+        String loadLabel = StatCollector.translateToLocal("mm.gui.saved_configs.load");
+        String delLabel = StatCollector.translateToLocal("mm.gui.saved_configs.delete");
+
+        for (int slot = 0; slot < SLOT_COUNT; slot++) {
+            int entryIdx = entryForSlot(slot);
+            int ry = py + LIST_TOP + slot * ENTRY_H - offset;
+            boolean exists = entryIdx < names.size();
+            boolean inView = ry + ENTRY_H > py + LIST_TOP && ry < py + LIST_BOT;
+
+            GuiButton load = findButton(ID_LOAD + slot);
+            load.xPosition = px + COL_LOAD;
+            load.yPosition = ry + 1;
+            load.enabled = exists;
+            load.visible = inView && exists;
+            load.displayString = loadLabel;
+
+            GuiButton del = findButton(ID_DEL + slot);
+            del.xPosition = px + COL_DEL;
+            del.yPosition = ry + 1;
+            del.enabled = exists;
+            del.visible = inView && exists;
+            del.displayString = delLabel;
         }
     }
 
@@ -148,49 +172,43 @@ public class GuiSavedConfigs extends GuiScreen {
         throw new IllegalStateException("Button " + id + " not found");
     }
 
-    // ── Scrollbar helpers ──────────────────────────────────────────────────
+    private void clampScroll() {
+        pixelScroll = Math.max(0, Math.min(pixelScroll, maxScroll()));
+    }
 
-    /**
-     * Pixel height of the scrollbar track.
-     */
+    // ── Scrollbar ──────────────────────────────────────────────────────────
+
     private int sbTrackH() {
         return LIST_BOT - 2 - LIST_TOP;
     } // 4px gap from each divider
 
-    /**
-     * Pixel height of the scrollbar thumb.
-     */
     private int sbThumbH() {
-        if (names.size() <= MAX_VIS) { return sbTrackH(); }
-        return Math.max(10, sbTrackH() * MAX_VIS / names.size());
+        int totalH = names.size() * ENTRY_H;
+        if (totalH <= viewportH()) { return sbTrackH(); }
+        return Math.max(10, sbTrackH() * viewportH() / totalH);
     }
 
-    /**
-     * Absolute Y of the scrollbar thumb top.
-     */
     private int sbThumbY(int py) {
-        if (names.size() <= MAX_VIS) { return py + LIST_TOP; }
+        int maxS = maxScroll();
+        if (maxS <= 0) { return py + LIST_TOP; }
         int travel = sbTrackH() - sbThumbH();
         if (travel <= 0) { return py + LIST_TOP; }
-        return py + LIST_TOP + scroll * travel / (names.size() - MAX_VIS);
+        return py + LIST_TOP + pixelScroll * travel / maxS;
     }
 
-    /**
-     * Update scroll so the thumb top is at the given absolute Y.
-     */
     private void setScrollFromThumbY(int thumbAbsY, int py) {
         int travel = sbTrackH() - sbThumbH();
         if (travel <= 0) {
-            scroll = 0;
+            pixelScroll = 0;
             return;
         }
-        scroll = (thumbAbsY - (py + LIST_TOP)) * (names.size() - MAX_VIS) / travel;
-        scroll = Math.max(0, Math.min(scroll, names.size() - MAX_VIS));
-        syncButtons();
+        pixelScroll = (thumbAbsY - (py + LIST_TOP)) * maxScroll() / travel;
+        clampScroll();
+        rebuildRowButtons();
     }
 
     private boolean handleScrollbarClick(int mouseX, int mouseY) {
-        if (names.size() <= MAX_VIS) { return false; }
+        if (maxScroll() <= 0) { return false; }
         int px = px(), py = py();
         int sbX = px + COL_SB;
         if (mouseX < sbX || mouseX >= sbX + SB_W) { return false; }
@@ -210,19 +228,18 @@ public class GuiSavedConfigs extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         int id = button.id;
-
-        if (id >= ID_LOAD && id < ID_LOAD + MAX_VIS) {
-            int idx = id - ID_LOAD + scroll;
+        if (id >= ID_LOAD && id < ID_LOAD + SLOT_COUNT) {
+            int idx = entryForSlot(id - ID_LOAD);
             if (idx < names.size()) {
                 Messages.LoadConfig.sendToServer(names.get(idx));
                 mc.displayGuiScreen(null);
             }
-        } else if (id >= ID_DEL && id < ID_DEL + MAX_VIS) {
-            int idx = id - ID_DEL + scroll;
+        } else if (id >= ID_DEL && id < ID_DEL + SLOT_COUNT) {
+            int idx = entryForSlot(id - ID_DEL);
             if (idx < names.size()) {
                 Messages.DeleteConfig.sendToServer(names.remove(idx));
-                scroll = Math.min(scroll, Math.max(0, names.size() - MAX_VIS));
-                syncButtons();
+                clampScroll();
+                rebuildRowButtons();
             }
         } else if (id == ID_SAVE) {
             String name = nameField.getText().trim();
@@ -232,7 +249,7 @@ public class GuiSavedConfigs extends GuiScreen {
                 }
                 Messages.SaveConfig.sendToServer(name);
                 nameField.setText("");
-                syncButtons();
+                rebuildRowButtons();
             }
         } else if (id == ID_CLOSE) {
             mc.displayGuiScreen(null);
@@ -244,7 +261,21 @@ public class GuiSavedConfigs extends GuiScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         if (mouseButton == 0 && handleScrollbarClick(mouseX, mouseY)) { return; }
+
+        // Temporarily restrict row-button click detection to their visible viewport area.
+        // Partially-scrolled buttons at the top/bottom edge must not respond to clicks
+        // in the header or footer regions.
+        int vpTop = py() + LIST_TOP, vpBot = py() + LIST_BOT;
+        for (GuiButton b : buttonList) {
+            int id = b.id;
+            if ((id >= ID_LOAD && id < ID_LOAD + SLOT_COUNT) || (id >= ID_DEL && id < ID_DEL + SLOT_COUNT)) {
+                // Only allow click if the center of the button is within the viewport
+                b.visible = b.visible && (b.yPosition + 10 >= vpTop) && (b.yPosition + 10 < vpBot);
+            }
+        }
         super.mouseClicked(mouseX, mouseY, mouseButton);
+        rebuildRowButtons(); // restore correct visibility
+
         nameField.mouseClicked(mouseX, mouseY, mouseButton);
     }
 
@@ -270,9 +301,9 @@ public class GuiSavedConfigs extends GuiScreen {
         super.handleMouseInput();
         int wheel = Mouse.getEventDWheel();
         if (wheel != 0) {
-            scroll += (wheel > 0) ? -1 : 1;
-            scroll = Math.max(0, Math.min(scroll, Math.max(0, names.size() - MAX_VIS)));
-            syncButtons();
+            pixelScroll += (wheel > 0) ? -SCROLL_STEP : SCROLL_STEP;
+            clampScroll();
+            rebuildRowButtons();
         }
     }
 
@@ -284,6 +315,12 @@ public class GuiSavedConfigs extends GuiScreen {
         } else {
             super.keyTyped(ch, keyCode);
         }
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        nameField.updateCursorCounter();
     }
 
     // ── Rendering ──────────────────────────────────────────────────────────
@@ -298,7 +335,7 @@ public class GuiSavedConfigs extends GuiScreen {
         drawRect(px - 1, py - 1, px + PANEL_W + 1, py + PANEL_H + 1, 0xFF555555);
         drawRect(px, py, px + PANEL_W, py + PANEL_H, 0xFF1E1E1E);
 
-        // Title
+        // Title + divider
         drawCenteredString(
             fontRendererObj,
             "§e" + StatCollector.translateToLocal("mm.gui.saved_configs.title"),
@@ -308,19 +345,36 @@ public class GuiSavedConfigs extends GuiScreen {
         );
         drawRect(px + MARGIN, py + 17, px + PANEL_W - MARGIN, py + 18, 0xFF666666);
 
-        // List rows
-        for (int i = 0; i < MAX_VIS; i++) {
-            int idx = i + scroll;
-            int ry = py + LIST_TOP + i * ENTRY_H;
+        // ── Scissored list viewport ───────────────────────────────────────
+        ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+        int sf = sr.getScaleFactor();
+        GL11.glEnable(GL11.GL_SCISSOR_TEST);
+        GL11.glScissor(
+            px * sf,
+            mc.displayHeight - (py + LIST_BOT) * sf,
+            (COL_SB - 1) * sf,
+            viewportH() * sf
+        );
 
-            if ((i % 2) == 0) {
+        int offset = slotOffset();
+        for (int slot = 0; slot < SLOT_COUNT; slot++) {
+            int entryIdx = entryForSlot(slot);
+            int ry = py + LIST_TOP + slot * ENTRY_H - offset;
+            if (ry >= py + LIST_BOT) {
+                break;
+            }
+            if (ry + ENTRY_H <= py + LIST_TOP) {
+                continue;
+            }
+
+            if ((entryIdx % 2) == 0) {
                 drawRect(px + 4, ry + 1, px + COL_LOAD - 4, ry + ENTRY_H - 1, 0x18FFFFFF);
             }
 
-            if (idx < names.size()) {
-                String label = fontRendererObj.trimStringToWidth(names.get(idx), COL_LOAD - 16);
+            if (entryIdx < names.size()) {
+                String label = fontRendererObj.trimStringToWidth(names.get(entryIdx), COL_LOAD - 16);
                 fontRendererObj.drawString(label, px + MARGIN, ry + 7, 0xFFFFFF);
-            } else if (names.isEmpty() && i == 0) {
+            } else if (names.isEmpty() && entryIdx == 0) {
                 fontRendererObj.drawString(
                     StatCollector.translateToLocal("mm.gui.saved_configs.empty"),
                     px + MARGIN,
@@ -329,6 +383,19 @@ public class GuiSavedConfigs extends GuiScreen {
                 );
             }
         }
+
+        // Row buttons drawn inside scissor so they clip at viewport edges
+        for (GuiButton btn : buttonList) {
+            int id = btn.id;
+            if ((id >= ID_LOAD && id < ID_LOAD + SLOT_COUNT) || (id >= ID_DEL && id < ID_DEL + SLOT_COUNT)) {
+                if (btn.visible) {
+                    btn.drawButton(mc, mouseX, mouseY);
+                }
+            }
+        }
+
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        // ── End scissored area ────────────────────────────────────────────
 
         // Scrollbar
         drawScrollbar(mouseX, mouseY, px, py);
@@ -345,11 +412,16 @@ public class GuiSavedConfigs extends GuiScreen {
         );
         nameField.drawTextBox();
 
-        super.drawScreen(mouseX, mouseY, partialTicks);
+        // Static buttons (Save, Close) – drawn outside scissor
+        for (GuiButton btn : buttonList) {
+            if (btn.id == ID_SAVE || btn.id == ID_CLOSE) {
+                btn.drawButton(mc, mouseX, mouseY);
+            }
+        }
     }
 
     private void drawScrollbar(int mouseX, int mouseY, int px, int py) {
-        if (names.size() <= MAX_VIS) { return; }
+        if (maxScroll() <= 0) { return; }
         int sbX = px + COL_SB;
         int trackTop = py + LIST_TOP;
         int trackBot = py + LIST_BOT - 2;
