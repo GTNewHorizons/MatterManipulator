@@ -10,6 +10,7 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.util.StatCollector;
 
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
@@ -135,12 +136,12 @@ public class GuiFilterEditor extends GuiScreen {
         filterPreview = FilterPreviewRenderer.build(root);
 
         if (FilterExprTree.hasEmptyBlock(root.children)) {
-            status = "§eFill in all block names";
+            status = "§e" + StatCollector.translateToLocal("mm.gui.filter_editor.status.fill_blocks");
             valid = false;
         } else {
             try {
                 FilterRuleParser.parse(preview);
-                status = "§aValid filter";
+                status = "§a" + StatCollector.translateToLocal("mm.gui.filter_editor.status.valid");
                 valid = true;
             } catch (FilterRuleParser.ParseException e) {
                 String msg = e.getMessage();
@@ -218,11 +219,17 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void addStaticButtons() {
         int px = panelX(), py = panelY();
-        buttonList.add(new GuiButton(ID_ADD_COND_ROOT, px + 10, py + 20, 95, 20, "§a+ Condition"));
-        buttonList.add(new GuiButton(ID_ADD_GROUP_ROOT, px + 109, py + 20, 80, 20, "§b+ Group"));
-        applyBtn = new GuiButton(ID_APPLY, px + 8, py + FOOTER_Y_OFFSET, 90, 20, "Apply");
+        buttonList.add(
+            new GuiButton(ID_ADD_COND_ROOT, px + 10, py + 20, 95, 20, "§a" + StatCollector.translateToLocal("mm.gui.filter_editor.add_condition"))
+        );
+        buttonList.add(
+            new GuiButton(ID_ADD_GROUP_ROOT, px + 109, py + 20, 80, 20, "§b" + StatCollector.translateToLocal("mm.gui.filter_editor.add_group"))
+        );
+        applyBtn = new GuiButton(ID_APPLY, px + 8, py + FOOTER_Y_OFFSET, 90, 20, StatCollector.translateToLocal("mm.gui.filter_editor.apply"));
         buttonList.add(applyBtn);
-        buttonList.add(new GuiButton(ID_CANCEL, px + PANEL_W - 98, py + FOOTER_Y_OFFSET, 90, 20, "Cancel"));
+        buttonList.add(
+            new GuiButton(ID_CANCEL, px + PANEL_W - 98, py + FOOTER_Y_OFFSET, 90, 20, StatCollector.translateToLocal("mm.gui.filter_editor.cancel"))
+        );
     }
 
     private void addItemButtons() {
@@ -296,8 +303,22 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void addGroupButtons(RenderItem item, int base, int leftX, int screenY, boolean visible, int panelX) {
         int x = leftX + 4;
-        GuiButton addCondBtn = new GuiButton(base + 4, x, screenY, 70, GROUP_ROW_H - 2, "§a+ Cond");
-        GuiButton addGroupBtn = new GuiButton(base + 5, x + 74, screenY, 60, GROUP_ROW_H - 2, "§b+ Group");
+        GuiButton addCondBtn = new GuiButton(
+            base + 4,
+            x,
+            screenY,
+            70,
+            GROUP_ROW_H - 2,
+            "§a" + StatCollector.translateToLocal("mm.gui.filter_editor.add_condition_short")
+        );
+        GuiButton addGroupBtn = new GuiButton(
+            base + 5,
+            x + 74,
+            screenY,
+            60,
+            GROUP_ROW_H - 2,
+            "§b" + StatCollector.translateToLocal("mm.gui.filter_editor.add_group_short")
+        );
         GuiButton removeBtn = new GuiButton(base + 3, panelX + PANEL_W - 26, screenY, 16, GROUP_ROW_H - 2, "X");
         removeBtn.packedFGColour = 0xFF5555;
         if (visible) {
@@ -401,7 +422,7 @@ public class GuiFilterEditor extends GuiScreen {
 
     @SideOnly(Side.CLIENT)
     public static void onBlockPicked(String blockName) {
-        if (pendingPickGui == null || pendingPickCondIdx < 0) return;
+        if (pendingPickGui == null || pendingPickCondIdx < 0) { return; }
         GuiFilterEditor gui = pendingPickGui;
         int condIdx = pendingPickCondIdx;
         pendingPickGui = null;
@@ -557,7 +578,13 @@ public class GuiFilterEditor extends GuiScreen {
         drawRect(panelX - 1, panelY - 1, panelX + PANEL_W + 1, panelY + PANEL_H + 1, 0xFF555555);
         drawRect(panelX, panelY, panelX + PANEL_W, panelY + PANEL_H, 0xFF1E1E1E);
 
-        drawCenteredString(fontRendererObj, "§eFilter Editor", panelX + PANEL_W / 2, panelY + 6, 0xFFFFFF);
+        drawCenteredString(
+            fontRendererObj,
+            "§e" + StatCollector.translateToLocal("mm.gui.filter_editor.title"),
+            panelX + PANEL_W / 2,
+            panelY + 6,
+            0xFFFFFF
+        );
         drawRect(panelX + 8, panelY + 15, panelX + PANEL_W - 8, panelY + 16, 0xFF666666);
 
         // Viewport divider lines
@@ -639,9 +666,10 @@ public class GuiFilterEditor extends GuiScreen {
         int panelX = panelX(), panelY = panelY();
         int textY = panelY + PREVIEW_Y_OFFSET;
         int startX = panelX + 10;
-        int labelW = fontRendererObj.getStringWidth("§7▷ §rPreview");
+        String previewLabel = "§7▷ §r" + StatCollector.translateToLocal("mm.gui.filter_editor.preview");
+        int labelW = fontRendererObj.getStringWidth(previewLabel);
 
-        drawString(fontRendererObj, "§7▷ §rPreview", startX, textY, 0xFFFFFF);
+        drawString(fontRendererObj, previewLabel, startX, textY, 0xFFFFFF);
 
         if (mouseX >= startX && mouseX < startX + labelW && mouseY >= textY && mouseY < textY + 10) {
             FilterPreviewRenderer.drawTooltip(

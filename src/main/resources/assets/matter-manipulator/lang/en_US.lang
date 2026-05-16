@@ -98,6 +98,18 @@ mm.gui.set_block=Set Block
 mm.gui.set_block_to_replace_with=Set Block To Replace With
 mm.gui.set_cable=Set Cable
 
+# Filter Editor
+mm.gui.filter_editor.title=Filter Editor
+mm.gui.filter_editor.add_condition=+ Condition
+mm.gui.filter_editor.add_condition_short=+ Cond
+mm.gui.filter_editor.add_group=+ Group
+mm.gui.filter_editor.add_group_short=+ Group
+mm.gui.filter_editor.apply=Apply
+mm.gui.filter_editor.cancel=Cancel
+mm.gui.filter_editor.preview=Preview
+mm.gui.filter_editor.status.fill_blocks=Fill in all block names
+mm.gui.filter_editor.status.valid=Valid filter
+
 # InfoMessage
 
 mm.info.error.out_of_eu=Matter Manipulator ran out of EU.
