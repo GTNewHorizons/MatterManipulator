@@ -23,7 +23,7 @@ import org.lwjgl.opengl.GL11;
 public class GuiFilterEditor extends GuiScreen {
 
     // ── Panel layout ───────────────────────────────────────────────────────
-    private static final int PANEL_W = 420, PANEL_H = 263;
+    private static final int PANEL_W = 420, PANEL_H = 268;
     private static final int VIEWPORT_TOP_OFFSET = 49;
     private static final int VIEWPORT_H = 160;
     private static final int VIEWPORT_BOT_OFFSET = VIEWPORT_TOP_OFFSET + VIEWPORT_H;
@@ -260,9 +260,9 @@ public class GuiFilterEditor extends GuiScreen {
         int px = panelX(), py = panelY();
         buttonList.add(new GuiButton(ID_ADD_COND_ROOT, px + 10, py + 20, 95, 20, "§a+ Condition"));
         buttonList.add(new GuiButton(ID_ADD_GROUP_ROOT, px + 109, py + 20, 80, 20, "§b+ Group"));
-        applyBtn = new GuiButton(ID_APPLY, px + 10, py + FOOTER_Y_OFFSET, 90, 20, "Apply");
+        applyBtn = new GuiButton(ID_APPLY, px + 8, py + FOOTER_Y_OFFSET, 90, 20, "Apply");
         buttonList.add(applyBtn);
-        buttonList.add(new GuiButton(ID_CANCEL, px + PANEL_W - 100, py + FOOTER_Y_OFFSET, 90, 20, "Cancel"));
+        buttonList.add(new GuiButton(ID_CANCEL, px + PANEL_W - 98, py + FOOTER_Y_OFFSET, 90, 20, "Cancel"));
     }
 
     private void addItemButtons() {
