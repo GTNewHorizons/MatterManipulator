@@ -639,6 +639,10 @@ public class MMState {
             }
         }
 
+        if (config.filterRule != null) {
+            pending.removeIf(b -> !config.filterRule.matches(world, b.x, b.y, b.z));
+        }
+
         return pending;
     }
 
