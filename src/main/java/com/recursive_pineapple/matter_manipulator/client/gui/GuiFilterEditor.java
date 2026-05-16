@@ -10,7 +10,6 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 
@@ -60,6 +59,10 @@ public class GuiFilterEditor extends GuiScreen {
 
     // ── Scrollbar ──────────────────────────────────────────────────────────
     private static final int SCROLLBAR_W = 6;
+
+    // ── Preview marquee ────────────────────────────────────────────────────
+    private static final int PREVIEW_SCROLL_PAUSE = 40; // ticks at rest before scrolling starts
+    private static final int PREVIEW_SCROLL_GAP = 80; // pixel gap between loop repetitions
 
     // ── Position picker layout ─────────────────────────────────────────────
     // 8 direction toggles in 2 columns, then an any/all row below
@@ -143,6 +146,7 @@ public class GuiFilterEditor extends GuiScreen {
 
     private boolean isDraggingScrollbar = false;
     private int scrollbarDragOffsetY = 0;
+    private int previewScrollTick = 0;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -193,7 +197,9 @@ public class GuiFilterEditor extends GuiScreen {
     private void updatePreview() {
         syncFieldsToNodes();
         preview = FilterExprTree.serialize(root.children);
-        filterPreview = buildFilterPreview();
+        String newFilterPreview = buildFilterPreview();
+        if (!newFilterPreview.equals(filterPreview)) previewScrollTick = 0;
+        filterPreview = newFilterPreview;
 
         if (FilterExprTree.hasEmptyBlock(root.children)) {
             status = "§eFill in all block names";
@@ -640,7 +646,7 @@ public class GuiFilterEditor extends GuiScreen {
         drawDefaultBackground();
         drawPanelFrame(mouseX, mouseY);
         drawViewportContent(mouseX, mouseY);
-        drawFooterText();
+        drawFooterText(mouseX, mouseY);
         if (pickerForItem >= 0) {
             drawPickerOverlay(mouseX, mouseY);
         }
@@ -737,11 +743,71 @@ public class GuiFilterEditor extends GuiScreen {
         }
     }
 
-    private void drawFooterText() {
+    private void drawFooterText(int mouseX, int mouseY) {
         int panelX = panelX(), panelY = panelY();
-        String displayPreview = filterPreview.length() > 62 ? filterPreview.substring(0, 59) + "..." : filterPreview;
-        drawString(fontRendererObj, "§7▷ " + displayPreview, panelX + 10, panelY + PREVIEW_Y_OFFSET, 0xFFFFFF);
+        int textY = panelY + PREVIEW_Y_OFFSET;
+        int startX = panelX + 10;
+        int previewW = fontRendererObj.getStringWidth("§7▷ §rPreview");
+        int textEndX = startX + previewW;
+
+        drawString(fontRendererObj, "§7▷ §rPreview", startX, textY, 0xFFFFFF);
+        if (mouseX >= startX && mouseX < textEndX && mouseY >= textY && mouseY < textY + 10) {
+            drawPreviewTooltip(mouseX, mouseY);
+        }
+
         drawString(fontRendererObj, status, panelX + 10, panelY + STATUS_Y_OFFSET, 0xFFFFFF);
+    }
+
+    private void drawPreviewTooltip(int mouseX, int mouseY) {
+        List<String> lines = buildFormattedTooltipLines();
+        int maxW = 0;
+        for (String line : lines)
+            maxW = Math.max(maxW, fontRendererObj.getStringWidth(line));
+        int boxW = maxW + 8;
+        int boxH = lines.size() * 10 + 6;
+        int bx = Math.min(mouseX, width - boxW - 4);
+        int by = mouseY - boxH - 4;
+        if (by < 4) by = mouseY + 14;
+        drawRect(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1, 0xFF555555);
+        drawRect(bx, by, bx + boxW, by + boxH, 0xFF1E1E1E);
+        for (int i = 0; i < lines.size(); i++) {
+            drawString(fontRendererObj, lines.get(i), bx + 4, by + 3 + i * 10, 0xFFFFFF);
+        }
+    }
+
+    private List<String> buildFormattedTooltipLines() {
+        List<String> lines = new ArrayList<>();
+        appendFormattedChildren(root.children, lines, 0, null);
+        return lines;
+    }
+
+    private void appendFormattedChildren(List<ExprNode> children, List<String> lines, int depth, String firstConn) {
+        for (int i = 0; i < children.size(); i++) {
+            appendFormattedNode(children.get(i), lines, depth, i == 0 ? firstConn : children.get(i).conn);
+        }
+    }
+
+    private void appendFormattedNode(ExprNode node, List<String> lines, int depth, String conn) {
+        StringBuilder indSb = new StringBuilder();
+        for (int d = 0; d < depth; d++)
+            indSb.append("  ");
+        String ind = indSb.toString();
+        String connStr = conn == null ? "" : ("and".equals(conn) ? "§6and §r" : "§6or §r");
+        if (node instanceof final CondNode c) {
+            StringBuilder sb = new StringBuilder(ind).append(connStr);
+            if (c.posAt) {
+                sb.append("§bat §3").append(c.atX).append(" ").append(c.atY).append(" ").append(c.atZ);
+            } else {
+                sb.append("§b").append(FilterExprTree.posSummary(c));
+            }
+            sb.append(c.negated ? " §eis not§r " : " §eis§r ");
+            sb.append("§a").append(localizedBlockName(c.block));
+            lines.add(sb.toString());
+        } else if (node instanceof final GroupNode g) {
+            lines.add(ind + connStr + "§7(");
+            appendFormattedChildren(g.children, lines, depth + 1, null);
+            lines.add(ind + "§7)");
+        }
     }
 
     private boolean isStaticButton(int id) {
@@ -974,6 +1040,20 @@ public class GuiFilterEditor extends GuiScreen {
                 for (GuiTextField f : ui.atFields) {
                     f.updateCursorCounter();
                 }
+            }
+        }
+
+        // Advance marquee, reset when one full loop completes
+        if (fontRendererObj != null) {
+            int prefixW = fontRendererObj.getStringWidth("§7▷ ");
+            int availableW = PANEL_W - 20 - prefixW;
+            int textW = fontRendererObj.getStringWidth(filterPreview);
+            if (textW > availableW) {
+                previewScrollTick++;
+                int scrollAmt = Math.max(0, previewScrollTick - PREVIEW_SCROLL_PAUSE);
+                if (scrollAmt >= textW + PREVIEW_SCROLL_GAP) previewScrollTick = PREVIEW_SCROLL_PAUSE;
+            } else {
+                previewScrollTick = 0;
             }
         }
     }
