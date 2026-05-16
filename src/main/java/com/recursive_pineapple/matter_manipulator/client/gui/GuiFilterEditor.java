@@ -23,8 +23,8 @@ import org.lwjgl.opengl.GL11;
 public class GuiFilterEditor extends GuiScreen {
 
     // ── Panel layout ───────────────────────────────────────────────────────
-    private static final int PANEL_W = 420, PANEL_H = 252;
-    private static final int VIEWPORT_TOP_OFFSET = 38;
+    private static final int PANEL_W = 420, PANEL_H = 263;
+    private static final int VIEWPORT_TOP_OFFSET = 49;
     private static final int VIEWPORT_H = 160;
     private static final int VIEWPORT_BOT_OFFSET = VIEWPORT_TOP_OFFSET + VIEWPORT_H;
     private static final int PREVIEW_Y_OFFSET = VIEWPORT_BOT_OFFSET + 5;
@@ -37,7 +37,7 @@ public class GuiFilterEditor extends GuiScreen {
     private static final int GROUP_CLOSE_H = 12; // label only, no button
     private static final int CONN_ROW_H = 22;
     private static final int ROW_GAP = 2;
-    private static final int DEPTH_INDENT = 10;
+    private static final int DEPTH_INDENT = 14;
 
     // ── Button ID ranges ───────────────────────────────────────────────────
     // Static (header + footer) buttons
@@ -225,8 +225,8 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void addStaticButtons() {
         int px = panelX(), py = panelY();
-        buttonList.add(new GuiButton(ID_ADD_COND_ROOT, px + 10, py + 17, 95, 20, "§a+ Condition"));
-        buttonList.add(new GuiButton(ID_ADD_GROUP_ROOT, px + 109, py + 17, 80, 20, "§9+ Group"));
+        buttonList.add(new GuiButton(ID_ADD_COND_ROOT, px + 10, py + 20, 95, 20, "§a+ Condition"));
+        buttonList.add(new GuiButton(ID_ADD_GROUP_ROOT, px + 109, py + 20, 80, 20, "§b+ Group"));
         applyBtn = new GuiButton(ID_APPLY, px + 10, py + FOOTER_Y_OFFSET, 90, 20, "Apply");
         buttonList.add(applyBtn);
         buttonList.add(new GuiButton(ID_CANCEL, px + PANEL_W - 100, py + FOOTER_Y_OFFSET, 90, 20, "Cancel"));
@@ -306,6 +306,7 @@ public class GuiFilterEditor extends GuiScreen {
         ui.fieldScreenY = blockFieldY;
 
         GuiButton removeBtn = new GuiButton(base + 3, blockRight + 4, screenY, 16, COND_ROW_H - 2, "X");
+        removeBtn.packedFGColour = 0xFF5555;
         if (visible) {
             buttonList.add(removeBtn);
         }
@@ -328,12 +329,13 @@ public class GuiFilterEditor extends GuiScreen {
         }
         x += 74;
 
-        GuiButton addGroupBtn = new GuiButton(base + 5, x, screenY, 60, GROUP_ROW_H - 2, "§9+ Group");
+        GuiButton addGroupBtn = new GuiButton(base + 5, x, screenY, 60, GROUP_ROW_H - 2, "§b+ Group");
         if (visible) {
             buttonList.add(addGroupBtn);
         }
 
         GuiButton removeBtn = new GuiButton(base + 3, panelX + PANEL_W - 26, screenY, 16, GROUP_ROW_H - 2, "X");
+        removeBtn.packedFGColour = 0xFF5555;
         if (visible) {
             buttonList.add(removeBtn);
         }
@@ -514,7 +516,7 @@ public class GuiFilterEditor extends GuiScreen {
         }
 
         // Viewport divider lines
-        drawRect(panelX + 8, vpTop - 1, panelX + PANEL_W - 8, vpTop, 0xFF666666);
+        drawRect(panelX + 8, vpTop - 5, panelX + PANEL_W - 8, vpTop - 4, 0xFF666666);
         drawRect(panelX + 8, vpBot, panelX + PANEL_W - 8, vpBot + 1, 0xFF666666);
 
         // Static buttons (header + footer) drawn before scissor so they are never clipped
@@ -536,7 +538,7 @@ public class GuiFilterEditor extends GuiScreen {
             (panelX + 8) * sf,
             mc.displayHeight - vpBot * sf,
             (PANEL_W - 16) * sf,
-            VIEWPORT_H * sf
+            (VIEWPORT_H + 4) * sf
         );
 
         drawGroupBackgrounds(panelX, vpTop, vpBot);
@@ -548,7 +550,6 @@ public class GuiFilterEditor extends GuiScreen {
         }
 
         drawCondTextFields(vpTop, vpBot);
-        drawGroupCloseLabels(panelX, vpTop, vpBot);
 
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
     }
@@ -566,10 +567,9 @@ public class GuiFilterEditor extends GuiScreen {
                 continue;
             }
 
-            int clippedTop = Math.max(top, vpTop);
             int clippedBot = Math.min(bottom, vpBot);
-            drawRect(left, clippedTop, left + 2, clippedBot, 0xFF4488CC);
-            drawRect(left + 2, clippedTop, panelX + PANEL_W - 8, clippedBot, 0x18446699);
+            drawRect(left, top, left + 2, clippedBot, 0xFF55FFFF);
+            drawRect(left + 2, top, panelX + PANEL_W - 8, clippedBot, 0x223dbaba);
         }
     }
 
@@ -586,25 +586,6 @@ public class GuiFilterEditor extends GuiScreen {
                     f.drawTextBox();
                 }
             }
-        }
-    }
-
-    private void drawGroupCloseLabels(int panelX, int vpTop, int vpBot) {
-        for (RenderItem item : renderItems) {
-            if (item.type != RenderType.GROUP_FOOTER) {
-                continue;
-            }
-            int screenY = vpTop + item.virtualY - scroll;
-            if (screenY + GROUP_CLOSE_H <= vpTop || screenY >= vpBot) {
-                continue;
-            }
-            drawString(
-                fontRendererObj,
-                "§7)",
-                panelX + 10 + item.depth * DEPTH_INDENT,
-                screenY + 1,
-                0xFFFFFF
-            );
         }
     }
 
