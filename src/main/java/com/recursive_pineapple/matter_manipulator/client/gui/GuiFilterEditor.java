@@ -645,8 +645,8 @@ public class GuiFilterEditor extends GuiScreen {
     private void drawPickerOverlay(int mouseX, int mouseY) {
         int px = clampedPickerX(), py = clampedPickerY();
 
-        drawRect(px - 1, py - 1, px + PICKER_W + 1, py + PICKER_H + 1, 0xFF888888);
-        drawRect(px, py, px + PICKER_W, py + PICKER_H, 0xFF222222);
+        drawRect(px - 1, py - 1, px + PICKER_W + 1, py + PICKER_H + 1, 0xFFAAAAAA);
+        drawRect(px, py, px + PICKER_W, py + PICKER_H, 0xFF333333);
 
         CondNode c = pickerCondNode();
 
