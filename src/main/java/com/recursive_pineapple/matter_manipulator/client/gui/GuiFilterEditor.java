@@ -793,7 +793,8 @@ public class GuiFilterEditor extends GuiScreen {
             }
         }
 
-        return false; // outside picker — caller handles closing
+        // Consume any click inside the picker bounds to prevent click-through
+        return mouseX >= px && mouseX < px + PICKER_W && mouseY >= py && mouseY < py + PICKER_H;
     }
 
     @Override
