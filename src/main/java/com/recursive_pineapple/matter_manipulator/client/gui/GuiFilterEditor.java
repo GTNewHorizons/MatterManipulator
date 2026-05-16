@@ -553,9 +553,11 @@ public class GuiFilterEditor extends GuiScreen {
         drawRect(panelX + 8, vpBot, panelX + PANEL_W - 8, vpBot + 1, 0xFF666666);
 
         // Static buttons (header + footer) drawn before scissor so they are never clipped
+        int smx = isMouseInPicker(mouseX, mouseY) ? -1 : mouseX;
+        int smy = isMouseInPicker(mouseX, mouseY) ? -1 : mouseY;
         for (GuiButton btn : buttonList) {
             if (isStaticButton(btn.id)) {
-                btn.drawButton(mc, mouseX, mouseY);
+                btn.drawButton(mc, smx, smy);
             }
         }
     }
@@ -576,9 +578,11 @@ public class GuiFilterEditor extends GuiScreen {
 
         drawGroupBackgrounds(panelX, vpTop, vpBot);
 
+        int vmx = isMouseInPicker(mouseX, mouseY) ? -1 : mouseX;
+        int vmy = isMouseInPicker(mouseX, mouseY) ? -1 : mouseY;
         for (GuiButton btn : buttonList) {
             if (!isStaticButton(btn.id)) {
-                btn.drawButton(mc, mouseX, mouseY);
+                btn.drawButton(mc, vmx, vmy);
             }
         }
 
@@ -703,6 +707,12 @@ public class GuiFilterEditor extends GuiScreen {
         return Math.min(pickerScreenY, height - PICKER_H - 2);
     }
 
+    private boolean isMouseInPicker(int mouseX, int mouseY) {
+        if (pickerForItem < 0) return false;
+        int px = clampedPickerX(), py = clampedPickerY();
+        return mouseX >= px && mouseX < px + PICKER_W && mouseY >= py && mouseY < py + PICKER_H;
+    }
+
     // ── Input ──────────────────────────────────────────────────────────────
 
     @Override
@@ -794,7 +804,7 @@ public class GuiFilterEditor extends GuiScreen {
         }
 
         // Consume any click inside the picker bounds to prevent click-through
-        return mouseX >= px && mouseX < px + PICKER_W && mouseY >= py && mouseY < py + PICKER_H;
+        return isMouseInPicker(mouseX, mouseY);
     }
 
     @Override
