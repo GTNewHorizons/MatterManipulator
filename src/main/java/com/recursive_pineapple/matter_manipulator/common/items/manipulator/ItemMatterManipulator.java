@@ -537,7 +537,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     case EXCH_SET_TARGET -> "mm.tooltip.pending_action.exch_set_target";
                     case PICK_CABLE -> "mm.tooltip.pending_action.pick_cable";
                     case MARK_ARRAY -> "mm.tooltip.pending_action.mark_array";
-                    case PICK_FILTER_BLOCK -> "Pick block for filter"; // TODO: dipo33
+                    case PICK_FILTER_BLOCK -> "mm.tooltip.pending_action.pick_filter_block";
                 }));
             }
 
@@ -602,11 +602,10 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (state.config.placeMode == PlaceMode.EXCHANGING) {
                 addInfoLine(desc, "mm.tooltip.exchanging.removable", state.config.replaceWhitelist);
                 addInfoLine(desc, "mm.tooltip.exchanging.replacing", state.config.replaceWith);
-                // TODO: dipo33 translations
                 if (state.config.filterRule instanceof StringSerializableRule rule) {
-                    addInfoLine(desc, "Current filter: %s", rule.asString());
+                    addInfoLine(desc, "mm.tooltip.exchanging.filter", rule.asString());
                 } else {
-                    addInfoLine(desc, "Current filter: %s", state.config.filterRule);
+                    addInfoLine(desc, "mm.tooltip.exchanging.filter", state.config.filterRule);
                 }
             }
 
