@@ -243,19 +243,21 @@ public final class FilterRuleParser {
             meta = expectNumber("metadata");
         }
 
-        Block block;
-        int colon = raw.indexOf(':');
-        if (colon < 0) {
-            block = GameRegistry.findBlock("minecraft", raw);
-        } else {
-            String modId = raw.substring(0, colon);
-            String name = raw.substring(colon + 1);
-            block = GameRegistry.findBlock(modId, name);
-        }
+        Block block = findBlock(raw);
 
         if (block == null) { throw error("Unknown block '" + token.text + "'"); }
 
         return new FilterBlockSpec(block, meta);
+    }
+
+    /**
+     * Looks up a block by registry name ("modid:name" or plain "name" for minecraft namespace).
+     * Returns null if the block is not registered.
+     */
+    public static Block findBlock(String registryName) {
+        int colon = registryName.indexOf(':');
+        if (colon < 0) { return GameRegistry.findBlock("minecraft", registryName); }
+        return GameRegistry.findBlock(registryName.substring(0, colon), registryName.substring(colon + 1));
     }
 
     private static String normalizeWord(String text) {

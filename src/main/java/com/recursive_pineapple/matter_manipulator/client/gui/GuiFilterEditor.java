@@ -5,10 +5,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.minecraft.block.Block;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
@@ -129,7 +133,7 @@ public class GuiFilterEditor extends GuiScreen {
     private final Map<Integer, CondRowUI> condRowUI = new HashMap<>();
 
     private int scroll = 0, totalListH = 0;
-    private String preview = "", status = "";
+    private String preview = "", filterPreview = "", status = "";
     private boolean valid = false;
     private GuiButton applyBtn;
 
@@ -189,6 +193,7 @@ public class GuiFilterEditor extends GuiScreen {
     private void updatePreview() {
         syncFieldsToNodes();
         preview = FilterExprTree.serialize(root.children);
+        filterPreview = buildFilterPreview();
 
         if (FilterExprTree.hasEmptyBlock(root.children)) {
             status = "§eFill in all block names";
@@ -526,6 +531,54 @@ public class GuiFilterEditor extends GuiScreen {
         rebuild(); // updates the ▼→▲ label on the position button
     }
 
+    // ── Human-readable preview ─────────────────────────────────────────────
+
+    private String buildFilterPreview() {
+        StringBuilder sb = new StringBuilder();
+        appendPreviewChildren(root.children, sb);
+        return sb.toString();
+    }
+
+    private void appendPreviewChildren(List<ExprNode> children, StringBuilder sb) {
+        for (int i = 0; i < children.size(); i++) {
+            if (i > 0) {
+                sb.append(" ").append(children.get(i).conn).append(" ");
+            }
+            appendPreviewNode(children.get(i), sb);
+        }
+    }
+
+    private void appendPreviewNode(ExprNode node, StringBuilder sb) {
+        if (node instanceof final CondNode c) {
+            FilterExprTree.appendPosition(c, sb);
+            sb.append(" is");
+            if (c.negated) sb.append(" not");
+            sb.append(" ").append(localizedBlockName(c.block));
+        } else if (node instanceof final GroupNode g) {
+            sb.append("(");
+            appendPreviewChildren(g.children, sb);
+            sb.append(")");
+        }
+    }
+
+    private static String localizedBlockName(String blockStr) {
+        if (blockStr.isEmpty()) return "<block>";
+        int meta = 0;
+        String registryName = blockStr;
+        int atIdx = blockStr.indexOf('@');
+        if (atIdx >= 0) {
+            try {
+                meta = Integer.parseInt(blockStr.substring(atIdx + 1));
+            } catch (NumberFormatException ignored) {}
+            registryName = blockStr.substring(0, atIdx);
+        }
+        Block block = FilterRuleParser.findBlock(registryName);
+        if (block == null) return "\"" + blockStr + "\"";
+        Item item = Item.getItemFromBlock(block);
+        if (item == null) return "\"" + block.getLocalizedName() + "\"";
+        return "\"" + new ItemStack(item, 1, meta).getDisplayName() + "\"";
+    }
+
     // ── Scrollbar ──────────────────────────────────────────────────────────
 
     private int scrollbarTrackX(int panelX) {
@@ -686,7 +739,7 @@ public class GuiFilterEditor extends GuiScreen {
 
     private void drawFooterText() {
         int panelX = panelX(), panelY = panelY();
-        String displayPreview = preview.length() > 62 ? preview.substring(0, 59) + "..." : preview;
+        String displayPreview = filterPreview.length() > 62 ? filterPreview.substring(0, 59) + "..." : filterPreview;
         drawString(fontRendererObj, "§7▷ " + displayPreview, panelX + 10, panelY + PREVIEW_Y_OFFSET, 0xFFFFFF);
         drawString(fontRendererObj, status, panelX + 10, panelY + STATUS_Y_OFFSET, 0xFFFFFF);
     }
