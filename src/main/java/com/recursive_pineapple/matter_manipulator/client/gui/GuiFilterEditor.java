@@ -54,6 +54,9 @@ public class GuiFilterEditor extends GuiScreen {
 
     private static final int COLOR_ACTIVE = 0x55FF55;
 
+    // ── Scrollbar ──────────────────────────────────────────────────────────
+    private static final int SCROLLBAR_W = 6;
+
     // ── Position picker layout ─────────────────────────────────────────────
     // 8 direction toggles in 2 columns, then an any/all row below
     private static final String[] PICKER_DIR_LABELS = {
@@ -133,6 +136,9 @@ public class GuiFilterEditor extends GuiScreen {
     // Position picker: -1 = closed; ≥0 = render-item index whose picker is open
     private int pickerForItem = -1;
     private int pickerScreenX, pickerScreenY;
+
+    private boolean isDraggingScrollbar = false;
+    private int scrollbarDragOffsetY = 0;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -520,6 +526,60 @@ public class GuiFilterEditor extends GuiScreen {
         rebuild(); // updates the ▼→▲ label on the position button
     }
 
+    // ── Scrollbar ──────────────────────────────────────────────────────────
+
+    private int scrollbarTrackX(int panelX) {
+        return panelX + PANEL_W - 8;
+    }
+
+    private int scrollbarThumbH() {
+        if (totalListH <= VIEWPORT_H) return VIEWPORT_H;
+        return Math.max(10, VIEWPORT_H * VIEWPORT_H / totalListH);
+    }
+
+    private int scrollbarThumbY(int vpTop) {
+        int thumbH = scrollbarThumbH();
+        int travel = VIEWPORT_H - thumbH - 4;
+        if (travel <= 0) return vpTop;
+        return vpTop + scroll * travel / (totalListH - VIEWPORT_H);
+    }
+
+    private void setScrollFromThumbY(int thumbTop, int vpTop) {
+        int thumbH = scrollbarThumbH();
+        int travel = VIEWPORT_H - thumbH - 4;
+        if (travel <= 0) { scroll = 0; return; }
+        scroll = (thumbTop - vpTop) * (totalListH - VIEWPORT_H) / travel;
+        clampScroll();
+    }
+
+    private void drawScrollbar(int panelX, int vpTop, int vpBot, int mouseX, int mouseY) {
+        if (totalListH <= VIEWPORT_H) return;
+        int tx = scrollbarTrackX(panelX);
+        drawRect(tx, vpTop, tx + SCROLLBAR_W, vpBot, 0xFF2A2A2A);
+        int thumbH = scrollbarThumbH();
+        int thumbY = scrollbarThumbY(vpTop);
+        boolean hover = isDraggingScrollbar || (mouseX >= tx && mouseX < tx + SCROLLBAR_W && mouseY >= thumbY && mouseY < thumbY + thumbH);
+        drawRect(tx + 1, thumbY, tx + SCROLLBAR_W - 1, thumbY + thumbH, hover ? 0xFFAAAAAA : 0xFF888888);
+    }
+
+    private boolean handleScrollbarClick(int mouseX, int mouseY) {
+        if (totalListH <= VIEWPORT_H) return false;
+        int panelX = panelX();
+        int tx = scrollbarTrackX(panelX);
+        if (mouseX < tx || mouseX >= tx + SCROLLBAR_W) return false;
+        int vpTop = viewportTop();
+        int thumbH = scrollbarThumbH();
+        int thumbY = scrollbarThumbY(vpTop);
+        if (mouseY >= thumbY && mouseY < thumbY + thumbH) {
+            isDraggingScrollbar = true;
+            scrollbarDragOffsetY = mouseY - thumbY;
+        } else if (mouseY >= vpTop && mouseY < viewportBottom()) {
+            setScrollFromThumbY(mouseY - thumbH / 2, vpTop);
+            rebuild();
+        }
+        return true;
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────────
 
     @Override
@@ -544,13 +604,11 @@ public class GuiFilterEditor extends GuiScreen {
         drawCenteredString(fontRendererObj, "§eFilter Editor", panelX + PANEL_W / 2, panelY + 6, 0xFFFFFF);
         drawRect(panelX + 8, panelY + 15, panelX + PANEL_W - 8, panelY + 16, 0xFF666666);
 
-        if (totalListH > VIEWPORT_H) {
-            drawString(fontRendererObj, "§7[scroll]", panelX + PANEL_W - 72, panelY + 6, 0xFFFFFF);
-        }
-
         // Viewport divider lines
         drawRect(panelX + 8, vpTop - 5, panelX + PANEL_W - 8, vpTop - 4, 0xFF666666);
         drawRect(panelX + 8, vpBot, panelX + PANEL_W - 8, vpBot + 1, 0xFF666666);
+
+        drawScrollbar(panelX, vpTop, vpBot - 4, mouseX, mouseY);
 
         // Static buttons (header + footer) drawn before scissor so they are never clipped
         int smx = isMouseInPicker(mouseX, mouseY) ? -1 : mouseX;
@@ -606,7 +664,7 @@ public class GuiFilterEditor extends GuiScreen {
 
             int clippedBot = Math.min(bottom, vpBot);
             drawRect(left, top, left + 2, clippedBot, 0xFF55FFFF);
-            drawRect(left + 2, top, panelX + PANEL_W - 8, clippedBot, 0x223dbaba);
+            drawRect(left + 2, top, panelX + PANEL_W - 9, clippedBot, 0x223dbaba);
         }
     }
 
@@ -718,6 +776,7 @@ public class GuiFilterEditor extends GuiScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         if (pickerForItem >= 0 && handlePickerClick(mouseX, mouseY)) { return; }
+        if (button == 0 && handleScrollbarClick(mouseX, mouseY)) { return; }
 
         int currentPicker = pickerForItem;
         super.mouseClicked(mouseX, mouseY, button);
@@ -805,6 +864,24 @@ public class GuiFilterEditor extends GuiScreen {
 
         // Consume any click inside the picker bounds to prevent click-through
         return isMouseInPicker(mouseX, mouseY);
+    }
+
+    @Override
+    protected void mouseClickMove(int mouseX, int mouseY, int clickedMouseButton, long timeSinceLastClick) {
+        if (isDraggingScrollbar) {
+            setScrollFromThumbY(mouseY - scrollbarDragOffsetY, viewportTop());
+            rebuild();
+            return;
+        }
+        super.mouseClickMove(mouseX, mouseY, clickedMouseButton, timeSinceLastClick);
+    }
+
+    @Override
+    protected void mouseMovedOrUp(int mouseX, int mouseY, int which) {
+        if (which != -1) {
+            isDraggingScrollbar = false;
+        }
+        super.mouseMovedOrUp(mouseX, mouseY, which);
     }
 
     @Override
