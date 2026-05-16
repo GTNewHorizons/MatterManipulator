@@ -416,6 +416,9 @@ public class GuiFilterEditor extends GuiScreen {
                 if (c.posIdx == FilterExprTree.POS_AT) {
                     c.posIdx = 0;
                     rebuild();
+                } else if (pickerForItem == itemIdx) {
+                    pickerForItem = -1;
+                    rebuild();
                 } else {
                     openPicker(itemIdx);
                 }
@@ -680,7 +683,13 @@ public class GuiFilterEditor extends GuiScreen {
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         if (pickerForItem >= 0 && handlePickerClick(mouseX, mouseY)) { return; }
 
+        int currentPicker = pickerForItem;
         super.mouseClicked(mouseX, mouseY, button);
+
+        if (currentPicker == pickerForItem) {
+            pickerForItem = -1;
+            rebuild();
+        }
 
         int vpTop = viewportTop(), vpBot = viewportBottom();
         for (CondRowUI ui : condRowUI.values()) {
@@ -699,7 +708,7 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     /**
-     * @return true if a picker item was selected (or the picker was closed)
+     * @return true if the click landed on a picker option (position selected).
      */
     private boolean handlePickerClick(int mouseX, int mouseY) {
         int px = clampedPickerX(), py = clampedPickerY();
@@ -718,9 +727,7 @@ public class GuiFilterEditor extends GuiScreen {
                 return true;
             }
         }
-        pickerForItem = -1; // clicked outside → close without changing position
-        rebuild(); // updates the ▲→▼ label on the position button
-        return false;
+        return false; // clicked outside the picker — caller decides what to do
     }
 
     @Override
