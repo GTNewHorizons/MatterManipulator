@@ -55,10 +55,27 @@ public class GuiFilterEditor extends GuiScreen {
     private static final int COLOR_ACTIVE = 0x55FF55;
 
     // ── Position picker layout ─────────────────────────────────────────────
-    private static final int PICKER_COLS = 2, PICKER_ROWS = 6;
-    private static final int PICKER_BTN_W = 92, PICKER_BTN_H = 14, PICKER_GAP = 2;
+    // 8 direction toggles in 2 columns, then an any/all row below
+    private static final String[] PICKER_DIR_LABELS = {
+        "north", "south", "west", "east", "above", "below", "self", "at X Y Z"
+    };
+    private static final int[] PICKER_DIR_BITS = {
+        FilterExprTree.DIR_NORTH,
+        FilterExprTree.DIR_SOUTH,
+        FilterExprTree.DIR_WEST,
+        FilterExprTree.DIR_EAST,
+        FilterExprTree.DIR_ABOVE,
+        FilterExprTree.DIR_BELOW,
+        FilterExprTree.DIR_SELF,
+        0 // 0 = posAt mode
+    };
+    private static final int PICKER_AT_IDX = 7; // index of "at X Y Z" in PICKER_DIR_*
+    private static final int PICKER_BTN_W = 80, PICKER_BTN_H = 14, PICKER_GAP = 2;
+    private static final int PICKER_COLS = 2;
+    private static final int PICKER_DIR_ROWS = (PICKER_DIR_LABELS.length + PICKER_COLS - 1) / PICKER_COLS; // 4
     private static final int PICKER_W = PICKER_COLS * (PICKER_BTN_W + PICKER_GAP) - PICKER_GAP + 8;
-    private static final int PICKER_H = PICKER_ROWS * (PICKER_BTN_H + PICKER_GAP) - PICKER_GAP + 8;
+    // dir rows + 1 any/all row, all with trailing gap, minus the very last gap, plus 8px padding
+    private static final int PICKER_H = 8 + (PICKER_DIR_ROWS + 1) * (PICKER_BTN_H + PICKER_GAP) - PICKER_GAP;
 
     // ── Text field state for a single condition row ────────────────────────
 
@@ -255,13 +272,16 @@ public class GuiFilterEditor extends GuiScreen {
         CondRowUI ui = condRowUI.computeIfAbsent(idx, k -> new CondRowUI());
         int x = leftX;
 
-        if (c.posIdx == FilterExprTree.POS_AT) {
-            GuiButton atLabel = new GuiButton(base + 1, x, screenY, 22, COND_ROW_H - 2, "at");
-            if (visible) {
-                buttonList.add(atLabel);
-            }
-            x += 26;
+        // Position dropdown — label reflects current selection
+        String posLabel = FilterExprTree.posSummary(c) + (pickerForItem == idx ? " ▲" : " ▼");
+        GuiButton posBtn = new GuiButton(base + 1, x, screenY, 90, COND_ROW_H - 2, posLabel);
+        if (visible) {
+            buttonList.add(posBtn);
+        }
+        x += 94;
 
+        // Inline at-offset fields shown when "at X Y Z" mode is active
+        if (c.posAt) {
             GuiTextField dx = makeIntField(x, screenY, 26, c.atX);
             GuiTextField dy = makeIntField(x + 29, screenY, 26, c.atY);
             GuiTextField dz = makeIntField(x + 58, screenY, 26, c.atZ);
@@ -269,29 +289,9 @@ public class GuiFilterEditor extends GuiScreen {
                 dx, dy, dz
             };
             x += 90;
-        } else {
-            GuiButton posBtn = new GuiButton(
-                base + 1,
-                x,
-                screenY,
-                78,
-                COND_ROW_H - 2,
-                FilterExprTree.POSITION_LABELS[c.posIdx] + (pickerForItem == idx ? " ▲" : " ▼")
-            );
-            if (visible) {
-                buttonList.add(posBtn);
-            }
-            x += 82;
         }
 
-        GuiButton isBtn = new GuiButton(
-            base + 2,
-            x,
-            screenY,
-            48,
-            COND_ROW_H - 2,
-            c.negated ? "is not" : "is"
-        );
+        GuiButton isBtn = new GuiButton(base + 2, x, screenY, 48, COND_ROW_H - 2, c.negated ? "is not" : "is");
         if (visible) {
             buttonList.add(isBtn);
         }
@@ -299,13 +299,7 @@ public class GuiFilterEditor extends GuiScreen {
 
         int blockRight = panelX + PANEL_W - 14 - 16;
         int blockFieldY = screenY + 2;
-        GuiTextField blockField = new GuiTextField(
-            fontRendererObj,
-            x,
-            blockFieldY,
-            blockRight - x,
-            COND_ROW_H - 4
-        );
+        GuiTextField blockField = new GuiTextField(fontRendererObj, x, blockFieldY, blockRight - x, COND_ROW_H - 4);
         blockField.setMaxStringLength(200);
         blockField.setText(c.block);
         ui.blockField = blockField;
@@ -413,10 +407,7 @@ public class GuiFilterEditor extends GuiScreen {
     private void handleCondButton(CondNode c, int itemIdx, int subBtn) {
         switch (subBtn) {
             case 1:
-                if (c.posIdx == FilterExprTree.POS_AT) {
-                    c.posIdx = 0;
-                    rebuild();
-                } else if (pickerForItem == itemIdx) {
+                if (pickerForItem == itemIdx) {
                     pickerForItem = -1;
                     rebuild();
                 } else {
@@ -489,7 +480,7 @@ public class GuiFilterEditor extends GuiScreen {
     private void openPicker(int itemIdx) {
         pickerForItem = itemIdx;
         RenderItem item = renderItems.get(itemIdx);
-        pickerScreenX = panelX() + 10 + item.depth * DEPTH_INDENT + 32;
+        pickerScreenX = panelX() + 10 + item.depth * DEPTH_INDENT;
         pickerScreenY = viewportTop() + item.virtualY - scroll + COND_ROW_H;
         rebuild(); // updates the ▼→▲ label on the position button
     }
@@ -643,30 +634,46 @@ public class GuiFilterEditor extends GuiScreen {
         drawRect(px - 1, py - 1, px + PICKER_W + 1, py + PICKER_H + 1, 0xFF888888);
         drawRect(px, py, px + PICKER_W, py + PICKER_H, 0xFF222222);
 
-        int selectedPos = -1;
-        if (pickerForItem < renderItems.size()) {
-            RenderItem item = renderItems.get(pickerForItem);
-            if (item.type == RenderType.CONDITION) {
-                selectedPos = ((CondNode) item.node).posIdx;
-            }
-        }
+        CondNode c = pickerCondNode();
 
-        for (int i = 0; i < FilterExprTree.POSITION_LABELS.length; i++) {
+        // Direction toggle buttons
+        for (int i = 0; i < PICKER_DIR_LABELS.length; i++) {
             int bx = px + 4 + (i % PICKER_COLS) * (PICKER_BTN_W + PICKER_GAP);
             int by = py + 4 + (i / PICKER_COLS) * (PICKER_BTN_H + PICKER_GAP);
-            GuiButton btn = new GuiButton(
-                i,
-                bx,
-                by,
-                PICKER_BTN_W,
-                PICKER_BTN_H,
-                FilterExprTree.POSITION_LABELS[i]
-            );
-            if (selectedPos == i) {
-                btn.packedFGColour = COLOR_ACTIVE;
+            GuiButton btn = new GuiButton(i, bx, by, PICKER_BTN_W, PICKER_BTN_H, PICKER_DIR_LABELS[i]);
+            if (c != null) {
+                boolean active = (i == PICKER_AT_IDX) ? c.posAt : (!c.posAt && (c.posMask & PICKER_DIR_BITS[i]) != 0);
+                if (active) {
+                    btn.packedFGColour = COLOR_ACTIVE;
+                }
             }
             btn.drawButton(mc, mouseX, mouseY);
         }
+
+        // Any / All toggle row (enabled only when 2+ directions are selected)
+        boolean multiSelect = c != null && !c.posAt && Integer.bitCount(c.posMask) >= 2;
+        int anyAllY = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP);
+        int anyX = px + 4;
+        int allX = px + 4 + PICKER_BTN_W + PICKER_GAP;
+
+        GuiButton anyBtn = new GuiButton(PICKER_DIR_LABELS.length, anyX, anyAllY, PICKER_BTN_W, PICKER_BTN_H, "any");
+        GuiButton allBtn = new GuiButton(PICKER_DIR_LABELS.length + 1, allX, anyAllY, PICKER_BTN_W, PICKER_BTN_H, "all");
+        anyBtn.enabled = multiSelect;
+        allBtn.enabled = multiSelect;
+        if (multiSelect && c.posAny) {
+            anyBtn.packedFGColour = COLOR_ACTIVE;
+        }
+        if (multiSelect && !c.posAny) {
+            allBtn.packedFGColour = COLOR_ACTIVE;
+        }
+        anyBtn.drawButton(mc, mouseX, mouseY);
+        allBtn.drawButton(mc, mouseX, mouseY);
+    }
+
+    private CondNode pickerCondNode() {
+        if (pickerForItem < 0 || pickerForItem >= renderItems.size()) { return null; }
+        RenderItem item = renderItems.get(pickerForItem);
+        return item.type == RenderType.CONDITION ? (CondNode) item.node : null;
     }
 
     private int clampedPickerX() {
@@ -708,26 +715,65 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     /**
-     * @return true if the click landed on a picker option (position selected).
+     * Handles a click while the picker is open.
+     * Direction buttons toggle; any/all buttons switch the combinator.
+     * The picker stays open after each toggle.
+     *
+     * @return true if the click was inside the picker (consumed)
      */
     private boolean handlePickerClick(int mouseX, int mouseY) {
         int px = clampedPickerX(), py = clampedPickerY();
-        for (int i = 0; i < FilterExprTree.POSITION_LABELS.length; i++) {
+        CondNode c = pickerCondNode();
+
+        // Direction toggle buttons
+        for (int i = 0; i < PICKER_DIR_LABELS.length; i++) {
             int bx = px + 4 + (i % PICKER_COLS) * (PICKER_BTN_W + PICKER_GAP);
             int by = py + 4 + (i / PICKER_COLS) * (PICKER_BTN_H + PICKER_GAP);
             if (mouseX >= bx && mouseX < bx + PICKER_BTN_W && mouseY >= by && mouseY < by + PICKER_BTN_H) {
-                if (pickerForItem < renderItems.size()) {
-                    RenderItem item = renderItems.get(pickerForItem);
-                    if (item.type == RenderType.CONDITION) {
-                        ((CondNode) item.node).posIdx = i;
+                if (c != null) {
+                    if (i == PICKER_AT_IDX) {
+                        c.posAt = !c.posAt;
+                        if (!c.posAt && c.posMask == 0) {
+                            c.posMask = FilterExprTree.DIR_NORTH;
+                        }
+                    } else {
+                        int bit = PICKER_DIR_BITS[i];
+                        if (c.posAt) {
+                            c.posAt = false;
+                            c.posMask = bit;
+                        } else if ((c.posMask & bit) != 0 && Integer.bitCount(c.posMask) == 1) {
+                            // Don't deselect the last remaining direction
+                        } else {
+                            c.posMask ^= bit;
+                        }
                     }
                 }
-                pickerForItem = -1;
-                rebuild();
+                rebuild(); // picker stays open; label + highlights update
                 return true;
             }
         }
-        return false; // clicked outside the picker — caller decides what to do
+
+        // Any / All buttons (only active when 2+ directions selected)
+        boolean multiSelect = c != null && !c.posAt && Integer.bitCount(c.posMask) >= 2;
+        if (multiSelect) {
+            int anyAllY = py + 4 + PICKER_DIR_ROWS * (PICKER_BTN_H + PICKER_GAP);
+            if (mouseY >= anyAllY && mouseY < anyAllY + PICKER_BTN_H) {
+                int anyX = px + 4;
+                int allX = px + 4 + PICKER_BTN_W + PICKER_GAP;
+                if (mouseX >= anyX && mouseX < anyX + PICKER_BTN_W) {
+                    c.posAny = true;
+                    rebuild();
+                    return true;
+                }
+                if (mouseX >= allX && mouseX < allX + PICKER_BTN_W) {
+                    c.posAny = false;
+                    rebuild();
+                    return true;
+                }
+            }
+        }
+
+        return false; // outside picker — caller handles closing
     }
 
     @Override
