@@ -298,7 +298,7 @@ public class GuiFilterEditor extends GuiScreen {
         x += 52;
 
         int blockRight = panelX + PANEL_W - 14 - 16;
-        int blockFieldY = screenY + 2;
+        int blockFieldY = screenY + 1;
         GuiTextField blockField = new GuiTextField(fontRendererObj, x, blockFieldY, blockRight - x, COND_ROW_H - 4);
         blockField.setMaxStringLength(200);
         blockField.setText(c.block);
@@ -356,7 +356,7 @@ public class GuiFilterEditor extends GuiScreen {
     }
 
     private GuiTextField makeIntField(int x, int screenY, int w, int value) {
-        GuiTextField f = new GuiTextField(fontRendererObj, x, screenY + 2, w, COND_ROW_H - 4);
+        GuiTextField f = new GuiTextField(fontRendererObj, x, screenY + 1, w, COND_ROW_H - 4);
         f.setMaxStringLength(5);
         f.setText(String.valueOf(value));
         return f;
