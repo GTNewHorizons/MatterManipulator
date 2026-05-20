@@ -13,7 +13,6 @@ import static gregtech.api.enums.Textures.BlockIcons.customOptional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import javax.annotation.Nonnull;
