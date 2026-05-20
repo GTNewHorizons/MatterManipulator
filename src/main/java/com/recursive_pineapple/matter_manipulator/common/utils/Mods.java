@@ -15,7 +15,6 @@ import org.jetbrains.annotations.NotNull;
 public enum Mods implements IMod, ITargetMod {
 
     AE2FluidCraft(Names.AE2_FLUID_CRAFT),
-    AE2Stuff(Names.AE2STUFF),
     Angelica(Names.ANGELICA),
     AppliedEnergistics2(Names.APPLIED_ENERGISTICS2),
     ArchitectureCraft(Names.ARCHITECTURE_CRAFT),
@@ -64,7 +63,6 @@ public enum Mods implements IMod, ITargetMod {
     public static class Names {
 
         public static final String AE2_FLUID_CRAFT = "ae2fc";
-        public static final String AE2STUFF = "ae2stuff";
         public static final String ANGELICA = "angelica";
         public static final String APPLIED_ENERGISTICS2 = "appliedenergistics2";
         public static final String ARCHITECTURE_CRAFT = "ArchitectureCraft";

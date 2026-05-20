@@ -11,7 +11,7 @@ public enum BlockMovers {
     FMP(FMPBlockMover.INSTANCE),
     @Optional(Names.GREG_TECH_NH)
     GT(GTBlockMover.INSTANCE),
-    @Optional(Names.AE2STUFF)
+    @Optional(Names.APPLIED_ENERGISTICS2)
     Wireless(WirelessBlockMover.INSTANCE),
     Standard(StandardBlockMover.INSTANCE);
 

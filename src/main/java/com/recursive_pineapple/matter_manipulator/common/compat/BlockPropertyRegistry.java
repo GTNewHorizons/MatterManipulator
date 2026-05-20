@@ -35,6 +35,7 @@ import net.minecraft.block.BlockStairs;
 import net.minecraft.block.BlockTorch;
 import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -55,6 +56,7 @@ import gregtech.common.blocks.ItemMachines;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 
+import appeng.tile.networking.TileWirelessBase;
 import appeng.util.ReadableNumberConverter;
 
 import com.google.gson.JsonElement;
@@ -69,8 +71,6 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.rwtema.extrautils.block.BlockSpike;
-
-import net.bdew.ae2stuff.machines.wireless.TileWireless;
 
 import bartworks.API.enums.CircuitImprint;
 import bartworks.common.tileentities.multis.MTECircuitAssemblyLine;
@@ -266,7 +266,7 @@ public class BlockPropertyRegistry {
         if (Mods.ArchitectureCraft.isModLoaded()) initArch();
         if (Mods.FloodLights.isModLoaded()) initFloodLights();
         if (Mods.GregTech.isModLoaded()) initGT5u();
-        if (Mods.AE2Stuff.isModLoaded()) initAE2Stuff();
+        if (Mods.AppliedEnergistics2.isModLoaded()) initAE2Wireless();
         if (Mods.EnderStorage.isModLoaded()) initEnderStorage();
         if (Mods.ExtraUtilities.isModLoaded()) initEXU();
         if (Mods.OpenComputers.isModLoaded()) initOpenComputers();
@@ -1078,11 +1078,12 @@ public class BlockPropertyRegistry {
 
     // #endregion
 
-    // #region AE2 Stuff
+    // #region AE2 Wireless Connector
 
-    @Optional(Names.AE2STUFF)
-    private static void initAE2Stuff() {
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void initAE2Wireless() {
         registerIntrinsicProperty(InteropConstants.WIRELESS_CONNECTOR.get().getBlock(), new WirelessHubProperty());
+        registerIntrinsicProperty(InteropConstants.WIRELESS_HUB.get().getBlock(), new WirelessHubProperty());
     }
 
     // #endregion
@@ -1489,29 +1490,30 @@ public class BlockPropertyRegistry {
 
         @Override
         public boolean hasValue(ItemStack stack) {
-            return InteropConstants.WIRELESS_CONNECTOR.matches(MMUtils.getBlockFromItem(stack.getItem(), stack.itemDamage), WILDCARD_VALUE);
+            return InteropConstants.isWirelessConnector(MMUtils.getBlockFromItem(stack.getItem(), stack.itemDamage), WILDCARD_VALUE);
         }
 
         @Override
         public boolean hasValue(IBlockAccess world, int x, int y, int z) {
-            return world.getTileEntity(x, y, z) instanceof TileWireless;
+            return world.getTileEntity(x, y, z) instanceof TileWirelessBase;
         }
 
         @Override
         public JsonElement getValue(ItemStack stack) {
-            return new JsonPrimitive(stack.itemDamage >= 17);
+            return new JsonPrimitive(InteropConstants.WIRELESS_HUB.matches(MMUtils.getBlockFromItem(stack.getItem(), stack.itemDamage), WILDCARD_VALUE));
         }
 
         @Override
         public JsonElement getValue(IBlockAccess world, int x, int y, int z) {
-            TileWireless te = (TileWireless) world.getTileEntity(x, y, z);
+            TileWirelessBase te = (TileWirelessBase) world.getTileEntity(x, y, z);
 
             return new JsonPrimitive(te.isHub());
         }
 
         @Override
         public void setValue(ItemStack stack, JsonElement value) {
-            stack.itemDamage = (stack.itemDamage % 17) + (value.getAsBoolean() ? 17 : 0);
+            Block block = value.getAsBoolean() ? InteropConstants.WIRELESS_HUB.get().getBlock() : InteropConstants.WIRELESS_CONNECTOR.get().getBlock();
+            stack.func_150996_a(Item.getItemFromBlock(block));
         }
 
         @Override
