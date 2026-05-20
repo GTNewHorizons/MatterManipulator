@@ -14,6 +14,7 @@ import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.FluidRegistry;
 
 import gregtech.api.GregTechAPI;
 import gregtech.api.covers.CoverRegistry;
@@ -23,7 +24,7 @@ import gregtech.api.interfaces.IConfigurationCircuitSupport;
 import gregtech.api.interfaces.IDataCopyable;
 import gregtech.api.interfaces.IMEConnectable;
 import gregtech.api.interfaces.metatileentity.IConnectable;
-import gregtech.api.interfaces.metatileentity.IFluidLockable;
+import gregtech.api.interfaces.metatileentity.IFluidLockableMui2;
 import gregtech.api.interfaces.metatileentity.IItemLockable;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -209,8 +210,8 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         }
 
         // check if the machine has a locked fluid
-        if (mte instanceof IFluidLockable lockable && lockable.isFluidLocked()) {
-            mGTFluidLock = lockable.getLockedFluidName();
+        if (mte instanceof IFluidLockableMui2 lockable && lockable.isFluidLocked()) {
+            mGTFluidLock = lockable.getLockedFluid().getName();
         }
 
         // check if the machine is a multi and store its settings
@@ -416,8 +417,9 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             }
 
             // set the locked fluid
-            if (mte instanceof IFluidLockable lockable && lockable.isFluidLocked()) {
-                lockable.setLockedFluidName(mGTFluidLock);
+            if (mte instanceof IFluidLockableMui2 lockable && mGTFluidLock != null) {
+                lockable.lockFluid(true);
+                lockable.setLockedFluid(FluidRegistry.getFluid(mGTFluidLock));
             }
 
             // set the various multi options
