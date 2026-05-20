@@ -413,7 +413,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
 
             // set the output hatch mode
             if (mte instanceof MTEHatchOutput outputHatch) {
-                outputHatch.mMode = (byte) mGTMode;
+                outputHatch.setMode((byte) mGTMode);
             }
 
             // set the locked fluid
