@@ -378,7 +378,7 @@ public final class FilterRuleParser {
     }
 
     private static boolean isBlockNamePart(char c) {
-        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.' || c == '@';
+        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.' || c == '@' || c == ';';
     }
 
     public static final class Offset {

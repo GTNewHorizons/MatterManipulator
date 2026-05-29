@@ -285,7 +285,7 @@ class FilterExprTree {
     }
 
     private static boolean isFilterWordChar(char c) {
-        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.' || c == '@';
+        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.' || c == '@' || c == ';';
     }
 
     private static List<ExprNode> parseFilterSeq(List<String> tokens, int[] pos, GroupNode parent) {
