@@ -608,11 +608,10 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (state.config.placeMode == PlaceMode.EXCHANGING) {
                 addInfoLine(desc, "mm.tooltip.exchanging.removable", state.config.replaceWhitelist);
                 addInfoLine(desc, "mm.tooltip.exchanging.replacing", state.config.replaceWith);
-                if (state.config.filterRule instanceof StringSerializableRule rule) {
-                    addInfoLine(desc, "mm.tooltip.exchanging.filter", rule.asString());
-                } else {
-                    addInfoLine(desc, "mm.tooltip.exchanging.filter", state.config.filterRule);
-                }
+            }
+
+            if (state.config.filterRule instanceof StringSerializableRule rule) {
+                addInfoLine(desc, "mm.tooltip.exchanging.filter", rule.asString());
             }
 
             if (state.config.placeMode == PlaceMode.CABLES) {
