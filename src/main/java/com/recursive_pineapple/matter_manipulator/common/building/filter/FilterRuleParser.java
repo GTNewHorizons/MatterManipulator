@@ -113,55 +113,6 @@ public final class FilterRuleParser {
         return new FilterAST.Condition(offsetSet, negate, raw, meta);
     }
 
-    private Offset parseOffset() {
-        Token token = peek();
-
-        if (token.isWord("self") || token.isWord("here")) {
-            next();
-            return new Offset(0, 0, 0);
-        }
-
-        if (token.isWord("above") || token.isWord("up") || token.isWord("U")) {
-            next();
-            return new Offset(0, 1, 0);
-        }
-
-        if (token.isWord("below") || token.isWord("down") || token.isWord("D")) {
-            next();
-            return new Offset(0, -1, 0);
-        }
-
-        if (token.isWord("north") || token.isWord("N")) {
-            next();
-            return new Offset(0, 0, -1);
-        }
-
-        if (token.isWord("south") || token.isWord("S")) {
-            next();
-            return new Offset(0, 0, 1);
-        }
-
-        if (token.isWord("east") || token.isWord("E")) {
-            next();
-            return new Offset(1, 0, 0);
-        }
-
-        if (token.isWord("west") || token.isWord("W")) {
-            next();
-            return new Offset(-1, 0, 0);
-        }
-
-        if (matchWord("at")) {
-            int dx = expectNumber("dx");
-            int dy = expectNumber("dy");
-            int dz = expectNumber("dz");
-
-            return new Offset(dx, dy, dz);
-        }
-
-        throw error("Expected position: self, above, below, north, south, east, west, or at x y z");
-    }
-
     private OffsetSet parseOffsetSet() {
         OffsetMode mode = OffsetMode.SINGLE;
 
