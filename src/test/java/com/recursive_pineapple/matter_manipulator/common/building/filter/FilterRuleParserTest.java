@@ -18,15 +18,15 @@ class FilterRuleParserTest {
         return assertInstanceOf(FilterAST.Condition.class, parse(text));
     }
 
-    private static void assertOffset(FilterRuleParser.Offset o, int dx, int dy, int dz) {
+    private static void assertOffset(Offset o, int dx, int dy, int dz) {
         assertEquals(dx, o.dx, "dx");
         assertEquals(dy, o.dy, "dy");
         assertEquals(dz, o.dz, "dz");
     }
 
     private static void assertSingleOffset(FilterAST.Condition c, int dx, int dy, int dz) {
-        assertEquals(FilterRuleParser.OffsetMode.SINGLE, c.position().mode());
-        List<FilterRuleParser.Offset> offsets = c.position().offsets();
+        assertEquals(OffsetMode.SINGLE, c.position().mode());
+        List<Offset> offsets = c.position().offsets();
         assertEquals(1, offsets.size());
         assertOffset(offsets.get(0), dx, dy, dz);
     }
@@ -192,8 +192,8 @@ class FilterRuleParserTest {
     @Test
     void pos_any_mode() {
         FilterAST.Condition c = parseCond("any NSWE is stone");
-        assertEquals(FilterRuleParser.OffsetMode.ANY, c.position().mode());
-        List<FilterRuleParser.Offset> offsets = c.position().offsets();
+        assertEquals(OffsetMode.ANY, c.position().mode());
+        List<Offset> offsets = c.position().offsets();
         assertEquals(4, offsets.size());
         assertOffset(offsets.get(0), 0, 0, -1); // N
         assertOffset(offsets.get(1), 0, 0, 1); // S
@@ -204,8 +204,8 @@ class FilterRuleParserTest {
     @Test
     void pos_all_mode() {
         FilterAST.Condition c = parseCond("all XUD is stone");
-        assertEquals(FilterRuleParser.OffsetMode.ALL, c.position().mode());
-        List<FilterRuleParser.Offset> offsets = c.position().offsets();
+        assertEquals(OffsetMode.ALL, c.position().mode());
+        List<Offset> offsets = c.position().offsets();
         assertEquals(3, offsets.size());
         assertOffset(offsets.get(0), 0, 0, 0); // X
         assertOffset(offsets.get(1), 0, 1, 0); // U

@@ -8,6 +8,9 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterAST;
 import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterRuleParser;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.Offset;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.OffsetMode;
+import com.recursive_pineapple.matter_manipulator.common.building.filter.OffsetSet;
 
 // ── Expression tree nodes ─────────────────────────────────────────────────────
 
@@ -324,11 +327,11 @@ class FilterExprTree {
         c.negated = cond.negated();
         c.block = cond.meta() >= 0 ? cond.block() + "@" + cond.meta() : cond.block();
 
-        FilterRuleParser.OffsetSet pos = cond.position();
-        List<FilterRuleParser.Offset> offsets = pos.offsets();
+        OffsetSet pos = cond.position();
+        List<Offset> offsets = pos.offsets();
 
-        if (pos.mode() == FilterRuleParser.OffsetMode.SINGLE) {
-            FilterRuleParser.Offset o = offsets.get(0);
+        if (pos.mode() == OffsetMode.SINGLE) {
+            Offset o = offsets.get(0);
             int mask = offsetToMask(o);
             if (mask != 0) {
                 c.posMask = mask;
@@ -340,9 +343,9 @@ class FilterExprTree {
                 c.atZ = o.dz;
             }
         } else {
-            c.posAny = (pos.mode() == FilterRuleParser.OffsetMode.ANY);
+            c.posAny = (pos.mode() == OffsetMode.ANY);
             c.posMask = 0;
-            for (FilterRuleParser.Offset o : offsets) {
+            for (Offset o : offsets) {
                 c.posMask |= offsetToMask(o);
             }
             c.posAt = false;
@@ -350,7 +353,7 @@ class FilterExprTree {
         return c;
     }
 
-    private static int offsetToMask(FilterRuleParser.Offset o) {
+    private static int offsetToMask(Offset o) {
         if (o.dx == 0 && o.dy == 0 && o.dz == 0) { return DIR_SELF; }
         if (o.dx == 0 && o.dy == 1 && o.dz == 0) { return DIR_ABOVE; }
         if (o.dx == 0 && o.dy == -1 && o.dz == 0) { return DIR_BELOW; }

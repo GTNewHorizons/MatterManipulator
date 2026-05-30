@@ -8,8 +8,6 @@ import net.minecraft.block.Block;
 
 import cpw.mods.fml.common.registry.GameRegistry;
 
-import com.github.bsideup.jabel.Desugar;
-
 public final class FilterRuleParser {
 
     private final List<Token> tokens;
@@ -334,28 +332,6 @@ public final class FilterRuleParser {
     public static boolean isBlockNamePart(char c) {
         return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.' || c == '@' || c == ';';
     }
-
-    public static final class Offset {
-
-        public final int dx;
-        public final int dy;
-        public final int dz;
-
-        private Offset(int dx, int dy, int dz) {
-            this.dx = dx;
-            this.dy = dy;
-            this.dz = dz;
-        }
-    }
-
-    public enum OffsetMode {
-        SINGLE,
-        ANY,
-        ALL
-    }
-
-    @Desugar
-    public record OffsetSet(OffsetMode mode, List<Offset> offsets) {}
 
     private enum TokenType {
         WORD,

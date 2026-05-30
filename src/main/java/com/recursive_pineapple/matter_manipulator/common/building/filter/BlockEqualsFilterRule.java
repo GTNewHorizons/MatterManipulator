@@ -9,7 +9,7 @@ public final class BlockEqualsFilterRule extends OffsetFilterRule {
     private final int meta;
     private final boolean negated;
 
-    public BlockEqualsFilterRule(FilterRuleParser.OffsetSet offsetSet, Block expected, int meta, boolean negated) {
+    public BlockEqualsFilterRule(OffsetSet offsetSet, Block expected, int meta, boolean negated) {
         super(offsetSet);
 
         if (expected == null) { throw new IllegalArgumentException("expected block cannot be null"); }
@@ -26,13 +26,13 @@ public final class BlockEqualsFilterRule extends OffsetFilterRule {
                 return validateOffset(world, x, y, z, this.offsetSet.offsets().get(0));
             }
             case ANY -> {
-                for (FilterRuleParser.Offset offset : this.offsetSet.offsets()) {
+                for (Offset offset : this.offsetSet.offsets()) {
                     if (validateOffset(world, x, y, z, offset)) { return true; }
                 }
                 return false;
             }
             case ALL -> {
-                for (FilterRuleParser.Offset offset : this.offsetSet.offsets()) {
+                for (Offset offset : this.offsetSet.offsets()) {
                     if (!validateOffset(world, x, y, z, offset)) { return false; }
                 }
                 return true;
@@ -41,7 +41,7 @@ public final class BlockEqualsFilterRule extends OffsetFilterRule {
         }
     }
 
-    private boolean validateOffset(World world, int x, int y, int z, FilterRuleParser.Offset offset) {
+    private boolean validateOffset(World world, int x, int y, int z, Offset offset) {
         boolean match = getBlock(world, x, y, z, offset) == expected && (this.meta < 0 || getBlockMetadata(world, x, y, z, offset) == meta);
         return negated != match;
     }

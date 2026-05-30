@@ -5,7 +5,7 @@ import com.github.bsideup.jabel.Desugar;
 public interface FilterAST {
 
     @Desugar
-    record Condition(FilterRuleParser.OffsetSet position, boolean negated, String block, int meta)
+    record Condition(OffsetSet position, boolean negated, String block, int meta)
         implements FilterAST {}
 
     @Desugar
