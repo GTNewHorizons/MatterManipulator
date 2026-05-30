@@ -50,7 +50,7 @@ dependencies {
     compileOnly("com.github.GTNewHorizons:Avaritiaddons:1.9.4-GTNH:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:BloodMagic:1.9.3:dev") { transitive = false }
     compileOnly("curse.maven:cofh-lib-220333:2388748") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:EnderIO:5.2.62:dev") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:EnderIO:2.10.27:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:EnderStorage:1.8.3:dev") { transitive = false }
     compileOnly(rfg.deobf("curse.maven:extra-utilities-225561:2264384"))
     compileOnly("com.github.GTNewHorizons:FloodLights:1.5.6:dev") { transitive = false }
@@ -66,7 +66,7 @@ dependencies {
 
     compileOnly rfg.deobf("maven.modrinth:immibis-microblocks:59.1.2")
     compileOnly rfg.deobf("maven.modrinth:immibis-core:59.1.4")
-    
+
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:ArchitectureCraft:1.12.11")
     runtimeOnlyNonPublishable('com.github.GTNewHorizons:Angelica:2.1.25:dev')
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-941-GTNH:dev")
