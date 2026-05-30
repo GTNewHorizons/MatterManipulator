@@ -10,6 +10,7 @@ import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.AECellItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.BatteryItemProvider;
+import com.recursive_pineapple.matter_manipulator.common.building.providers.ComputerComponentItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.PatternItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.utils.InventoryAdapter;
@@ -34,10 +35,13 @@ public class InventoryAnalysis {
     public static InventoryAnalysis fromInventory(IInventory inv, boolean fuzzy) {
         InventoryAdapter adapter = InventoryAdapter.findAdapter(inv);
 
+        int size = adapter.getSizeInventory(inv);
+        if (size == 0) return null;
+
         InventoryAnalysis analysis = new InventoryAnalysis();
 
         analysis.mFuzzy = fuzzy;
-        analysis.mItems = new IItemProvider[adapter.getSizeInventory(inv)];
+        analysis.mItems = new IItemProvider[size];
 
         for (int slot = 0; slot < analysis.mItems.length; slot++) {
             if (!adapter.isValidSlot(inv, slot)) continue;
@@ -50,6 +54,11 @@ public class InventoryAnalysis {
 
     private static IItemProvider getProviderFor(ItemStack stack, boolean fuzzy) {
         if (stack == null || stack.getItem() == null) return null;
+
+        if (Mods.OpenComputers.isModLoaded()) {
+            IItemProvider component = ComputerComponentItemProvider.fromStack(stack);
+            if (component != null) return component;
+        }
 
         if (Mods.AppliedEnergistics2.isModLoaded()) {
             if (!fuzzy) {
@@ -82,7 +91,9 @@ public class InventoryAnalysis {
         if (!adapter.validate(context, inv)) return false;
 
         if (adapter.getSizeInventory(inv) != mItems.length) {
-            context.warn(new ChatComponentTranslation("mm.info.warning.inventory_was_the_wrong_size", mItems.length, adapter.getSizeInventory(inv)));
+            if (adapter.getSizeInventory(inv) != 0) {
+                context.warn(new ChatComponentTranslation("mm.info.warning.inventory_was_the_wrong_size", mItems.length, adapter.getSizeInventory(inv)));
+            }
             return false;
         }
 

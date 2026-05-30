@@ -1,5 +1,6 @@
 package com.recursive_pineapple.matter_manipulator.common.building;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -7,11 +8,9 @@ import java.util.List;
 import java.util.Map;
 
 import net.minecraft.block.Block;
-import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
@@ -21,9 +20,16 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import appeng.api.parts.IPart;
+import appeng.api.parts.IPartHost;
+import appeng.parts.automation.PartSharedItemBus;
+import appeng.parts.misc.PartStorageBus;
+import appeng.util.Platform;
+
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
+import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.compat.BlockProperty;
@@ -32,6 +38,7 @@ import com.recursive_pineapple.matter_manipulator.common.compat.Orientation;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.recursive_pineapple.matter_manipulator.mixin.BlockCaptureDrops;
 
 import org.jetbrains.annotations.NotNull;
@@ -51,6 +58,8 @@ public class PendingBlock extends Location {
     public ITileAnalysisIntegration ae;
     public ITileAnalysisIntegration arch;
     public ITileAnalysisIntegration mp;
+    public ITileAnalysisIntegration cb;
+    public transient SmartCopyIntegration smartCopy;
 
     public InventoryAnalysis inventory = null;
 
@@ -72,6 +81,8 @@ public class PendingBlock extends Location {
         this.ae = null;
         this.arch = null;
         this.mp = null;
+        this.cb = null;
+        this.smartCopy = null;
         this.inventory = null;
         this.renderOrder = 0;
         this.buildOrder = 0;
@@ -140,6 +151,8 @@ public class PendingBlock extends Location {
         if (ae != null) list.add(ae);
         if (arch != null) list.add(arch);
         if (mp != null) list.add(mp);
+        if (cb != null) list.add(cb);
+        if (smartCopy != null) list.add(smartCopy);
 
         return list;
     }
@@ -168,13 +181,9 @@ public class PendingBlock extends Location {
 
         if (stack == null) return null;
 
-        NBTTagCompound tag = stack.getTagCompound() != null ? stack.getTagCompound() : new NBTTagCompound();
-
         for (var analysis : getIntegrations()) {
-            analysis.getItemTag(tag);
+            analysis.getItemTag(stack);
         }
-
-        stack.setTagCompound(tag.hasNoTags() ? null : tag);
 
         return stack;
     }
@@ -239,6 +248,8 @@ public class PendingBlock extends Location {
         if (ae != null) dup.ae = ae.clone();
         if (arch != null) dup.arch = arch.clone();
         if (mp != null) dup.mp = mp.clone();
+        if (cb != null) dup.cb = cb.clone();
+        if (smartCopy != null) dup.smartCopy = smartCopy.clone();
         if (inventory != null) dup.inventory = inventory.clone();
         dup.renderOrder = renderOrder;
         dup.buildOrder = buildOrder;
@@ -363,21 +374,91 @@ public class PendingBlock extends Location {
 
         BlockCaptureDrops.captureDrops(world);
 
+        boolean success = true;
+
         try {
             for (var analysis : getIntegrations()) {
-                if (!analysis.apply(context)) return false;
+                if (!analysis.apply(context)) {
+                    success = false;
+                    break;
+                }
             }
 
-            if (context.getTileEntity() instanceof IInventory inventory && this.inventory != null) {
-                if (!this.inventory.apply(context, inventory, true, false)) return false;
+            if (success && context.getTileEntity() instanceof IInventory inventory && this.inventory != null) {
+                if (!this.inventory.apply(context, inventory, true, false)) {
+                    success = false;
+                }
             }
         } finally {
             context.givePlayerItems(BlockCaptureDrops.stopCapturingDrops(world).toArray(new ItemStack[0]));
+
+            Block block = world.getBlock(x, y, z);
+            world.notifyBlockOfNeighborChange(x, y, z, block);
+
+            if (Mods.AppliedEnergistics2.isModLoaded()) {
+                notifyAE2Neighbors(world, x, y, z);
+            }
         }
 
-        world.notifyBlockOfNeighborChange(x, y, z, Blocks.air);
+        return success ? ref.didSomething : false;
+    }
 
-        return ref.didSomething;
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void notifyAE2Neighbors(World world, int x, int y, int z) {
+        initAE2ReflectionFields();
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            TileEntity te = world.getTileEntity(x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ);
+
+            if (te instanceof IPartHost partHost) {
+                IPart part = partHost.getPart(dir.getOpposite());
+
+                if (part != null) {
+                    resetAE2PartCache(part);
+                }
+            }
+        }
+
+        Platform.notifyBlocksOfNeighbors(world, x, y, z);
+    }
+
+    private static boolean ae2FieldsInitialized = false;
+    private static Field storageBusHandlerHash;
+    private static Field sharedBusCachedAdaptorHash;
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void initAE2ReflectionFields() {
+        if (ae2FieldsInitialized) return;
+        ae2FieldsInitialized = true;
+
+        try {
+            storageBusHandlerHash = PartStorageBus.class.getDeclaredField("handlerHash");
+            storageBusHandlerHash.setAccessible(true);
+        } catch (Exception e) {
+            MMMod.LOG.warn("Could not find PartStorageBus.handlerHash", e);
+        }
+
+        try {
+            sharedBusCachedAdaptorHash = PartSharedItemBus.class.getDeclaredField("cachedAdaptorHash");
+            sharedBusCachedAdaptorHash.setAccessible(true);
+        } catch (Exception e) {
+            MMMod.LOG.warn("Could not find PartSharedItemBus.cachedAdaptorHash", e);
+        }
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void resetAE2PartCache(IPart part) {
+        try {
+            if (part instanceof PartStorageBus && storageBusHandlerHash != null) {
+                storageBusHandlerHash.setInt(part, 0);
+            }
+
+            if (part instanceof PartSharedItemBus && sharedBusCachedAdaptorHash != null) {
+                sharedBusCachedAdaptorHash.setInt(part, 0);
+            }
+        } catch (Exception e) {
+            MMMod.LOG.warn("Failed to reset AE2 part cache", e);
+        }
     }
 
     @Override
@@ -389,6 +470,7 @@ public class PendingBlock extends Location {
         result = prime * result + ((ae == null) ? 0 : ae.hashCode());
         result = prime * result + ((arch == null) ? 0 : arch.hashCode());
         result = prime * result + ((mp == null) ? 0 : mp.hashCode());
+        result = prime * result + ((cb == null) ? 0 : cb.hashCode());
         result = prime * result + ((inventory == null) ? 0 : inventory.hashCode());
         result = prime * result + renderOrder;
         result = prime * result + buildOrder;
@@ -416,6 +498,9 @@ public class PendingBlock extends Location {
         if (mp == null) {
             if (other.mp != null) return false;
         } else if (!mp.equals(other.mp)) return false;
+        if (cb == null) {
+            if (other.cb != null) return false;
+        } else if (!cb.equals(other.cb)) return false;
         if (inventory == null) {
             if (other.inventory != null) return false;
         } else if (!inventory.equals(other.inventory)) return false;
@@ -444,6 +529,7 @@ public class PendingBlock extends Location {
     public static final int ANALYZE_AE = 0b1 << counter++;
     public static final int ANALYZE_ARCH = 0b1 << counter++;
     public static final int ANALYZE_MP = 0b1 << counter++;
+    public static final int ANALYZE_CB = 0b1 << counter++;
     public static final int ANALYZE_INV = 0b1 << counter++;
     public static final int ANALYZE_ALL = -1;
 
@@ -465,6 +551,10 @@ public class PendingBlock extends Location {
                 this.mp = MultipartAnalysisResult.analyze(te);
             }
 
+            if ((flags & ANALYZE_CB) != 0 && Mods.CarpentersBlocks.isModLoaded()) {
+                this.cb = CarpentersBlocksAnalysisResult.analyze(te);
+            }
+
             if ((flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory) {
                 this.inventory = InventoryAnalysis.fromInventory(inventory, false);
             }
@@ -478,6 +568,7 @@ public class PendingBlock extends Location {
         if (ae != null) ae.migrate();
         if (arch != null) arch.migrate();
         if (mp != null) mp.migrate();
+        if (cb != null) cb.migrate();
 
         return this;
     }

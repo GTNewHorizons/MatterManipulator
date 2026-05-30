@@ -14,6 +14,8 @@ import gregtech.api.metatileentity.implementations.MTEBasicBatteryBuffer;
 import gregtech.api.metatileentity.implementations.MTEHatchInputBus;
 import gregtech.api.metatileentity.implementations.MTEHatchOutputBus;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
+import gregtech.common.tileentities.machines.MTEHatchCraftingInputME;
+import gregtech.common.tileentities.machines.MTEHatchCraftingInputSlave;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 
@@ -57,7 +59,7 @@ public enum InventoryAdapter {
             IGregTechTileEntity igte = (IGregTechTileEntity) inv;
             MTEHatchRack rack = (MTEHatchRack) igte.getMetaTileEntity();
 
-            if (rack.heat > 2000) {
+            if (rack.getHeat() > 2000) {
                 context.error(new ChatComponentTranslation("mm.info.error.qc_rack_is_too_hot"));
                 return false;
             }
@@ -84,6 +86,8 @@ public enum InventoryAdapter {
                 if (imte instanceof MTEMultiBlockBase) return true;
                 if (imte instanceof MTEBasicBatteryBuffer) return true;
                 if (imte instanceof MTEHatchTurbine) return true;
+                if (imte instanceof MTEHatchCraftingInputME) return true;
+                if (imte instanceof MTEHatchCraftingInputSlave) return true;
             }
 
             return false;

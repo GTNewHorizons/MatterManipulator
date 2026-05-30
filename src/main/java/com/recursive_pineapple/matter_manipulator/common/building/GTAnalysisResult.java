@@ -14,6 +14,7 @@ import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.FluidRegistry;
 
 import gregtech.api.GregTechAPI;
 import gregtech.api.covers.CoverRegistry;
@@ -23,7 +24,7 @@ import gregtech.api.interfaces.IConfigurationCircuitSupport;
 import gregtech.api.interfaces.IDataCopyable;
 import gregtech.api.interfaces.IMEConnectable;
 import gregtech.api.interfaces.metatileentity.IConnectable;
-import gregtech.api.interfaces.metatileentity.IFluidLockable;
+import gregtech.api.interfaces.metatileentity.IFluidLockableMui2;
 import gregtech.api.interfaces.metatileentity.IItemLockable;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -209,8 +210,8 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         }
 
         // check if the machine has a locked fluid
-        if (mte instanceof IFluidLockable lockable && lockable.isFluidLocked()) {
-            mGTFluidLock = lockable.getLockedFluidName();
+        if (mte instanceof IFluidLockableMui2 lockable && lockable.isFluidLocked()) {
+            mGTFluidLock = lockable.getLockedFluid().getName();
         }
 
         // check if the machine is a multi and store its settings
@@ -255,11 +256,11 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         }
 
         if (mte instanceof MTEHatchEnergyTunnel hatch) {
-            mAmperes = hatch.Amperes;
+            mAmperes = hatch.getAmperes();
         }
 
         if (mte instanceof MTEHatchDynamoTunnel dynamo) {
-            mAmperes = dynamo.Amperes;
+            mAmperes = dynamo.getAmperes();
         }
 
         if (mte instanceof IMEConnectable me && me.connectsToAllSides()) {
@@ -412,12 +413,13 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
 
             // set the output hatch mode
             if (mte instanceof MTEHatchOutput outputHatch) {
-                outputHatch.mMode = (byte) mGTMode;
+                outputHatch.setMode((byte) mGTMode);
             }
 
             // set the locked fluid
-            if (mte instanceof IFluidLockable lockable && lockable.isFluidLocked()) {
-                lockable.setLockedFluidName(mGTFluidLock);
+            if (mte instanceof IFluidLockableMui2 lockable && mGTFluidLock != null) {
+                lockable.lockFluid(true);
+                lockable.setLockedFluid(FluidRegistry.getFluid(mGTFluidLock));
             }
 
             // set the various multi options
@@ -486,11 +488,11 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             }
 
             if (mAmperes > 0 && mte instanceof MTEHatchEnergyTunnel hatch) {
-                hatch.Amperes = MMUtils.clamp(mAmperes, 0, hatch.maxAmperes);
+                hatch.setAmperes(MMUtils.clamp(mAmperes, 0, hatch.maxAmperes));
             }
 
             if (mAmperes > 0 && mte instanceof MTEHatchDynamoTunnel dynamo) {
-                dynamo.Amperes = MMUtils.clamp(mAmperes, 0, dynamo.maxAmperes);
+                dynamo.setAmperes(MMUtils.clamp(mAmperes, 0, dynamo.maxAmperes));
             }
 
             if (mte instanceof IMEConnectable me) {
@@ -624,7 +626,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     }
 
     @Override
-    public void getItemTag(NBTTagCompound tag) {
+    public void getItemTag(ItemStack stack) {
 
     }
 

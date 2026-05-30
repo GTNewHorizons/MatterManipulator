@@ -19,8 +19,11 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.util.BlockSnapshot;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.event.ForgeEventFactory;
+import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidBlock;
@@ -174,7 +177,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
         if (gt) resetGTMachine(te);
         if (eio) resetConduitBundle(te);
 
-        if (InteropConstants.WIRELESS_CONNECTOR.matches(block, meta)) resetTileColour(te);
+        if (InteropConstants.isWirelessConnector(block, meta)) resetTileColour(te);
 
         if (block instanceof IFluidBlock fluidBlock && fluidBlock.canDrain(world, x, y, z)) {
             givePlayerFluids(fluidBlock.drain(world, x, y, z, true));
@@ -430,10 +433,21 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
     /**
      * Checks if a block can be edited.
      */
-    protected boolean isEditable(World world, int x, int y, int z) {
+    protected boolean isEditable(World world, int x, int y, int z, boolean isPlacement) {
+        boolean isBlocked;
+        if (isPlacement) {
+            isBlocked = ForgeEventFactory.onPlayerBlockPlace(
+                player,
+                new BlockSnapshot(world, x, y, z, world.getBlock(x, y, z), world.getBlockMetadata(x, y, z)),
+                ForgeDirection.UNKNOWN
+            ).isCanceled();
+        } else {
+            isBlocked = MinecraftForge.EVENT_BUS
+                .post(new BlockEvent.BreakEvent(x, y, z, world, world.getBlock(x, y, z), world.getBlockMetadata(x, y, z), player));
+        }
         // if this block is protected, ignore it completely and print a warning
         // spotless:off
-        if (!world.canMineBlock(player, x, y, z) || MinecraftServer.getServer().isBlockProtected(world, x, y, z, player)) {
+        if (isBlocked || !world.canMineBlock(player, x, y, z) || MinecraftServer.getServer().isBlockProtected(world, x, y, z, player)) {
             // spotless:on
             if (!printedProtectedBlockWarning) {
                 sendWarningToPlayer(

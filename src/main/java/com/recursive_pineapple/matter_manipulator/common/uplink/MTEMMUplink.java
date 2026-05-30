@@ -13,7 +13,6 @@ import static gregtech.api.enums.Textures.BlockIcons.customOptional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -34,7 +33,6 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.enums.Materials;
-import gregtech.api.enums.StructureError;
 import gregtech.api.enums.TierEU;
 import gregtech.api.interfaces.IHatchElement;
 import gregtech.api.interfaces.IIconContainer;
@@ -54,6 +52,7 @@ import gregtech.api.structure.IStructureProvider;
 import gregtech.api.structure.StructureWrapper;
 import gregtech.api.structure.StructureWrapperInstanceInfo;
 import gregtech.api.structure.StructureWrapperTooltipBuilder;
+import gregtech.api.structure.error.StructureError;
 import gregtech.api.util.GTRecipe;
 import gregtech.api.util.GTUtility;
 import gregtech.api.util.IGTHatchAdder;
@@ -165,26 +164,9 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
     }
 
     @Override
-    public boolean checkMachine(IGregTechTileEntity iGregTechTileEntity, ItemStack itemStack) {
-        return structure.checkStructure(this);
-    }
-
-    @Override
-    protected void validateStructure(Collection<StructureError> errors, NBTTagCompound context) {
-        super.validateStructure(errors, context);
-
-        structureInstanceInfo.validate(errors, context);
-    }
-
-    @Override
-    protected void localizeStructureErrors(
-        Collection<StructureError> errors,
-        NBTTagCompound context,
-        List<String> lines
-    ) {
-        super.localizeStructureErrors(errors, context, lines);
-
-        structureInstanceInfo.localizeStructureErrors(errors, context, lines);
+    public void checkMachine(IGregTechTileEntity iGregTechTileEntity, ItemStack itemStack, List<StructureError> errors) {
+        if (!structure.checkStructure(this, errors)) return;
+        structureInstanceInfo.validate(errors);
     }
 
     private enum UplinkHatchAdder implements IHatchElement<MTEMMUplink> {
@@ -389,11 +371,6 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
     @Override
     public int getDamageToComponent(ItemStack aStack) {
         return 0;
-    }
-
-    @Override
-    public boolean explodesOnComponentBreak(ItemStack aStack) {
-        return false;
     }
 
     // #endregion

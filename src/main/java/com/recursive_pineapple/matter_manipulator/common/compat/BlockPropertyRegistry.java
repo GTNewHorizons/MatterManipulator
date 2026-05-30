@@ -35,6 +35,7 @@ import net.minecraft.block.BlockStairs;
 import net.minecraft.block.BlockTorch;
 import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -55,6 +56,7 @@ import gregtech.common.blocks.ItemMachines;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 
+import appeng.tile.networking.TileWirelessBase;
 import appeng.util.ReadableNumberConverter;
 
 import com.google.gson.JsonElement;
@@ -70,8 +72,6 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.rwtema.extrautils.block.BlockSpike;
 
-import net.bdew.ae2stuff.machines.wireless.TileWireless;
-
 import bartworks.API.enums.CircuitImprint;
 import bartworks.common.tileentities.multis.MTECircuitAssemblyLine;
 import codechicken.enderstorage.common.TileFrequencyOwner;
@@ -85,6 +85,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
+import li.cil.oc.common.tileentity.traits.Rotatable;
 import lombok.SneakyThrows;
 
 public class BlockPropertyRegistry {
@@ -265,9 +266,10 @@ public class BlockPropertyRegistry {
         if (Mods.ArchitectureCraft.isModLoaded()) initArch();
         if (Mods.FloodLights.isModLoaded()) initFloodLights();
         if (Mods.GregTech.isModLoaded()) initGT5u();
-        if (Mods.AE2Stuff.isModLoaded()) initAE2Stuff();
+        if (Mods.AppliedEnergistics2.isModLoaded()) initAE2Wireless();
         if (Mods.EnderStorage.isModLoaded()) initEnderStorage();
         if (Mods.ExtraUtilities.isModLoaded()) initEXU();
+        if (Mods.OpenComputers.isModLoaded()) initOpenComputers();
     }
 
     // #region Vanilla
@@ -1076,11 +1078,12 @@ public class BlockPropertyRegistry {
 
     // #endregion
 
-    // #region AE2 Stuff
+    // #region AE2 Wireless Connector
 
-    @Optional(Names.AE2STUFF)
-    private static void initAE2Stuff() {
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void initAE2Wireless() {
         registerIntrinsicProperty(InteropConstants.WIRELESS_CONNECTOR.get().getBlock(), new WirelessHubProperty());
+        registerIntrinsicProperty(InteropConstants.WIRELESS_HUB.get().getBlock(), new WirelessHubProperty());
     }
 
     // #endregion
@@ -1165,6 +1168,118 @@ public class BlockPropertyRegistry {
                     boolean enchanted = world.getBlockMetadata(x, y, z) >= 6;
 
                     world.setBlockMetadataWithNotify(x, y, z, (enchanted ? 6 : 0) + forgeDirection.ordinal(), 3);
+                }
+            }
+        );
+    }
+
+    // #endregion
+
+    // #region OpenComputers
+
+    @Optional(Names.OPEN_COMPUTERS)
+    private static void initOpenComputers() {
+        registerTileEntityInterfaceProperty(
+            Rotatable.class,
+            new OrientationBlockProperty() {
+
+                @Override
+                public String getName() {
+                    return "orientation";
+                }
+
+                @Override
+                public Orientation getValue(World world, int x, int y, int z) {
+                    if (!(world.getTileEntity(x, y, z) instanceof Rotatable rotatable)) return Orientation.NONE;
+
+                    return switch (rotatable.yaw()) {
+                        case NORTH -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_SOUTH;
+                            case DOWN -> Orientation.DOWN_NORTH;
+                            case NORTH -> Orientation.NORTH_UP;
+                            default -> Orientation.NONE;
+                        };
+                        case SOUTH -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_NORTH;
+                            case DOWN -> Orientation.DOWN_SOUTH;
+                            case NORTH -> Orientation.SOUTH_UP;
+                            default -> Orientation.NONE;
+                        };
+                        case WEST -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_EAST;
+                            case DOWN -> Orientation.DOWN_WEST;
+                            case NORTH -> Orientation.WEST_UP;
+                            default -> Orientation.NONE;
+                        };
+                        case EAST -> switch (rotatable.pitch()) {
+                            case UP -> Orientation.UP_WEST;
+                            case DOWN -> Orientation.DOWN_EAST;
+                            case NORTH -> Orientation.EAST_UP;
+                            default -> Orientation.NONE;
+                        };
+                        default -> Orientation.NONE;
+                    };
+                }
+
+                @Override
+                public void setValue(World world, int x, int y, int z, Orientation orientation) {
+                    if (!(world.getTileEntity(x, y, z) instanceof Rotatable rotatable)) return;
+
+                    switch (orientation) {
+                        // NORTH yaw
+                        case UP_SOUTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.NORTH);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_NORTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.NORTH);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case NORTH_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.NORTH);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        // SOUTH yaw
+                        case UP_NORTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.SOUTH);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_SOUTH -> {
+                            rotatable.yaw_$eq(ForgeDirection.SOUTH);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case SOUTH_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.SOUTH);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        // WEST yaw
+                        case UP_EAST -> {
+                            rotatable.yaw_$eq(ForgeDirection.WEST);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_WEST -> {
+                            rotatable.yaw_$eq(ForgeDirection.WEST);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case WEST_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.WEST);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        // EAST yaw
+                        case UP_WEST -> {
+                            rotatable.yaw_$eq(ForgeDirection.EAST);
+                            rotatable.pitch_$eq(ForgeDirection.UP);
+                        }
+                        case DOWN_EAST -> {
+                            rotatable.yaw_$eq(ForgeDirection.EAST);
+                            rotatable.pitch_$eq(ForgeDirection.DOWN);
+                        }
+                        case EAST_UP -> {
+                            rotatable.yaw_$eq(ForgeDirection.EAST);
+                            rotatable.pitch_$eq(ForgeDirection.NORTH);
+                        }
+                        default -> {}
+                    }
                 }
             }
         );
@@ -1375,29 +1490,30 @@ public class BlockPropertyRegistry {
 
         @Override
         public boolean hasValue(ItemStack stack) {
-            return InteropConstants.WIRELESS_CONNECTOR.matches(MMUtils.getBlockFromItem(stack.getItem(), stack.itemDamage), WILDCARD_VALUE);
+            return InteropConstants.isWirelessConnector(MMUtils.getBlockFromItem(stack.getItem(), stack.itemDamage), WILDCARD_VALUE);
         }
 
         @Override
         public boolean hasValue(IBlockAccess world, int x, int y, int z) {
-            return world.getTileEntity(x, y, z) instanceof TileWireless;
+            return world.getTileEntity(x, y, z) instanceof TileWirelessBase;
         }
 
         @Override
         public JsonElement getValue(ItemStack stack) {
-            return new JsonPrimitive(stack.itemDamage >= 17);
+            return new JsonPrimitive(InteropConstants.WIRELESS_HUB.matches(MMUtils.getBlockFromItem(stack.getItem(), stack.itemDamage), WILDCARD_VALUE));
         }
 
         @Override
         public JsonElement getValue(IBlockAccess world, int x, int y, int z) {
-            TileWireless te = (TileWireless) world.getTileEntity(x, y, z);
+            TileWirelessBase te = (TileWirelessBase) world.getTileEntity(x, y, z);
 
             return new JsonPrimitive(te.isHub());
         }
 
         @Override
         public void setValue(ItemStack stack, JsonElement value) {
-            stack.itemDamage = (stack.itemDamage % 17) + (value.getAsBoolean() ? 17 : 0);
+            Block block = value.getAsBoolean() ? InteropConstants.WIRELESS_HUB.get().getBlock() : InteropConstants.WIRELESS_CONNECTOR.get().getBlock();
+            stack.func_150996_a(Item.getItemFromBlock(block));
         }
 
         @Override

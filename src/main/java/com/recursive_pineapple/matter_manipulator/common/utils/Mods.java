@@ -15,7 +15,6 @@ import org.jetbrains.annotations.NotNull;
 public enum Mods implements IMod, ITargetMod {
 
     AE2FluidCraft(Names.AE2_FLUID_CRAFT),
-    AE2Stuff(Names.AE2STUFF),
     Angelica(Names.ANGELICA),
     AppliedEnergistics2(Names.APPLIED_ENERGISTICS2),
     ArchitectureCraft(Names.ARCHITECTURE_CRAFT),
@@ -46,6 +45,7 @@ public enum Mods implements IMod, ITargetMod {
     IndustrialCraft2(Names.INDUSTRIAL_CRAFT2),
     LogisticsPipes(Names.LOGISTICS_PIPES),
     MatterManipulator(Names.MATTER_MANIPULATOR),
+    OpenComputers(Names.OPEN_COMPUTERS),
     Minecraft(Names.MINECRAFT) {
 
         @Override
@@ -63,7 +63,6 @@ public enum Mods implements IMod, ITargetMod {
     public static class Names {
 
         public static final String AE2_FLUID_CRAFT = "ae2fc";
-        public static final String AE2STUFF = "ae2stuff";
         public static final String ANGELICA = "angelica";
         public static final String APPLIED_ENERGISTICS2 = "appliedenergistics2";
         public static final String ARCHITECTURE_CRAFT = "ArchitectureCraft";
@@ -88,6 +87,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String LOGISTICS_PIPES = "LogisticsPipes";
         public static final String MATTER_MANIPULATOR = "matter-manipulator";
         public static final String MINECRAFT = "minecraft";
+        public static final String OPEN_COMPUTERS = "OpenComputers";
         public static final String NEW_HORIZONS_CORE_MOD = "dreamcraft";
         public static final String NOT_ENOUGH_ITEMS = "NotEnoughItems";
         public static final String STORAGE_DRAWERS = "StorageDrawers";
