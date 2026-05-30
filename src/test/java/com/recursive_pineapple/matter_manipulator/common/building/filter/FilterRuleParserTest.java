@@ -348,4 +348,41 @@ class FilterRuleParserTest {
     void error_invalidMultiDirectionChar() {
         assertThrows(FilterRuleParser.ParseException.class, () -> parse("any NSWEZ is stone"));
     }
+
+    // ── isBlockNamePart character set ─────────────────────────────────────────
+
+    @Test
+    void blockNamePart_letters() {
+        assertTrue(FilterRuleParser.isBlockNamePart('a'));
+        assertTrue(FilterRuleParser.isBlockNamePart('z'));
+        assertTrue(FilterRuleParser.isBlockNamePart('A'));
+        assertTrue(FilterRuleParser.isBlockNamePart('Z'));
+    }
+
+    @Test
+    void blockNamePart_digits() {
+        assertTrue(FilterRuleParser.isBlockNamePart('0'));
+        assertTrue(FilterRuleParser.isBlockNamePart('9'));
+    }
+
+    @Test
+    void blockNamePart_allowedSpecialChars() {
+        assertTrue(FilterRuleParser.isBlockNamePart('_'));
+        assertTrue(FilterRuleParser.isBlockNamePart('-'));
+        assertTrue(FilterRuleParser.isBlockNamePart(':'));
+        assertTrue(FilterRuleParser.isBlockNamePart('.'));
+        assertTrue(FilterRuleParser.isBlockNamePart('@'));
+        assertTrue(FilterRuleParser.isBlockNamePart(';')); // regression: was incorrectly rejected
+    }
+
+    @Test
+    void blockNamePart_rejectedChars() {
+        assertFalse(FilterRuleParser.isBlockNamePart('$'));
+        assertFalse(FilterRuleParser.isBlockNamePart('!'));
+        assertFalse(FilterRuleParser.isBlockNamePart('#'));
+        assertFalse(FilterRuleParser.isBlockNamePart('('));
+        assertFalse(FilterRuleParser.isBlockNamePart(')'));
+        assertFalse(FilterRuleParser.isBlockNamePart(' '));
+        assertFalse(FilterRuleParser.isBlockNamePart(','));
+    }
 }
