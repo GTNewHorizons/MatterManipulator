@@ -19,9 +19,18 @@ import com.recursive_pineapple.matter_manipulator.common.building.filter.FilterR
  * All methods are stateless and static.
  */
 @SideOnly(Side.CLIENT)
-class FilterPreviewRenderer {
+public class FilterPreviewRenderer {
 
     // ── Preview string ─────────────────────────────────────────────────────
+
+    /**
+     * Parses a filter rule string and returns a one-line human-readable preview with localized block names.
+     */
+    public static String buildFromString(String filterText) {
+        GroupNode root = new GroupNode();
+        FilterExprTree.loadFrom(filterText, root);
+        return build(root);
+    }
 
     /**
      * Returns the one-line human-readable preview of the entire filter.

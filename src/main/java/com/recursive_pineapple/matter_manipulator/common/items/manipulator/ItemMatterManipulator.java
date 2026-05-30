@@ -91,6 +91,7 @@ import com.gtnewhorizons.modularui.common.widget.textfield.NumericWidget;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.gui.DirectionDrawable;
+import com.recursive_pineapple.matter_manipulator.client.gui.FilterPreviewRenderer;
 import com.recursive_pineapple.matter_manipulator.client.gui.GuiFilterEditor;
 import com.recursive_pineapple.matter_manipulator.client.gui.GuiSavedConfigs;
 import com.recursive_pineapple.matter_manipulator.client.gui.RadialMenuBuilder;
@@ -611,7 +612,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
 
             if (state.config.filterRule instanceof StringSerializableRule rule) {
-                addInfoLine(desc, "mm.tooltip.exchanging.filter", rule.asString());
+                addInfoLine(desc, "mm.tooltip.exchanging.filter", FilterPreviewRenderer.buildFromString(rule.asString()));
             }
 
             if (state.config.placeMode == PlaceMode.CABLES) {
