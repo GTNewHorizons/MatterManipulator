@@ -2,6 +2,7 @@ package com.recursive_pineapple.matter_manipulator.client.gui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
@@ -159,31 +160,39 @@ class FilterExprTree {
      * Serialises the tree back to a filter rule string.
      */
     static String serialize(List<ExprNode> children) {
+        return serialize(children, block -> block.isEmpty() ? "<block>" : block);
+    }
+
+    /**
+     * Serialises the tree, applying {@code blockName} to transform each block string before output.
+     * Used by the preview renderer to substitute localized display names.
+     */
+    static String serialize(List<ExprNode> children, Function<String, String> blockName) {
         StringBuilder sb = new StringBuilder();
-        appendChildren(children, sb);
+        appendChildren(children, sb, blockName);
         return sb.toString();
     }
 
-    private static void appendChildren(List<ExprNode> children, StringBuilder sb) {
+    private static void appendChildren(List<ExprNode> children, StringBuilder sb, Function<String, String> blockName) {
         for (int i = 0; i < children.size(); i++) {
             if (i > 0) {
                 sb.append(" ").append(children.get(i).conn).append(" ");
             }
-            appendNode(children.get(i), sb);
+            appendNode(children.get(i), sb, blockName);
         }
     }
 
-    private static void appendNode(ExprNode node, StringBuilder sb) {
+    private static void appendNode(ExprNode node, StringBuilder sb, Function<String, String> blockName) {
         if (node instanceof final CondNode c) {
             appendPosition(c, sb);
             sb.append(" is");
             if (c.negated) {
                 sb.append(" not");
             }
-            sb.append(" ").append(c.block.isEmpty() ? "<block>" : c.block);
+            sb.append(" ").append(blockName.apply(c.block));
         } else if (node instanceof final GroupNode g) {
             sb.append("(");
-            appendChildren(g.children, sb);
+            appendChildren(g.children, sb, blockName);
             sb.append(")");
         }
     }

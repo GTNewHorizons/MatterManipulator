@@ -27,33 +27,7 @@ class FilterPreviewRenderer {
      * Returns the one-line human-readable preview of the entire filter.
      */
     static String build(GroupNode root) {
-        StringBuilder sb = new StringBuilder();
-        appendChildren(root.children, sb);
-        return sb.toString();
-    }
-
-    private static void appendChildren(List<ExprNode> children, StringBuilder sb) {
-        for (int i = 0; i < children.size(); i++) {
-            if (i > 0) {
-                sb.append(" ").append(children.get(i).conn).append(" ");
-            }
-            appendNode(children.get(i), sb);
-        }
-    }
-
-    private static void appendNode(ExprNode node, StringBuilder sb) {
-        if (node instanceof final CondNode c) {
-            FilterExprTree.appendPosition(c, sb);
-            sb.append(" is");
-            if (c.negated) {
-                sb.append(" not");
-            }
-            sb.append(" ").append(localizedBlockName(c.block));
-        } else if (node instanceof final GroupNode g) {
-            sb.append("(");
-            appendChildren(g.children, sb);
-            sb.append(")");
-        }
+        return FilterExprTree.serialize(root.children, FilterPreviewRenderer::localizedBlockName);
     }
 
     // ── Block name lookup ──────────────────────────────────────────────────
