@@ -20,58 +20,97 @@ public final class FilterRuleParser {
         this.index = 0;
     }
 
-    public static FilterRule parse(String text) {
+    public static FilterAST parseAST(String text) {
         if (text == null || text.trim().isEmpty()) { throw new ParseException("Filter text cannot be empty"); }
 
         FilterRuleParser parser = new FilterRuleParser(text);
-        FilterRule filter = parser.parseOr();
+        FilterAST ast = parser.parseOr();
 
         parser.expect(TokenType.END, "end of filter");
 
-        return new ParsedFilterRule(text, filter);
+        return ast;
     }
 
-    private FilterRule parseOr() {
-        FilterRule result = parseAnd();
+    public static FilterRule compile(FilterAST ast) {
+        if (ast instanceof FilterAST.Condition cond) {
+            Block block = findBlock(cond.block());
+            if (block == null) { throw new ParseException("Unknown block '" + cond.block() + "'"); }
+            return new BlockEqualsFilterRule(cond.position(), block, cond.meta(), cond.negated());
+        } else if (ast instanceof FilterAST.And and) {
+            return new AndFilterRule(compile(and.left()), compile(and.right()));
+        } else if (ast instanceof FilterAST.Or or) {
+            return new OrFilterRule(compile(or.left()), compile(or.right()));
+        } else if (ast instanceof FilterAST.Not not) { return new NotFilterRule(compile(not.inner())); }
+        throw new IllegalStateException("Unknown AST node: " + ast);
+    }
+
+    public static FilterRule parse(String text) {
+        FilterAST ast = parseAST(text);
+        return new ParsedFilterRule(text, compile(ast));
+    }
+
+    private FilterAST parseOr() {
+        FilterAST result = parseAnd();
 
         while (matchWord("or")) {
-            result = new OrFilterRule(result, parseAnd());
+            result = new FilterAST.Or(result, parseAnd());
         }
 
         return result;
     }
 
-    private FilterRule parseAnd() {
-        FilterRule result = parsePrimary();
+    private FilterAST parseAnd() {
+        FilterAST result = parsePrimary();
 
         while (matchWord("and")) {
-            result = new AndFilterRule(result, parsePrimary());
+            result = new FilterAST.And(result, parsePrimary());
         }
 
         return result;
     }
 
-    private FilterRule parsePrimary() {
+    private FilterAST parsePrimary() {
         if (match(TokenType.LEFT_PAREN)) {
-            FilterRule inner = parseOr();
+            FilterAST inner = parseOr();
             expect(TokenType.RIGHT_PAREN, ")");
             return inner;
         }
 
-        if (matchWord("not")) { return new NotFilterRule(parsePrimary()); }
+        if (matchWord("not")) { return new FilterAST.Not(parsePrimary()); }
 
         return parseBlockCheck();
     }
 
-    private FilterRule parseBlockCheck() {
+    private FilterAST parseBlockCheck() {
         OffsetSet offsetSet = parseOffsetSet();
 
         expectWord("is");
 
         boolean negate = matchWord("not");
-        FilterBlockSpec blockSpec = parseBlockSpec();
 
-        return new BlockEqualsFilterRule(offsetSet, blockSpec.block, blockSpec.meta, negate);
+        Token token = expect(TokenType.WORD, "block name");
+        String raw = token.text;
+        int meta = -1;
+
+        int at = raw.indexOf('@');
+        if (at >= 0) {
+            String metaText = raw.substring(at + 1);
+            raw = raw.substring(0, at);
+
+            if (metaText.isEmpty()) { throw error("Expected metadata value after '@'"); }
+
+            try {
+                meta = Integer.parseInt(metaText);
+            } catch (NumberFormatException e) {
+                throw error("Invalid metadata '" + metaText + "'");
+            }
+        }
+
+        if (matchWord("meta")) {
+            meta = expectNumber("metadata");
+        }
+
+        return new FilterAST.Condition(offsetSet, negate, raw, meta);
     }
 
     private Offset parseOffset() {
@@ -215,38 +254,6 @@ public final class FilterRuleParser {
         }
     }
 
-    private FilterBlockSpec parseBlockSpec() {
-        Token token = expect(TokenType.WORD, "block name");
-
-        String raw = token.text;
-
-        int meta = -1; // -1 = any metadata / ignore metadata
-
-        int at = raw.indexOf('@');
-        if (at >= 0) {
-            String metaText = raw.substring(at + 1);
-            raw = raw.substring(0, at);
-
-            if (metaText.isEmpty()) { throw error("Expected metadata value after '@'"); }
-
-            try {
-                meta = Integer.parseInt(metaText);
-            } catch (NumberFormatException e) {
-                throw error("Invalid metadata '" + metaText + "'");
-            }
-        }
-
-        if (matchWord("meta")) {
-            meta = expectNumber("metadata");
-        }
-
-        Block block = findBlock(raw);
-
-        if (block == null) { throw error("Unknown block '" + token.text + "'"); }
-
-        return new FilterBlockSpec(block, meta);
-    }
-
     /**
      * Looks up a block by registry name ("modid:name" or plain "name" for minecraft namespace).
      * Returns null if the block is not registered.
@@ -258,10 +265,6 @@ public final class FilterRuleParser {
     }
 
     private static String normalizeWord(String text) {
-        return text.trim().toLowerCase().replace('-', '_');
-    }
-
-    private static String normalizeBlockName(String text) {
         return text.trim().toLowerCase().replace('-', '_');
     }
 
@@ -377,7 +380,7 @@ public final class FilterRuleParser {
         return Character.isLetter(c) || c == '_';
     }
 
-    private static boolean isBlockNamePart(char c) {
+    public static boolean isBlockNamePart(char c) {
         return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.' || c == '@' || c == ';';
     }
 
@@ -394,7 +397,7 @@ public final class FilterRuleParser {
         }
     }
 
-    enum OffsetMode {
+    public enum OffsetMode {
         SINGLE,
         ANY,
         ALL
@@ -430,17 +433,6 @@ public final class FilterRuleParser {
 
         public ParseException(String message) {
             super(message);
-        }
-    }
-
-    private static final class FilterBlockSpec {
-
-        private final Block block;
-        private final int meta;
-
-        private FilterBlockSpec(Block block, int meta) {
-            this.block = block;
-            this.meta = meta;
         }
     }
 }
