@@ -448,6 +448,7 @@ public class MMState {
 
             GTAnalysisResult gtResult = block.gt instanceof GTAnalysisResult ? (GTAnalysisResult) block.gt : new GTAnalysisResult();
             gtResult.mGTData = MMUtils.toJsonObject(proxyData);
+            gtResult.mGTGhostCircuit = 0;
             block.gt = gtResult;
 
             block.ae = null;
