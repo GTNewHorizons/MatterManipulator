@@ -387,14 +387,18 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
 
             // set the ghost circuit
             if (mte instanceof IConfigurationCircuitSupport ghostCircuit && ghostCircuit.allowSelectCircuit()) {
-                ItemStack circuit = null;
+                int circuitSlot = ghostCircuit.getCircuitSlot();
 
-                if (mGTGhostCircuit > 0) {
-                    circuit = ItemList.Circuit_Integrated.getWithDamage(0, mGTGhostCircuit);
+                if (circuitSlot >= 0 && circuitSlot < mte.getSizeInventory()) {
+                    ItemStack circuit = null;
+
+                    if (mGTGhostCircuit > 0) {
+                        circuit = ItemList.Circuit_Integrated.getWithDamage(0, mGTGhostCircuit);
+                    }
+
+                    mte.setInventorySlotContents(circuitSlot, circuit);
+                    mte.markDirty();
                 }
-
-                mte.setInventorySlotContents(ghostCircuit.getCircuitSlot(), circuit);
-                mte.markDirty();
             }
 
             // set the various input bus options
