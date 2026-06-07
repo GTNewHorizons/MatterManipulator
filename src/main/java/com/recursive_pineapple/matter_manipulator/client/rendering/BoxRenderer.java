@@ -4,16 +4,15 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.gtnewhorizon.gtnhlib.client.renderer.LocalTessellator;
-import com.gtnewhorizon.gtnhlib.client.renderer.cel.model.quad.ModelQuadViewMutable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.OpenGlHelper;
-import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.AxisAlignedBB;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.CapturingTessellator;
+import com.gtnewhorizon.gtnhlib.client.renderer.LocalTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
+import com.gtnewhorizon.gtnhlib.client.renderer.cel.model.quad.ModelQuadViewMutable;
 import com.gtnewhorizon.gtnhlib.client.renderer.shader.ShaderProgram;
 import com.gtnewhorizon.gtnhlib.client.renderer.vbo.VertexBuffer;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
@@ -155,6 +154,7 @@ public class BoxRenderer {
      * Actually draws the stored boxes.
      */
     public void finish() {
+        tes.collectQuads(collectedQuads);
         TessellatorManager.exitLocalMode();
 
         collectedQuads.sort(new QuadViewComparator());

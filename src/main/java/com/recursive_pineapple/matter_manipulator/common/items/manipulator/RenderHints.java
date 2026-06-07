@@ -1,18 +1,15 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
+import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import com.gtnewhorizon.gtnhlib.client.renderer.DirectTessellator;
-import com.gtnewhorizon.gtnhlib.client.renderer.LocalTessellator;
-import com.gtnewhorizon.gtnhlib.client.renderer.cel.model.quad.ModelQuadViewMutable;
-import io.netty.buffer.ByteBuf;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
@@ -20,7 +17,6 @@ import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.entity.Entity;
 import net.minecraft.profiler.Profiler;
 import net.minecraft.util.IIcon;
-import net.minecraft.world.World;
 
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.event.world.WorldEvent;
@@ -28,6 +24,7 @@ import net.minecraftforge.event.world.WorldEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.relauncher.Side;
 
+import com.gtnewhorizon.gtnhlib.client.renderer.LocalTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormat;
@@ -44,8 +41,6 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.SharedDrawable;
 
 import lombok.Setter;
-
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
 
 @EventBusSubscriber(side = Side.CLIENT)
 public class RenderHints {
