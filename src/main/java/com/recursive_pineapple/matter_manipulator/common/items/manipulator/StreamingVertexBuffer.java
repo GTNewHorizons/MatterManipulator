@@ -123,9 +123,7 @@ public class StreamingVertexBuffer implements AutoCloseable {
     /// since the length is the same.
     /// Reference: [Buffer Object Streaming](https://wikis.khronos.org/opengl/Buffer_Object_Streaming)
     public void reallocate() {
-        bind();
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, length, bufferFlags);
-        unbind();
     }
 
     public void allocate(
@@ -142,15 +140,14 @@ public class StreamingVertexBuffer implements AutoCloseable {
             GL15.GL_DYNAMIC_COPY,
         }) int usage
     ) {
-        bind();
 
-        this.vertexCount = vertexCount;
-        this.length = vertexCount * (long) format.getVertexSize();
-        this.bufferFlags = usage;
+        if (vertexCount > this.vertexCount) {
+            this.vertexCount = vertexCount;
+            this.length = vertexCount * (long) format.getVertexSize();
+            this.bufferFlags = usage;
 
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, this.length, this.bufferFlags);
-
-        unbind();
+            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, this.length, this.bufferFlags);
+        }
     }
 
     /// Maps the buffer into the client memory space (CPU) and returns a [ByteBuffer] wrapper for it.
@@ -167,8 +164,6 @@ public class StreamingVertexBuffer implements AutoCloseable {
     ) {
         if (mapped) throw new IllegalStateException("cannot map the same buffer twice");
 
-        bind();
-
         if (mappedBuffer != null) {
             mappedBuffer.clear();
         }
@@ -181,16 +176,12 @@ public class StreamingVertexBuffer implements AutoCloseable {
             mapped = true;
         }
 
-        unbind();
-
         return mappedBuffer;
     }
 
     @SuppressWarnings("UnusedReturnValue")
     public boolean unmap() {
         if (!mapped) throw new IllegalStateException("cannot unmap the same buffer twice");
-
-        bind();
 
         boolean valid = true;
 
@@ -207,8 +198,6 @@ public class StreamingVertexBuffer implements AutoCloseable {
         }
 
         mapped = false;
-
-        unbind();
 
         return valid;
     }
