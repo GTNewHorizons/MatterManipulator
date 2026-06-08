@@ -299,6 +299,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                     basicMachine.setMainFacing(mGTMainFacing);
                     // Stop MTEBasicMachine.doDisplayThings from overwriting the setFrontFacing call when the block is
                     // newly placed
+                    // This variable seems to have vanished, leaving it here as a comment in case something breaks
                     // basicMachine.mHasBeenUpdated = true;
                 }
 

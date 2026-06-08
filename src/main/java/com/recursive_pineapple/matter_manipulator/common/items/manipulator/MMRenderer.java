@@ -23,7 +23,6 @@ import cpw.mods.fml.common.eventhandler.EventPriority;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent.Phase;
 import cpw.mods.fml.common.gameevent.TickEvent.PlayerTickEvent;
-import cpw.mods.fml.common.gameevent.TickEvent.Type;
 import cpw.mods.fml.relauncher.Side;
 
 import com.gtnewhorizon.gtnhlib.eventbus.EventBusSubscriber;
@@ -170,7 +169,6 @@ public class MMRenderer {
     public static void checkPlayerStoppedBuilding(PlayerTickEvent event) {
         if (event.side != Side.CLIENT) return;
         if (event.phase != Phase.END) return;
-        if (event.type != Type.PLAYER) return;
 
         ItemStack inUse = event.player.getItemInUse();
 

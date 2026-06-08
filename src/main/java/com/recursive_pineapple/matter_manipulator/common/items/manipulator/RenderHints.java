@@ -32,6 +32,7 @@ import com.gtnewhorizon.gtnhlib.eventbus.EventBusSubscriber;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 
 import org.joml.Vector3d;
+import org.joml.Vector3f;
 import org.joml.Vector3i;
 import org.lwjgl.LWJGLException;
 import org.lwjgl.opengl.Display;
@@ -73,6 +74,20 @@ public class RenderHints {
     @Setter
     private static boolean drawOnTop = false;
 
+    public static void orphan() {
+        if (renderTask != null) {
+            renderTask.cancel(true);
+            renderTask = null;
+        }
+        if (activeVBO != null) {
+            activeVBO.orphan();
+        }
+        if (pendingVBO != null) {
+            pendingVBO.orphan();
+        }
+        HINTS.clear();
+    }
+
     public static void reset() {
         if (renderTask != null) {
             renderTask.cancel(true);
@@ -108,12 +123,11 @@ public class RenderHints {
     public static void onWorldLoad(WorldEvent.Load e) {
         if (e.world.isRemote) {
             reset();
+            orphan();
         }
     }
 
     private static VBOResult buildVBO(StreamingVertexBuffer vbo, ArrayList<Hint> hints, double xd, double yd, double zd, int xi, int yi, int zi) {
-        Vector3d eyes = new Vector3d(xd, yd, zd);
-
         try {
             if (!backgroundContext.isCurrent()) {
                 backgroundContext.makeCurrent();
@@ -122,7 +136,9 @@ public class RenderHints {
             throw new RuntimeException("Could not activate background GL context", e);
         }
 
-        hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x + 0.5, info.y + 0.5, info.z + 0.5)));
+        // Subtract by 0.5 because Hint stores the corner coordinates
+        final Vector3f eyes = new Vector3f((float) (xd - 0.5f), (float) (yd - 0.5f), (float) (zd - 0.5f));
+        hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x, info.y, info.z)));
 
         final VertexFormat format = VBO_FORMAT;
         final int vertexSize = format.getVertexSize();
