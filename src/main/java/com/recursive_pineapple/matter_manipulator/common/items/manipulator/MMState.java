@@ -491,7 +491,7 @@ public class MMState {
                 if (partData.mAEPatterns == null) continue;
                 if (partData.isP2P()) continue;
 
-                boolean isDual = partData.mFluidConfig != null && p2pDualIfaceStack != null;
+                boolean isDual = p2pDualIfaceStack != null && isFluidInterfaceStack(partData.mPart);
                 ItemStack replacementStack = isDual ? p2pDualIfaceStack : p2pIfaceStack;
 
                 ForgeDirection side = AEAnalysisResult.ALL_DIRECTIONS[i];
@@ -530,6 +530,12 @@ public class MMState {
     private static ItemStack getFluidP2PInterfaceStack() {
         var item = com.glodblock.github.loader.ItemAndBlockHolder.FLUID_INTERFACE_P2P;
         return item != null ? new ItemStack(item) : null;
+    }
+
+    @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
+    private static boolean isFluidInterfaceStack(PortableItemStack stack) {
+        var item = com.glodblock.github.loader.ItemAndBlockHolder.FLUID_INTERFACE;
+        return item != null && stack != null && stack.item != null && stack.getItem() == item;
     }
 
     private List<PendingBlock> getExchangeBlocks(ManipulatorTier tier, World world) {
