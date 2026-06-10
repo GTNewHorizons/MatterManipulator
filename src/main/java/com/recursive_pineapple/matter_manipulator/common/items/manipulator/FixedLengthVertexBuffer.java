@@ -19,7 +19,7 @@ public class FixedLengthVertexBuffer extends StreamingVertexBuffer {
         generate();
 
         // noinspection MagicConstant
-        setSize(this.length, this.bufferFlags);
+        setSize(this.allocatedBytes, this.bufferFlags);
     }
 
     @Override
@@ -55,11 +55,11 @@ public class FixedLengthVertexBuffer extends StreamingVertexBuffer {
             ARBBufferStorage.GL_CLIENT_STORAGE_BIT,
         }) int bufferFlags
     ) {
-        if (this.length > 0) throw new IllegalStateException("Cannot resize an immutable (fixed length) vertex buffer");
+        if (this.allocatedBytes > 0) throw new IllegalStateException("Cannot resize an immutable (fixed length) vertex buffer");
 
         bind();
 
-        this.length = length;
+        this.allocatedBytes = length;
         this.bufferFlags = bufferFlags;
         ARBBufferStorage.glBufferStorage(GL15.GL_ARRAY_BUFFER, length, bufferFlags);
 
@@ -74,7 +74,7 @@ public class FixedLengthVertexBuffer extends StreamingVertexBuffer {
 
     public void flushAll() {
         bind();
-        GL30.glFlushMappedBufferRange(GL15.GL_ARRAY_BUFFER, 0, length);
+        GL30.glFlushMappedBufferRange(GL15.GL_ARRAY_BUFFER, 0, allocatedBytes);
         unbind();
     }
 }

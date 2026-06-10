@@ -299,7 +299,8 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                     basicMachine.setMainFacing(mGTMainFacing);
                     // Stop MTEBasicMachine.doDisplayThings from overwriting the setFrontFacing call when the block is
                     // newly placed
-                    basicMachine.mHasBeenUpdated = true;
+                    // This variable seems to have vanished, leaving it here as a comment in case something breaks
+                    // basicMachine.mHasBeenUpdated = true;
                 }
 
                 basicMachine.mItemTransfer = (mGTFlags & GT_BASIC_IO_PUSH_ITEMS) != 0;

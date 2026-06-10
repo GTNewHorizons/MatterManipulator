@@ -23,11 +23,14 @@ public class StreamingVertexBuffer implements AutoCloseable {
 
     @Getter
     protected int id;
+
+    // The amount of vertices to render
     @Getter
     protected int vertexCount;
 
+    // The amount of bytes allocated in the buffer
     @Getter
-    protected long length;
+    protected long allocatedBytes;
     @Getter
     protected int bufferFlags;
 
@@ -52,6 +55,20 @@ public class StreamingVertexBuffer implements AutoCloseable {
         this.id = GL15.glGenBuffers();
     }
 
+    public boolean isAllocated() {
+        return allocatedBytes != 0;
+    }
+
+    public void orphan() {
+        if (this.isAllocated()) {
+            vertexCount = 0;
+            allocatedBytes = 0;
+            bind();
+            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, 0, bufferFlags != 0 ? bufferFlags : GL15.GL_STREAM_DRAW);
+            unbind();
+        }
+    }
+
     @Override
     public void close() {
         if (this.id > 0) {
@@ -61,7 +78,7 @@ public class StreamingVertexBuffer implements AutoCloseable {
 
             this.id = 0;
             this.vertexCount = 0;
-            this.length = 0;
+            this.allocatedBytes = 0;
         }
     }
 
@@ -123,13 +140,11 @@ public class StreamingVertexBuffer implements AutoCloseable {
     /// since the length is the same.
     /// Reference: [Buffer Object Streaming](https://wikis.khronos.org/opengl/Buffer_Object_Streaming)
     public void reallocate() {
-        bind();
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, length, bufferFlags);
-        unbind();
+        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, allocatedBytes, bufferFlags);
     }
 
     public void allocate(
-        int vertexCount,
+        int newVertexCount,
         @MagicConstant(intValues = {
             GL15.GL_STREAM_DRAW,
             GL15.GL_STREAM_READ,
@@ -142,15 +157,14 @@ public class StreamingVertexBuffer implements AutoCloseable {
             GL15.GL_DYNAMIC_COPY,
         }) int usage
     ) {
-        bind();
 
-        this.vertexCount = vertexCount;
-        this.length = vertexCount * (long) format.getVertexSize();
-        this.bufferFlags = usage;
+        if (newVertexCount != vertexCount) {
+            this.vertexCount = newVertexCount;
+            this.allocatedBytes = newVertexCount * (long) format.getVertexSize();
+            this.bufferFlags = usage;
 
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, this.length, this.bufferFlags);
-
-        unbind();
+            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, this.allocatedBytes, this.bufferFlags);
+        }
     }
 
     /// Maps the buffer into the client memory space (CPU) and returns a [ByteBuffer] wrapper for it.
@@ -167,13 +181,11 @@ public class StreamingVertexBuffer implements AutoCloseable {
     ) {
         if (mapped) throw new IllegalStateException("cannot map the same buffer twice");
 
-        bind();
-
         if (mappedBuffer != null) {
             mappedBuffer.clear();
         }
 
-        mappedBuffer = GL30.glMapBufferRange(GL15.GL_ARRAY_BUFFER, 0, length, access, mappedBuffer);
+        mappedBuffer = GL30.glMapBufferRange(GL15.GL_ARRAY_BUFFER, 0, allocatedBytes, access, mappedBuffer);
 
         if (mappedBuffer == null) {
             MMMod.LOG.error("Error mapping buffer: {}", GLU.gluErrorString(GL11.glGetError()));
@@ -181,16 +193,12 @@ public class StreamingVertexBuffer implements AutoCloseable {
             mapped = true;
         }
 
-        unbind();
-
         return mappedBuffer;
     }
 
     @SuppressWarnings("UnusedReturnValue")
     public boolean unmap() {
         if (!mapped) throw new IllegalStateException("cannot unmap the same buffer twice");
-
-        bind();
 
         boolean valid = true;
 
@@ -207,8 +215,6 @@ public class StreamingVertexBuffer implements AutoCloseable {
         }
 
         mapped = false;
-
-        unbind();
 
         return valid;
     }

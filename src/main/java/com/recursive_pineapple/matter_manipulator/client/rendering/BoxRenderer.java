@@ -1,6 +1,8 @@
 package com.recursive_pineapple.matter_manipulator.client.rendering;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.OpenGlHelper;
@@ -8,7 +10,9 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.AxisAlignedBB;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.CapturingTessellator;
+import com.gtnewhorizon.gtnhlib.client.renderer.LocalTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
+import com.gtnewhorizon.gtnhlib.client.renderer.cel.model.quad.ModelQuadViewMutable;
 import com.gtnewhorizon.gtnhlib.client.renderer.shader.ShaderProgram;
 import com.gtnewhorizon.gtnhlib.client.renderer.vbo.VertexBuffer;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
@@ -25,7 +29,7 @@ public class BoxRenderer {
     private final ShaderProgram program;
     private final int time_location;
 
-    private final VertexBuffer buffer = new VertexBuffer(DefaultVertexFormat.POSITION_COLOR_TEXTURE, GL11.GL_QUADS);
+    private final VertexBuffer buffer = new VertexBuffer(DefaultVertexFormat.POSITION_TEXTURE_COLOR, GL11.GL_QUADS);
 
     public BoxRenderer() {
         program = new ShaderProgram(
@@ -37,15 +41,15 @@ public class BoxRenderer {
         time_location = program.getUniformLocation("time");
     }
 
-    private CapturingTessellator tes;
+    private LocalTessellator tes;
+    private List<ModelQuadViewMutable> collectedQuads;
 
     /**
      * Starts rendering fancy boxes. Should only be called once per frame, to allow quad sorting.
      */
     public void start(double partialTickTime) {
-        TessellatorManager.startCapturing();
-
-        tes = (CapturingTessellator) TessellatorManager.get();
+        tes = TessellatorManager.enterLocalMode();
+        collectedQuads = new ArrayList<>();
 
         tes.startDrawing(GL11.GL_QUADS);
 
@@ -139,6 +143,8 @@ public class BoxRenderer {
         tes.addVertexWithUV(dX, 0, dZ, dZ + dX, 0);
         tes.addVertexWithUV(dX, dY, dZ, dZ + dX, dY);
         tes.addVertexWithUV(0, dY, dZ, dZ + 0, dY);
+
+        tes.collectQuads(collectedQuads);
         // spotless:on
 
         tes.restoreTranslation();
@@ -148,14 +154,12 @@ public class BoxRenderer {
      * Actually draws the stored boxes.
      */
     public void finish() {
-        final var quads = TessellatorManager.stopCapturingToPooledQuads();
+        tes.collectQuads(collectedQuads);
+        TessellatorManager.exitLocalMode();
 
-        QuadViewComparator quadSorter = new QuadViewComparator();
-        quads.sort(quadSorter);
+        collectedQuads.sort(new QuadViewComparator());
 
-        ByteBuffer bytes = CapturingTessellator.quadsToBuffer(quads, DefaultVertexFormat.POSITION_COLOR_TEXTURE);
-
-        tes.clearQuads();
+        ByteBuffer bytes = CapturingTessellator.quadsToBuffer(collectedQuads, buffer.getVertexFormat());
 
         GL11.glEnable(GL11.GL_BLEND);
         OpenGlHelper.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
@@ -165,12 +169,15 @@ public class BoxRenderer {
 
         GL20.glUniform1f(time_location, (((float) (System.currentTimeMillis() % 2500)) / 1000f));
 
-        buffer.upload(bytes);
+        buffer.uploadStream(bytes);
         buffer.render();
 
         ShaderProgram.clear();
 
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glDisable(GL11.GL_BLEND);
+
+        tes = null;
+        collectedQuads = null;
     }
 }
