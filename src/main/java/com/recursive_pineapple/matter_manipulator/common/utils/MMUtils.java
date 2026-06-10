@@ -552,7 +552,7 @@ public class MMUtils {
         map.forEach((item, amount) -> {
             while (amount > 0) {
                 int toRemove = Math
-                    .min(amount > Integer.MAX_VALUE ? Integer.MAX_VALUE : amount.intValue(), maxStackSize);
+                    .min(amount > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) amount, maxStackSize);
 
                 list.add(item.getItemStack(toRemove));
 
