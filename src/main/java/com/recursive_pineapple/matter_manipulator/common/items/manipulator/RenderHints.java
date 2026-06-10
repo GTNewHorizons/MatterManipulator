@@ -1,5 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
+import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,7 +17,6 @@ import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.entity.Entity;
 import net.minecraft.profiler.Profiler;
 import net.minecraft.util.IIcon;
-import net.minecraft.world.World;
 
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.event.world.WorldEvent;
@@ -23,6 +24,7 @@ import net.minecraftforge.event.world.WorldEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.relauncher.Side;
 
+import com.gtnewhorizon.gtnhlib.client.renderer.LocalTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormat;
@@ -30,6 +32,7 @@ import com.gtnewhorizon.gtnhlib.eventbus.EventBusSubscriber;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 
 import org.joml.Vector3d;
+import org.joml.Vector3f;
 import org.joml.Vector3i;
 import org.lwjgl.LWJGLException;
 import org.lwjgl.opengl.Display;
@@ -66,8 +69,24 @@ public class RenderHints {
     private static final ExecutorService WORKER_THREAD = Executors.newFixedThreadPool(1);
     private static Future<VBOResult> renderTask;
 
+    private static final VertexFormat VBO_FORMAT = DefaultVertexFormat.POSITION_TEXTURE_COLOR;
+
     @Setter
     private static boolean drawOnTop = false;
+
+    public static void orphan() {
+        if (renderTask != null) {
+            renderTask.cancel(true);
+            renderTask = null;
+        }
+        if (activeVBO != null) {
+            activeVBO.orphan();
+        }
+        if (pendingVBO != null) {
+            pendingVBO.orphan();
+        }
+        HINTS.clear();
+    }
 
     public static void reset() {
         if (renderTask != null) {
@@ -104,70 +123,80 @@ public class RenderHints {
     public static void onWorldLoad(WorldEvent.Load e) {
         if (e.world.isRemote) {
             reset();
+            orphan();
         }
     }
 
     private static VBOResult buildVBO(StreamingVertexBuffer vbo, ArrayList<Hint> hints, double xd, double yd, double zd, int xi, int yi, int zi) {
         try {
-            Vector3d eyes = new Vector3d(xd, yd, zd);
-
-            try {
-                if (!backgroundContext.isCurrent()) {
-                    backgroundContext.makeCurrent();
-                }
-            } catch (LWJGLException e) {
-                throw new RuntimeException("Could not activate background GL context", e);
+            if (!backgroundContext.isCurrent()) {
+                backgroundContext.makeCurrent();
             }
-
-            hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x + 0.5, info.y + 0.5, info.z + 0.5)));
-
-            Tessellator tes = TessellatorManager.startCapturingAndGet();
-
-            tes.startDrawing(GL11.GL_QUADS);
-
-            int hintCount = hints.size();
-
-            for (int i = 0; i < hintCount; i++) {
-                hints.get(i).draw(tes, xd, yd, zd, xi, yi, zi);
-            }
-
-            final var quads = TessellatorManager.stopCapturingToPooledQuads();
-
-            final VertexFormat format = DefaultVertexFormat.POSITION_TEXTURE_COLOR;
-
-            // noinspection SynchronizationOnLocalVariableOrMethodParameter
-            synchronized (vbo) {
-                vbo.allocate(quads.size() * 4, GL15.GL_STREAM_DRAW);
-
-                ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT);
-
-                buffer.rewind();
-
-                long expectedSize = (long) format.getVertexSize() * quads.size() * 4;
-
-                if (expectedSize > buffer.capacity()) {
-                    MMMod.LOG.error(
-                        "Could not upload hint VBO: Could not insert hint quads into GL buffer (expectedSize={}, buffer.capacity={})",
-                        expectedSize,
-                        buffer.capacity()
-                    );
-
-                    return new VBOResult(new Vector3i(xi, yi, zi), 0);
-                }
-
-                for (int i = 0, quadsSize = quads.size(); i < quadsSize; i++) {
-                    format.writeQuad(quads.get(i), buffer);
-                }
-
-                buffer.rewind();
-
-                vbo.unmap();
-            }
-
-            return new VBOResult(new Vector3i(xi, yi, zi), quads.size() * 4);
-        } finally {
-            TessellatorManager.cleanup();
+        } catch (LWJGLException e) {
+            throw new RuntimeException("Could not activate background GL context", e);
         }
+
+        // Subtract by 0.5 because Hint stores the corner coordinates
+        final Vector3f eyes = new Vector3f((float) (xd - 0.5f), (float) (yd - 0.5f), (float) (zd - 0.5f));
+        hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x, info.y, info.z)));
+
+        final VertexFormat format = VBO_FORMAT;
+        final int vertexSize = format.getVertexSize();
+
+        final LocalTessellator tes = TessellatorManager.enterLocalMode();
+        tes.startDrawing(GL11.GL_QUADS);
+
+        final int hintCount = hints.size();
+
+        int capacity = hintCount * 6 * 4 * format.getVertexSize();
+        final long basePtr = nmemAllocChecked(capacity);
+        long writePtr = basePtr;
+        long endPtr = writePtr + capacity;
+
+        for (int i = 0; i < hintCount; i++) {
+            hints.get(i).draw(tes, xd, yd, zd, xi, yi, zi);
+            if (writePtr + tes.getDataSize(vertexSize) > endPtr) {
+                capacity = Math.max(capacity + tes.getDataSize(vertexSize), (int) (capacity * 1.5));
+
+                writePtr = nmemReallocChecked(writePtr, capacity);
+                endPtr = writePtr + capacity;
+            }
+            writePtr = tes.writeToBuffer0(writePtr, format);
+        }
+
+        tes.exitLocalMode();
+
+        final int dataSize = (int) (writePtr - basePtr);
+        final int vertexCount = dataSize / vertexSize;
+
+        // noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (vbo) {
+            vbo.bind();
+            vbo.allocate(vertexCount, GL15.GL_STREAM_DRAW);
+
+            final ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT);
+
+            memCopy(basePtr, memAddress0(buffer), dataSize);
+
+            buffer.position(0).limit(dataSize);
+
+            nmemFree(basePtr);
+
+            if (dataSize > buffer.capacity()) {
+                MMMod.LOG.error(
+                    "Could not upload hint VBO: Could not insert hint quads into GL buffer (expectedSize={}, buffer.capacity={})",
+                    dataSize,
+                    buffer.capacity()
+                );
+
+                return new VBOResult(new Vector3i(xi, yi, zi), 0);
+            }
+
+            vbo.unmap();
+            vbo.unbind();
+        }
+
+        return new VBOResult(new Vector3i(xi, yi, zi), vertexCount);
     }
 
     @SubscribeEvent
@@ -195,11 +224,11 @@ public class RenderHints {
         Vector3d currentPos = new Vector3d(xd, yd, zd);
 
         if (activeVBO == null) {
-            activeVBO = new StreamingVertexBuffer(DefaultVertexFormat.POSITION_TEXTURE_COLOR, GL11.GL_QUADS);
+            activeVBO = new StreamingVertexBuffer(VBO_FORMAT, GL11.GL_QUADS);
         }
 
         if (pendingVBO == null) {
-            pendingVBO = new StreamingVertexBuffer(DefaultVertexFormat.POSITION_TEXTURE_COLOR, GL11.GL_QUADS);
+            pendingVBO = new StreamingVertexBuffer(VBO_FORMAT, GL11.GL_QUADS);
         }
 
         if (renderTask != null && renderTask.isDone()) {
@@ -289,11 +318,6 @@ public class RenderHints {
         ) {
             double size = 0.5;
 
-            World w = Minecraft.getMinecraft().theWorld;
-
-            int brightness = w.blockExists(x, 0, z) ? w.getLightBrightnessForSkyBlocks(x, y, z, 0) : 0;
-            tes.setBrightness(brightness);
-
             tes.setColorRGBA(tint[0], tint[1], tint[2], 150);
 
             double X = (x - eyeXint) + 0.25;
@@ -324,7 +348,6 @@ public class RenderHints {
                         case 0 -> {
                             // all these ifs is in form if ((is face unobstructed) != (is in unobstructred pass))
                             if ((worldY >= eyeY) != unobstructedPass) continue;
-                            tes.setNormal(0, -1, 0);
                             tes.addVertexWithUV(X, Y, Z, u, v);
                             tes.addVertexWithUV(X + size, Y, Z, U, v);
                             tes.addVertexWithUV(X + size, Y, Z + size, U, V);
@@ -332,7 +355,6 @@ public class RenderHints {
                         }
                         case 1 -> {
                             if ((worldY + size <= eyeY) != unobstructedPass) continue;
-                            tes.setNormal(0, 1, 0);
                             tes.addVertexWithUV(X, Y + size, Z, u, v);
                             tes.addVertexWithUV(X, Y + size, Z + size, u, V);
                             tes.addVertexWithUV(X + size, Y + size, Z + size, U, V);
@@ -340,7 +362,6 @@ public class RenderHints {
                         }
                         case 2 -> {
                             if ((worldZ >= eyeZ) != unobstructedPass) continue;
-                            tes.setNormal(0, 0, -1);
                             tes.addVertexWithUV(X, Y, Z, U, V);
                             tes.addVertexWithUV(X, Y + size, Z, U, v);
                             tes.addVertexWithUV(X + size, Y + size, Z, u, v);
@@ -348,7 +369,6 @@ public class RenderHints {
                         }
                         case 3 -> {
                             if ((worldZ + size <= eyeZ) != unobstructedPass) continue;
-                            tes.setNormal(0, 0, 1);
                             tes.addVertexWithUV(X + size, Y, Z + size, U, V);
                             tes.addVertexWithUV(X + size, Y + size, Z + size, U, v);
                             tes.addVertexWithUV(X, Y + size, Z + size, u, v);
@@ -356,7 +376,6 @@ public class RenderHints {
                         }
                         case 4 -> {
                             if ((worldX >= eyeX) != unobstructedPass) continue;
-                            tes.setNormal(-1, 0, 0);
                             tes.addVertexWithUV(X, Y, Z + size, U, V);
                             tes.addVertexWithUV(X, Y + size, Z + size, U, v);
                             tes.addVertexWithUV(X, Y + size, Z, u, v);
@@ -364,7 +383,6 @@ public class RenderHints {
                         }
                         case 5 -> {
                             if ((worldX + size <= eyeX) != unobstructedPass) continue;
-                            tes.setNormal(1, 0, 0);
                             tes.addVertexWithUV(X + size, Y, Z, U, V);
                             tes.addVertexWithUV(X + size, Y + size, Z, U, v);
                             tes.addVertexWithUV(X + size, Y + size, Z + size, u, v);
