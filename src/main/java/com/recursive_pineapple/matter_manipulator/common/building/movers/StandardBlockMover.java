@@ -29,7 +29,7 @@ public class StandardBlockMover implements BlockMover<StandardBlock> {
             te.writeToNBT(tag);
         }
 
-        world.setTileEntity(x, y, z, null);
+        world.removeTileEntity(x, y, z);
         world.setBlockToAir(x, y, z);
 
         return new StandardBlock(block, meta, tag);
