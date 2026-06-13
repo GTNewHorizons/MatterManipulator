@@ -505,6 +505,12 @@ public class MMInventory implements IPseudoInventory {
                     if (!MMUtils.areStacksBasicallyEqual(reqStack, slot)) continue;
                 }
 
+                if (slot.stackSize == 111) {
+                    extractedItems.add(BigItemStack.create(slot).setStackSize(req.getStackSize()));
+                    req.setStackSize(0);
+                    continue;
+                }
+
                 int toRemove = Math.min(slot.stackSize, reqStack.stackSize);
 
                 req.decStackSize(toRemove);
