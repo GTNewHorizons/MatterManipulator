@@ -3,8 +3,10 @@ package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
 
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,88 +21,116 @@ import net.minecraft.profiler.Profiler;
 import net.minecraft.util.IIcon;
 
 import net.minecraftforge.client.event.RenderWorldLastEvent;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.world.WorldEvent;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import cpw.mods.fml.relauncher.Side;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.LocalTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormat;
-import com.gtnewhorizon.gtnhlib.eventbus.EventBusSubscriber;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 
 import org.joml.Vector3d;
-import org.joml.Vector3f;
 import org.joml.Vector3i;
-import org.lwjgl.LWJGLException;
-import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.SharedDrawable;
 
-import lombok.Setter;
-
-@EventBusSubscriber(side = Side.CLIENT)
 public class RenderHints {
 
-    /// The latest list of hints. This is not sorted in any way and can only be accessed by the main thread.
-    private static final ArrayList<Hint> HINTS = new ArrayList<>(10000);
-
-    /// The list of hints that was sent to the worker thread. This field is modified by the main thread but the list
-    /// itself is modified by the worker thread. This is an optimization because the list from the prior position is
-    /// almost certainly nearly-sorted, which should reduce the number of comparisons significantly.
-    private static ArrayList<Hint> drawnHints = null;
-
-    private static final Vector3d LAST_PLAYER_POSITION = new Vector3d();
-    private static final Vector3i LAST_RENDERED_PLAYER_POSITION = new Vector3i();
-
-    private static boolean vboNeedsRebuild = false;
-    /// The VBO that's being used for rendering
-    private static StreamingVertexBuffer activeVBO;
-    /// The VBO that's being written to by the worker thread (or is idle)
-    private static StreamingVertexBuffer pendingVBO;
-
-    /// An opengl context that's active on the background thread and is used for writing to the pending VBO.
-    private static SharedDrawable backgroundContext;
-
-    private static final ExecutorService WORKER_THREAD = Executors.newFixedThreadPool(1);
-    private static Future<VBOResult> renderTask;
+    public static final RenderHints INSTANCE = new RenderHints();
 
     private static final VertexFormat VBO_FORMAT = DefaultVertexFormat.POSITION_TEXTURE_COLOR;
 
-    @Setter
-    private static boolean drawOnTop = false;
+    private static class RenderState {
 
-    public static void orphan() {
-        if (renderTask != null) {
-            renderTask.cancel(true);
-            renderTask = null;
+        public final ArrayList<Hint> hints;
+        public long expiration;
+        public boolean depthTest = false;
+
+        public RenderState(ArrayList<Hint> hints) {
+            this.hints = hints;
         }
-        if (activeVBO != null) {
-            activeVBO.orphan();
-        }
-        if (pendingVBO != null) {
-            pendingVBO.orphan();
-        }
-        HINTS.clear();
     }
 
-    public static void reset() {
-        if (renderTask != null) {
-            renderTask.cancel(true);
-            renderTask = null;
-        }
+    private static class TessellationResult {
 
-        HINTS.clear();
-        drawnHints = null;
+        public Vector3i vboOffset;
+        public long dataPtr;
+        public int dataSize;
+
+        public TessellationResult(Vector3i vboOffset, long dataPtr, int dataSize) {
+            this.vboOffset = vboOffset;
+            this.dataPtr = dataPtr;
+            this.dataSize = dataSize;
+        }
+    }
+
+    /// The most recent batch of hints. This is not used by the renderer, and it must be flushed by calling [#finish()].
+    /// This must only be accessed by the client thread.
+    private RenderState pending = null;
+
+    /// The latest batch of hints. This is not sorted in any way and can only be accessed by the client thread.
+    /// The contents of this object's hint list can only be accessed by the worker thread, but the list reference itself
+    /// and the RenderState object can only be accessed by the client. The worker thread receives a reference to the
+    /// hint list, but this field can be replaced arbitrarily.
+    private RenderState hints = null;
+
+    /// The player position for the most recent buffer. If the player moves too far, it will cause the quads to be
+    /// re-sorted.
+    private final Vector3i lastPlayerPosition = new Vector3i();
+
+    /// True when the hints have changed and the VBO needs to be rebuilt from scratch
+    private boolean vboNeedsRebuild = false;
+
+    private final ExecutorService workerThread = Executors.newFixedThreadPool(1);
+    private Future<TessellationResult> buildTask;
+
+    private TessellationResult lastResult;
+    private StreamingVertexBuffer vbo;
+
+    public RenderHints() {
+        MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    public void start() {
+        pending = new RenderState(new ArrayList<>());
+    }
+
+    public void setDepthTest(boolean depthTest) {
+        pending.depthTest = depthTest;
+    }
+
+    public void setExpiry(Duration duration) {
+        pending.expiration = System.currentTimeMillis() + duration.toMillis();
+    }
+
+    public void finish() {
+        hints = pending;
+        pending = null;
 
         vboNeedsRebuild = true;
     }
 
-    public static void addHint(int x, int y, int z, Block block, int meta, short[] tint) {
+    public void reset() {
+        if (buildTask != null) {
+            buildTask.cancel(true);
+            buildTask = null;
+        }
+
+        pending = null;
+        hints = null;
+
+        vboNeedsRebuild = false;
+
+        if (vbo != null) {
+            vbo.orphan();
+        }
+    }
+
+    public void addHint(int x, int y, int z, Block block, int meta, short[] tint) {
         Hint hint = new Hint();
 
         hint.x = x;
@@ -113,31 +143,17 @@ public class RenderHints {
             hint.icons[i] = block.getIcon(i, meta);
         }
 
-        HINTS.add(hint);
-
-        // Invalidate the cached sort results
-        drawnHints = null;
+        pending.hints.add(hint);
     }
 
     @SubscribeEvent
-    public static void onWorldLoad(WorldEvent.Load e) {
+    public void onWorldLoad(WorldEvent.Load e) {
         if (e.world.isRemote) {
             reset();
-            orphan();
         }
     }
 
-    private static VBOResult buildVBO(StreamingVertexBuffer vbo, ArrayList<Hint> hints, double xd, double yd, double zd, int xi, int yi, int zi) {
-        try {
-            if (!backgroundContext.isCurrent()) {
-                backgroundContext.makeCurrent();
-            }
-        } catch (LWJGLException e) {
-            throw new RuntimeException("Could not activate background GL context", e);
-        }
-
-        // Subtract by 0.5 because Hint stores the corner coordinates
-        final Vector3f eyes = new Vector3f((float) (xd - 0.5f), (float) (yd - 0.5f), (float) (zd - 0.5f));
+    private TessellationResult buildVBO(ArrayList<Hint> hints, Vector3d eyes, Vector3i worldPos) {
         hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x, info.y, info.z)));
 
         final VertexFormat format = VBO_FORMAT;
@@ -149,67 +165,43 @@ public class RenderHints {
         final int hintCount = hints.size();
 
         int capacity = hintCount * 6 * 4 * format.getVertexSize();
-        final long basePtr = nmemAllocChecked(capacity);
+        final int quadSize = tes.getDataSize(vertexSize);
+
+        long basePtr = nmemAllocChecked(capacity);
         long writePtr = basePtr;
         long endPtr = writePtr + capacity;
 
         for (int i = 0; i < hintCount; i++) {
-            hints.get(i).draw(tes, xd, yd, zd, xi, yi, zi);
-            if (writePtr + tes.getDataSize(vertexSize) > endPtr) {
-                capacity = Math.max(capacity + tes.getDataSize(vertexSize), (int) (capacity * 1.5));
+            hints.get(i).draw(tes, eyes.x, eyes.y, eyes.z, worldPos.x, worldPos.y, worldPos.z);
 
-                writePtr = nmemReallocChecked(writePtr, capacity);
+            if (writePtr + quadSize > endPtr) {
+                capacity = Math.max(capacity + quadSize, (int) (capacity * 1.5));
+
+                long offset = writePtr - basePtr;
+
+                basePtr = nmemReallocChecked(basePtr, capacity);
+
+                writePtr = basePtr + offset;
                 endPtr = writePtr + capacity;
             }
+
             writePtr = tes.writeToBuffer0(writePtr, format);
         }
 
         tes.exitLocalMode();
 
         final int dataSize = (int) (writePtr - basePtr);
-        final int vertexCount = dataSize / vertexSize;
 
-        // noinspection SynchronizationOnLocalVariableOrMethodParameter
-        synchronized (vbo) {
-            vbo.bind();
-            vbo.allocate(vertexCount, GL15.GL_STREAM_DRAW);
-
-            final ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT);
-
-            memCopy(basePtr, memAddress0(buffer), dataSize);
-
-            buffer.position(0).limit(dataSize);
-
-            nmemFree(basePtr);
-
-            if (dataSize > buffer.capacity()) {
-                MMMod.LOG.error(
-                    "Could not upload hint VBO: Could not insert hint quads into GL buffer (expectedSize={}, buffer.capacity={})",
-                    dataSize,
-                    buffer.capacity()
-                );
-
-                return new VBOResult(new Vector3i(xi, yi, zi), 0);
-            }
-
-            vbo.unmap();
-            vbo.unbind();
-        }
-
-        return new VBOResult(new Vector3i(xi, yi, zi), vertexCount);
+        return new TessellationResult(new Vector3i(worldPos), basePtr, dataSize);
     }
 
     @SubscribeEvent
-    public static void onRenderWorldLast(RenderWorldLastEvent e) {
-        if (HINTS.isEmpty()) return;
-
-        if (backgroundContext == null) {
-            try {
-                backgroundContext = new SharedDrawable(Display.getDrawable());
-            } catch (LWJGLException ex) {
-                throw new RuntimeException("Could not initialized background SharedDrawable", ex);
-            }
+    public void onRenderWorldLast(RenderWorldLastEvent e) {
+        if (hints != null && hints.expiration > 0 && System.currentTimeMillis() >= hints.expiration) {
+            hints = null;
         }
+
+        if (hints == null || hints.hints.isEmpty()) return;
 
         Profiler p = Minecraft.getMinecraft().mcProfiler;
 
@@ -219,52 +211,17 @@ public class RenderHints {
         double xd = player.lastTickPosX + (player.posX - player.lastTickPosX) * e.partialTicks;
         double yd = player.lastTickPosY + (player.posY - player.lastTickPosY) * e.partialTicks;
         double zd = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * e.partialTicks;
-        int xi = (int) xd, yi = (int) yd, zi = (int) zd;
 
-        Vector3d currentPos = new Vector3d(xd, yd, zd);
+        Vector3i worldPos = new Vector3i((int) xd, (int) yd, (int) zd);
 
-        if (activeVBO == null) {
-            activeVBO = new StreamingVertexBuffer(VBO_FORMAT, GL11.GL_QUADS);
+        // Subtract by 0.5 because Hint stores the corner coordinates
+        final Vector3d eyes = new Vector3d(xd - 0.5f, yd - 0.5f, zd - 0.5f);
+
+        if (vbo == null) {
+            vbo = new StreamingVertexBuffer(VBO_FORMAT, GL11.GL_QUADS);
         }
 
-        if (pendingVBO == null) {
-            pendingVBO = new StreamingVertexBuffer(VBO_FORMAT, GL11.GL_QUADS);
-        }
-
-        if (renderTask != null && renderTask.isDone()) {
-            VBOResult result = null;
-
-            try {
-                result = renderTask.get();
-            } catch (InterruptedException | ExecutionException ex) {
-                MMMod.LOG.error("Could not assemble render hint quads", ex);
-            }
-
-            renderTask = null;
-
-            if (result != null) {
-                LAST_RENDERED_PLAYER_POSITION.set(result.playerPosition);
-
-                StreamingVertexBuffer temp = activeVBO;
-                activeVBO = pendingVBO;
-                pendingVBO = temp;
-            }
-        }
-
-        if (renderTask == null && (vboNeedsRebuild || currentPos.distance(LAST_PLAYER_POSITION) > 1.0)) {
-            LAST_PLAYER_POSITION.set(currentPos);
-            vboNeedsRebuild = false;
-
-            // If the hint list has changed, re-copy them into the drawnHints list so that the worker thread can sort
-            // them.
-            if (drawnHints == null) {
-                drawnHints = new ArrayList<>(HINTS);
-            }
-
-            renderTask = WORKER_THREAD.submit(() -> buildVBO(pendingVBO, drawnHints, xd, yd, zd, xi, yi, zi));
-        }
-
-        if (activeVBO.getVertexCount() > 0) {
+        if (vbo.getVertexCount() > 0) {
             p.startSection("Draw MM Hints");
 
             GL11.glPushMatrix();
@@ -272,7 +229,8 @@ public class RenderHints {
 
             Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.locationBlocksTexture);
 
-            GL11.glTranslated(-xd + LAST_RENDERED_PLAYER_POSITION.x, -yd + LAST_RENDERED_PLAYER_POSITION.y, -zd + LAST_RENDERED_PLAYER_POSITION.z);
+            // vboOffset is the integer player pos at build time; translate by how much the player has drifted since
+            GL11.glTranslated(lastResult.vboOffset.x - xd, lastResult.vboOffset.y - yd, lastResult.vboOffset.z - zd);
 
             // we need the back facing rendered because the thing is transparent
             GL11.glDisable(GL11.GL_CULL_FACE);
@@ -280,22 +238,56 @@ public class RenderHints {
             GL11.glEnable(GL11.GL_BLEND); // enable blend so it is transparent
             GL11.glBlendFunc(GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_SRC_ALPHA);
 
-            if (drawOnTop) {
+            if (!hints.depthTest) {
                 GL11.glDisable(GL11.GL_DEPTH_TEST);
             } else {
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
             }
 
-            // noinspection SynchronizeOnNonFinalField
-            synchronized (activeVBO) {
-                // There aren't any frames in flight, so we can re-use this buffer on the next frame without issue
-                activeVBO.render();
-            }
+            vbo.render();
 
             GL11.glPopAttrib();
             GL11.glPopMatrix();
 
             p.endSection();
+        }
+
+        if (buildTask != null && buildTask.isDone()) {
+            lastResult = null;
+
+            try {
+                lastResult = buildTask.get();
+            } catch (InterruptedException | ExecutionException | CancellationException ex) {
+                MMMod.LOG.error("Could not assemble render hint quads", ex);
+            }
+
+            buildTask = null;
+
+            if (lastResult != null) {
+                lastPlayerPosition.set(lastResult.vboOffset);
+
+                final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
+                vbo.allocate(vertexCount, GL15.GL_STREAM_DRAW);
+                final ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT | GL30.GL_MAP_INVALIDATE_BUFFER_BIT);
+
+                if (buffer == null) {
+                    MMMod.LOG.error(
+                        "Could not upload hint VBO: glMapBufferRange returned null (vertexCount={})",
+                        vertexCount
+                    );
+                } else {
+                    memCopy(lastResult.dataPtr, memAddress0(buffer), lastResult.dataSize);
+                    vbo.unmap();
+                }
+
+                nmemFree(lastResult.dataPtr);
+            }
+        }
+
+        if (buildTask == null && (vboNeedsRebuild || worldPos.distance(lastPlayerPosition) > 1.0)) {
+            vboNeedsRebuild = false;
+
+            buildTask = workerThread.submit(() -> buildVBO(this.hints.hints, eyes, worldPos));
         }
 
         p.endSection();
@@ -391,17 +383,6 @@ public class RenderHints {
                     }
                 }
             }
-        }
-    }
-
-    private static class VBOResult {
-
-        public Vector3i playerPosition;
-        public int vertexCount;
-
-        public VBOResult(Vector3i playerPosition, int vertexCount) {
-            this.playerPosition = playerPosition;
-            this.vertexCount = vertexCount;
         }
     }
 }

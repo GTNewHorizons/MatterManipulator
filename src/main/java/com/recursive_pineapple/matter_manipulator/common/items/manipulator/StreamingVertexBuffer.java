@@ -140,7 +140,13 @@ public class StreamingVertexBuffer implements AutoCloseable {
     /// since the length is the same.
     /// Reference: [Buffer Object Streaming](https://wikis.khronos.org/opengl/Buffer_Object_Streaming)
     public void reallocate() {
+        bind();
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, allocatedBytes, bufferFlags);
+        unbind();
+    }
+
+    public void clear() {
+        this.vertexCount = 0;
     }
 
     public void allocate(
@@ -163,14 +169,16 @@ public class StreamingVertexBuffer implements AutoCloseable {
             this.allocatedBytes = newVertexCount * (long) format.getVertexSize();
             this.bufferFlags = usage;
 
+            bind();
             GL15.glBufferData(GL15.GL_ARRAY_BUFFER, this.allocatedBytes, this.bufferFlags);
+            unbind();
         }
     }
 
     /// Maps the buffer into the client memory space (CPU) and returns a [ByteBuffer] wrapper for it.
     /// @param access See [glMapBufferRange](https://docs.gl/es3/glMapBufferRange) for more info.
     public ByteBuffer map(
-        @MagicConstant(intValues = {
+        @MagicConstant(flags = {
             GL30.GL_MAP_READ_BIT,
             GL30.GL_MAP_WRITE_BIT,
             GL30.GL_MAP_INVALIDATE_RANGE_BIT,
@@ -180,6 +188,8 @@ public class StreamingVertexBuffer implements AutoCloseable {
         }) int access
     ) {
         if (mapped) throw new IllegalStateException("cannot map the same buffer twice");
+
+        bind();
 
         if (mappedBuffer != null) {
             mappedBuffer.clear();
@@ -193,12 +203,16 @@ public class StreamingVertexBuffer implements AutoCloseable {
             mapped = true;
         }
 
+        unbind();
+
         return mappedBuffer;
     }
 
     @SuppressWarnings("UnusedReturnValue")
     public boolean unmap() {
         if (!mapped) throw new IllegalStateException("cannot unmap the same buffer twice");
+
+        bind();
 
         boolean valid = true;
 
@@ -215,6 +229,8 @@ public class StreamingVertexBuffer implements AutoCloseable {
         }
 
         mapped = false;
+
+        unbind();
 
         return valid;
     }
