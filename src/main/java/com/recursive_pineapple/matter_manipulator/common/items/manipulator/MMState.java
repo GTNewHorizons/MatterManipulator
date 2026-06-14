@@ -736,12 +736,15 @@ public class MMState {
 
                     if (InteropConstants.AE_BLOCK_CABLE.matches(world.getBlock(x, y, z), 0)) {
                         ae = AEAnalysisResult.analyze(world.getTileEntity(voxel.x, voxel.y, voxel.z));
-                        ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = new AEPartData(cable);
                     } else {
                         ae = new AEAnalysisResult();
-                        ae.mAEParts = new AEPartData[7];
-                        ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = new AEPartData(cable);
                     }
+
+                    if (ae.mAEParts == null) {
+                        ae.mAEParts = new AEPartData[7];
+                    }
+
+                    ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = new AEPartData(cable);
 
                     PendingBlock pendingBlock = cableSpec.instantiate(world, x, y, z);
 
