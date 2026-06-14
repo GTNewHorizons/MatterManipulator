@@ -265,7 +265,7 @@ public class RenderHints {
 
             if (lastResult != null) {
                 final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
-                vbo.allocate(vertexCount, GL15.GL_STREAM_DRAW);
+                vbo.allocate(vertexCount, GL15.GL_DYNAMIC_DRAW);
                 final ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT | GL30.GL_MAP_INVALIDATE_BUFFER_BIT);
 
                 if (buffer == null) {
