@@ -23,7 +23,7 @@ public class FMPBlockMover implements BlockMover<FMPBlock> {
         int meta = world.getBlockMetadata(x, y, z);
         TileMultipart te = (TileMultipart) world.getTileEntity(x, y, z);
 
-        world.setTileEntity(x, y, z, null);
+        world.removeTileEntity(x, y, z);
         world.setBlockToAir(x, y, z);
 
         return new FMPBlock(block, meta, te);
