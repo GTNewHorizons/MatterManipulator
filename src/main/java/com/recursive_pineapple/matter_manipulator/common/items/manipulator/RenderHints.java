@@ -264,8 +264,6 @@ public class RenderHints {
             buildTask = null;
 
             if (lastResult != null) {
-                lastPlayerPosition.set(lastResult.vboOffset);
-
                 final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
                 vbo.allocate(vertexCount, GL15.GL_STREAM_DRAW);
                 final ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT | GL30.GL_MAP_INVALIDATE_BUFFER_BIT);
@@ -285,6 +283,7 @@ public class RenderHints {
         }
 
         if (buildTask == null && (vboNeedsRebuild || worldPos.distance(lastPlayerPosition) > 1.0)) {
+            lastPlayerPosition.set(worldPos);
             vboNeedsRebuild = false;
 
             buildTask = workerThread.submit(() -> buildVBO(this.hints.hints, eyes, worldPos));
