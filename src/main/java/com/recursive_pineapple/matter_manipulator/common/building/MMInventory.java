@@ -266,7 +266,7 @@ public class MMInventory implements IPseudoInventory {
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void injectItemsIntoAE(BigItemStack stack) {
         IAEItemStack result = state.storageGrid.getItemInventory()
-            .injectItems(stack.getAEItemStack(), Actionable.MODULATE, new PlayerSource(player, state.securityTerminal));
+            .injectItems(stack.getAEItemStack(), Actionable.MODULATE, new PlayerSource(player, state.actionHost));
 
         stack.setStackSize(result != null ? result.getStackSize() : 0);
     }
@@ -326,7 +326,7 @@ public class MMInventory implements IPseudoInventory {
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void injectFluidsIntoAE(BigFluidStack stack) {
         IAEFluidStack result = state.storageGrid.getFluidInventory()
-            .injectItems(stack.getAEFluidStack(), Actionable.MODULATE, new PlayerSource(player, state.securityTerminal));
+            .injectItems(stack.getAEFluidStack(), Actionable.MODULATE, new PlayerSource(player, state.actionHost));
 
         stack.setStackSize(result != null ? result.getStackSize() : 0);
     }
@@ -564,7 +564,7 @@ public class MMInventory implements IPseudoInventory {
                 IAEItemStack result = state.itemStorage.extractItems(
                     match,
                     simulate ? Actionable.SIMULATE : Actionable.MODULATE,
-                    new PlayerSource(player, state.securityTerminal)
+                    new PlayerSource(player, state.actionHost)
                 );
 
                 if (result != null) {

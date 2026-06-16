@@ -35,6 +35,7 @@ import appeng.api.implementations.tiles.IWirelessAccessPoint;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.energy.IEnergyGrid;
+import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.security.ISecurityGrid;
 import appeng.api.networking.storage.IStorageGrid;
 import appeng.api.parts.IPartItem;
@@ -109,7 +110,7 @@ public class MMState {
     public transient ItemMatterManipulator manipulator;
 
     @Optional(Names.APPLIED_ENERGISTICS2)
-    public transient TileSecurity securityTerminal;
+    public transient IActionHost actionHost;
     @Optional(Names.APPLIED_ENERGISTICS2)
     public transient IGridNode gridNode;
     @Optional(Names.APPLIED_ENERGISTICS2)
@@ -203,7 +204,7 @@ public class MMState {
     public boolean hasMEConnection() {
         if (!AppliedEnergistics2.isModLoaded()) return false;
 
-        return encKey != null && securityTerminal != null && gridNode != null && grid != null && storageGrid != null && itemStorage != null;
+        return encKey != null && actionHost != null && gridNode != null && grid != null && storageGrid != null && itemStorage != null;
     }
 
     /**
@@ -223,8 +224,18 @@ public class MMState {
             .getLocatableBy(encKey);
 
         if (grid instanceof TileSecurity security) {
-            this.securityTerminal = security;
+            this.actionHost = security;
             this.gridNode = security.getGridNode(ForgeDirection.UNKNOWN);
+            if (this.gridNode != null) {
+                this.grid = this.gridNode.getGrid();
+                this.storageGrid = this.grid.getCache(IStorageGrid.class);
+                if (this.storageGrid != null) {
+                    this.itemStorage = this.storageGrid.getItemInventory();
+                }
+            }
+        } else if (grid instanceof TileWireless wireless) {
+            this.actionHost = wireless;
+            this.gridNode = wireless.getGridNode(ForgeDirection.UNKNOWN);
             if (this.gridNode != null) {
                 this.grid = this.gridNode.getGrid();
                 this.storageGrid = this.grid.getCache(IStorageGrid.class);
