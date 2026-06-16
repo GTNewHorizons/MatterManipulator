@@ -36,59 +36,41 @@
 
 def asmVersion = "9.7"
 
+// Make sure these are false before committing
+def arch = false
+def ae2 = false
+def carpenters = false
+def avaritia = false
+def eio = false
+def fl = false
+def xu = false
+def fmp = false
+def gt5u = false
+def ic2 = false
+def oc = false
+def tc = false
+def waila = false
+
+def all = false
+
 dependencies {
     implementation("com.github.GTNewHorizons:StructureLib:1.4.38:dev")
     implementation("com.github.GTNewHorizons:ModularUI:1.3.4:dev")
     implementation("com.github.GTNewHorizons:ModularUI2:2.3.74-1.7.10:dev")
-    implementation("com.github.GTNewHorizons:GTNHLib:0.11.15:dev")
+    implementation("com.github.GTNewHorizons:GTNHLib:0.11.16:dev")
 
     api("org.joml:joml:1.10.8")
     api("it.unimi.dsi:fastutil:8.5.18")
 
-    compileOnly("com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.91-gtnh:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-982-GTNH:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:ArchitectureCraft:1.12.13") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:CarpentersBlocks:3.7.2-GTNH") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:Avaritia:1.97:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:Avaritiaddons:1.9.4-GTNH:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:BloodMagic:1.9.4:dev") { transitive = false }
-    compileOnly("curse.maven:cofh-lib-220333:2388748") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:EnderIO:2.10.31:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:EnderStorage:1.8.3:dev") { transitive = false }
-    compileOnly(rfg.deobf("curse.maven:extra-utilities-225561:2264384"))
-    compileOnly("com.github.GTNewHorizons:FloodLights:1.5.6:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:ForgeMultipart:1.7.10:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.601:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:Hodgepodge:2.7.162:dev") { transitive = false }
-    compileOnly("net.industrial-craft:industrialcraft-2:2.2.828-experimental:dev") { transitive = false }
-    compileOnly("curse.maven:mekanism-268560:2475797") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:NotEnoughItems:2.8.102-GTNH:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:OpenComputers:1.12.45-GTNH:dev") { transitive = false }
-    compileOnly("thaumcraft:Thaumcraft:1.7.10-4.2.3.5:dev") { transitive = false }
-    compileOnly("com.github.GTNewHorizons:waila:1.19.30:dev") { transitive = false }
+    devOnlyNonPublishable("com.github.GTNewHorizons:Hodgepodge:2.7.162:dev")
+    devOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.8.103-GTNH:dev")
 
-    compileOnly rfg.deobf("maven.modrinth:immibis-microblocks:59.1.2")
-    compileOnly rfg.deobf("maven.modrinth:immibis-core:59.1.4")
-
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:ArchitectureCraft:1.12.13")
     runtimeOnlyNonPublishable('com.github.GTNewHorizons:Angelica:2.1.36:dev')
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-982-GTNH:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Avaritia:1.97:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Avaritiaddons:1.9.4-GTNH:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:DuraDisplay:1.4.2:dev")
-//    runtimeOnlyNonPublishable('com.github.GTNewHorizons:EnderIO:2.10.31:dev')
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:EnderStorage:1.8.3:dev")
-    runtimeOnlyNonPublishable(rfg.deobf("curse.maven:extra-utilities-225561:2264384"))
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.601:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:FloodLights:1.5.6:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:ForgeMultipart:1.7.10:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Hodgepodge:2.7.162:dev")
-    runtimeOnlyNonPublishable("net.industrial-craft:industrialcraft-2:2.2.828-experimental:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.8.102-GTNH:dev")
-    runtimeOnlyNonPublishable("thaumcraft:Thaumcraft:1.7.10-4.2.3.5:dev") { transitive = false }
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:WanionLib:1.10.1:dev")
 
-    compileOnly("com.google.auto.value:auto-value-annotations:1.10.1") { transitive = false }
+    compileOnly("com.github.GTNewHorizons:BloodMagic:1.9.4:dev")
+
+    compileOnly("com.google.auto.value:auto-value-annotations:1.10.1")
     annotationProcessor("com.google.auto.value:auto-value:1.10.1")
 
     compileOnly('org.projectlombok:lombok:1.18.34')
@@ -101,6 +83,49 @@ dependencies {
     testImplementation('org.junit.jupiter:junit-jupiter')
     testImplementation('org.junit.platform:junit-platform-engine')
     testImplementation('org.junit.platform:junit-platform-launcher')
+
+    def addCompat = {
+        enabled, spec -> {
+            compileOnly(spec);
+
+            if (enabled || all) {
+                runtimeOnly(spec);
+            }
+        }
+    };
+
+    addCompat(ae2, "com.github.GTNewHorizons:WanionLib:1.10.1:dev")
+    addCompat(ae2, "com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.91-gtnh:dev")
+    addCompat(ae2, "com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-982-GTNH:dev")
+
+    addCompat(arch, "com.github.GTNewHorizons:ArchitectureCraft:1.12.13")
+    addCompat(carpenters, "com.github.GTNewHorizons:CarpentersBlocks:3.7.2-GTNH")
+
+    addCompat(avaritia, "com.github.GTNewHorizons:Avaritia:1.97:dev")
+    addCompat(avaritia, "com.github.GTNewHorizons:Avaritiaddons:1.9.4-GTNH:dev")
+
+    compileOnly("curse.maven:mekanism-268560:2475797") { transitive = false }
+    addCompat(eio, "curse.maven:cofh-lib-220333:2388748")
+    addCompat(eio, "com.github.GTNewHorizons:EnderIO:2.10.31:dev")
+    addCompat(eio, "com.github.GTNewHorizons:EnderStorage:1.8.3:dev")
+
+    addCompat(xu, rfg.deobf("curse.maven:extra-utilities-225561:2264384"))
+
+    addCompat(fl, "com.github.GTNewHorizons:FloodLights:1.5.6:dev")
+
+    addCompat(fmp, rfg.deobf("maven.modrinth:immibis-microblocks:59.1.2"))
+    addCompat(fmp, rfg.deobf("maven.modrinth:immibis-core:59.1.4"))
+    addCompat(fmp, "com.github.GTNewHorizons:ForgeMultipart:1.7.10:dev")
+
+    addCompat(gt5u, "com.github.GTNewHorizons:GT5-Unofficial:5.09.52.606:dev")
+
+    addCompat(ic2, "net.industrial-craft:industrialcraft-2:2.2.828-experimental:dev")
+
+    addCompat(oc, "com.github.GTNewHorizons:OpenComputers:1.12.46-GTNH:dev")
+
+    addCompat(tc, "thaumcraft:Thaumcraft:1.7.10-4.2.3.5:dev")
+
+    addCompat(waila, "com.github.GTNewHorizons:waila:1.19.30:dev")
 }
 
 // deps may transitively add Baubles, so we replace it

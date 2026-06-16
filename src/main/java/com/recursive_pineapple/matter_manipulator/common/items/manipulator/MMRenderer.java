@@ -160,7 +160,7 @@ public class MMRenderer {
         needsHintDraw = false;
         needsAnalysis = false;
 
-        RenderHints.reset();
+        RenderHints.INSTANCE.reset();
 
         AboveHotbarHUD.renderTextAboveHotbar("", 0, false, false);
     }
@@ -510,8 +510,8 @@ public class MMRenderer {
 
         World world = player.worldObj;
 
-        RenderHints.reset();
-        RenderHints.setDrawOnTop(RenderingConfig.hintsOnTop || state.config.placeMode == PlaceMode.EXCHANGING);
+        RenderHints.INSTANCE.start();
+        RenderHints.INSTANCE.setDepthTest(!RenderingConfig.hintsOnTop && state.config.placeMode != PlaceMode.EXCHANGING);
 
         for (PendingBlock pendingBlock : analysisCache) {
             if (!pendingBlock.isInWorld(world)) continue;
@@ -561,7 +561,7 @@ public class MMRenderer {
             }
 
             if (pendingBlock.spec.isAir()) {
-                RenderHints.addHint(
+                RenderHints.INSTANCE.addHint(
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
@@ -570,7 +570,7 @@ public class MMRenderer {
                     tint
                 );
             } else {
-                RenderHints.addHint(
+                RenderHints.INSTANCE.addHint(
                     pendingBlock.x,
                     pendingBlock.y,
                     pendingBlock.z,
@@ -587,7 +587,7 @@ public class MMRenderer {
                 int y = CoordinatePacker.unpackY(packed);
                 int z = CoordinatePacker.unpackZ(packed);
 
-                RenderHints.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, WARNING);
+                RenderHints.INSTANCE.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, WARNING);
             }
         }
 
@@ -597,9 +597,11 @@ public class MMRenderer {
                 int y = CoordinatePacker.unpackY(packed);
                 int z = CoordinatePacker.unpackZ(packed);
 
-                RenderHints.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, ERROR);
+                RenderHints.INSTANCE.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, ERROR);
             }
         }
+
+        RenderHints.INSTANCE.finish();
     }
 
     private static final short[] WHITE = {
