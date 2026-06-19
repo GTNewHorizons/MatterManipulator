@@ -16,10 +16,6 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMValues;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
-import bartworks.common.loaders.FluidLoader;
-import goodgenerator.loader.Loaders;
-import tectech.thing.casing.TTCasingsContainer;
-
 /**
  * Various constants or static methods used for interop.
  */
@@ -68,15 +64,7 @@ public class InteropConstants {
 
     @Optional(Names.GREG_TECH_NH)
     private static boolean isGTRenderer(Block block) {
-        if (block == GregTechAPI.sDroneRender) return true;
-        if (block == GregTechAPI.sWormholeRender) return true;
-        if (block == GregTechAPI.sBlackholeRender) return true;
-        if (block == TTCasingsContainer.eyeOfHarmonyRenderBlock) return true;
-        if (block == TTCasingsContainer.forgeOfGodsRenderBlock) return true;
-        if (block == FluidLoader.bioFluidBlock) return true;
-        if (block == Loaders.antimatterRenderBlock) return true;
-
-        return false;
+        return GregTechAPI.isGTRenderer(block);
     }
 
     public static boolean isFree(Block block, int metadata) {
