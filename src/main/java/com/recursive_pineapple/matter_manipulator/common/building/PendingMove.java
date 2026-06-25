@@ -10,7 +10,6 @@ import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.MinecraftForge;
@@ -191,13 +190,11 @@ public class PendingMove extends AbstractBuildable {
             if (!moveBlock(this, world, s, source, d, target)) {
                 sendErrorToPlayer(
                     player,
-                    StatCollector.translateToLocalFormatted(
-                        "mm.info.error.could_not_move_block.new",
-                        s.x,
-                        s.y,
-                        s.z,
-                        source.getChatComponent()
-                    )
+                    "mm.info.error.could_not_move_block.new",
+                    s.x,
+                    s.y,
+                    s.z,
+                    source.getChatComponent()
                 );
             }
 
