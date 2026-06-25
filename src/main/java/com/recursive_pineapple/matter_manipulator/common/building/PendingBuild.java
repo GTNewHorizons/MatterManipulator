@@ -360,10 +360,8 @@ public class PendingBuild extends AbstractBuildable {
         if (extracted != null && i < toPlace.size()) {
             sendWarningToPlayer(
                 player,
-                StatCollector.translateToLocalFormatted(
-                    "mm.info.warning.could_not_find",
-                    toPlace.size() - i
-                )
+                "mm.info.warning.could_not_find",
+                toPlace.size() - i
             );
             sendWarningToPlayer(
                 player,
