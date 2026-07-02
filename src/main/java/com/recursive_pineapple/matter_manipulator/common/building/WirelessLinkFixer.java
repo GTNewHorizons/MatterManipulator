@@ -9,7 +9,9 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.oredict.OreDictionary;
 
+import appeng.api.networking.security.MachineSource;
 import appeng.api.util.DimensionalCoord;
+import appeng.helpers.WireLessToolHelper;
 import appeng.tile.networking.TileWirelessBase;
 
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
@@ -254,7 +256,7 @@ public class WirelessLinkFixer {
             return;
         }
 
-        wireless.doUnlink();
+        wireless.unlinkAll();
 
         for (long partnerPacked : partnerPackedSet) {
             int px = CoordinatePacker.unpackX(partnerPacked);
@@ -263,7 +265,10 @@ public class WirelessLinkFixer {
 
             MMMod.LOG.debug("[WirelessLink] Applying link at ({},{},{}) -> ({},{},{})", x, y, z, px, py, pz);
 
-            wireless.injectConnection(new DimensionalCoord(world, px, py, pz));
+            TileEntity partnerTE = world.getTileEntity(px, py, pz);
+            if (partnerTE instanceof TileWirelessBase partner) {
+                WireLessToolHelper.restoreConnection(partner, wireless, new MachineSource(wireless));
+            }
         }
 
         wireless.markDirty();
