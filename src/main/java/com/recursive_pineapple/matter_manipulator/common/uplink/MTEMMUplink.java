@@ -225,6 +225,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
             .addInfo("Must be fed with plasma via an input hatch.")
             .addInfo("Transfers to/from the manipulator cost " + String.format("%,d", BASE_PLASMA_EU_COST) + " EU in plasma per item or per bucket.")
             .addInfo("Insert a compatible manipulator in the controller slot while the machine is running to bind it to the uplink.")
+            .addSupportAny()
             .beginStructureBlock(9, 9, 9, true)
             .addController("Front center, 5th layer")
             .addCasing("0-121", "Advanced Iridium Plated Machine Casing", false)
