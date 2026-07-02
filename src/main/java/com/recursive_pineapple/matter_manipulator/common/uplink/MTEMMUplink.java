@@ -167,6 +167,9 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
     public void checkMachine(IGregTechTileEntity iGregTechTileEntity, ItemStack itemStack, List<StructureError> errors) {
         if (!structure.checkStructure(this, errors)) return;
         structureInstanceInfo.validate(errors);
+        checkHasAnyEnergy(errors);
+        checkHasMaintenanceHatch(errors);
+        checkHasInputHatch(errors);
     }
 
     private enum UplinkHatchAdder implements IHatchElement<MTEMMUplink> {
@@ -221,24 +224,20 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
             .addInfo("Consumes 1A ZPM while active.")
             .addInfo("Must be fed with plasma via an input hatch.")
             .addInfo("Transfers to/from the manipulator cost " + String.format("%,d", BASE_PLASMA_EU_COST) + " EU in plasma per item or per bucket.")
-            .addInfo("Insert a compatible manipulator in the controller slot while the machine is running to bind it to the uplink.");
-
-        tt.beginStructureBlock();
-        tt.addController("Front Center");
-        tt.addHatchNameOverride(UplinkHatchAdder.INSTANCE, hatch);
-        tt.addAllCasingInfo(
-            Arrays.asList(
-                AdvancedIridiumPlatedMachineCasing,
-                MatterGenerationCoil,
-                TRINIUM_FRAMES,
-                NAQ_ALLOY_FRAMES,
-                RadiantNaquadahAlloyCasing
-            ),
-            null
-        );
-
-        tt.toolTipFinisher(AuthorPineapple);
-
+            .addInfo("Insert a compatible manipulator in the controller slot while the machine is running to bind it to the uplink.")
+            .addSupportAny()
+            .beginStructureBlock(9, 9, 9, true)
+            .addController("Front center, 5th layer")
+            .addCasing("0-121", "Advanced Iridium Plated Machine Casing", false)
+            .addCasing("24", "Matter Generation Coil", false)
+            .addCasing("20", "Trinium Frame Box", false)
+            .addCasing("4", "Naquadah Alloy Frame Box", false)
+            .addCasing("2", "Radiant Naquadah Alloy Casing", false)
+            .addMiscHatch("0-1", "Quantum Uplink ME Connector Hatch", "Any iridium casing", 1)
+            .addEnergyHatch("1+", "Any iridium casing", 1)
+            .addMaintenanceHatch("1+", "Any iridium casing", 1)
+            .addInputHatch("1+", "Any iridium casing", 1)
+            .toolTipFinisher(AuthorPineapple);
         return tt;
     }
 
