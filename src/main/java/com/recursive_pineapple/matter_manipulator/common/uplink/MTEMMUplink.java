@@ -167,7 +167,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
     public void checkMachine(IGregTechTileEntity iGregTechTileEntity, ItemStack itemStack, List<StructureError> errors) {
         if (!structure.checkStructure(this, errors)) return;
         structureInstanceInfo.validate(errors);
-        checkHasEnergyHatch(errors);
+        checkHasAnyEnergy(errors);
         checkHasMaintenanceHatch(errors);
         checkHasInputHatch(errors);
     }
