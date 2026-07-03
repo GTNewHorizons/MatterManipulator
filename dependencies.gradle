@@ -96,7 +96,7 @@ dependencies {
 
     addCompat(ae2, "com.github.GTNewHorizons:WanionLib:1.10.1:dev")
     addCompat(ae2, "com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.95-gtnh:dev")
-    addCompat(ae2, "com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-996-GTNH:dev")
+    addCompat(ae2, "com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-997-GTNH:dev")
 
     addCompat(arch, "com.github.GTNewHorizons:ArchitectureCraft:1.12.13")
     addCompat(carpenters, "com.github.GTNewHorizons:CarpentersBlocks:3.7.3-GTNH")
