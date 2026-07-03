@@ -9,9 +9,7 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.oredict.OreDictionary;
 
-import appeng.api.networking.security.MachineSource;
 import appeng.api.util.DimensionalCoord;
-import appeng.helpers.WireLessToolHelper;
 import appeng.tile.networking.TileWirelessBase;
 
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
@@ -31,6 +29,7 @@ public class WirelessLinkFixer {
 
     private final MMState state;
     private HashMap<Long, HashSet<Long>> wirelessLinkMap = null;
+    private HashSet<Long> internalWirelessDests = null;
     private boolean initialized = false;
 
     public WirelessLinkFixer(MMState state) {
@@ -61,6 +60,8 @@ public class WirelessLinkFixer {
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void init(World world) {
         initialized = true;
+        wirelessLinkMap = null;
+        internalWirelessDests = null;
 
         if (state.config.placeMode != PlaceMode.COPYING) {
             MMMod.LOG.debug("[WirelessLink] Skipping: not in COPYING mode (mode={})", state.config.placeMode);
@@ -159,6 +160,8 @@ public class WirelessLinkFixer {
             if (tempMap.isEmpty()) return;
 
             wirelessLinkMap = new HashMap<>();
+            HashSet<Long> baseInternalDests = new HashSet<>(allConnectorDests.values());
+            internalWirelessDests = new HashSet<>();
 
             for (var entry : tempMap.entrySet()) {
                 long destPacked = allConnectorDests.get(entry.getKey());
@@ -167,6 +170,7 @@ public class WirelessLinkFixer {
                     Long partnerDest = allConnectorDests.get(linkSrcPacked);
                     if (partnerDest != null) {
                         addLink(wirelessLinkMap, destPacked, partnerDest);
+                        addLink(wirelessLinkMap, partnerDest, destPacked);
                     } else if (linkExternalHubs) {
                         addLink(wirelessLinkMap, destPacked, linkSrcPacked);
                     }
@@ -177,14 +181,20 @@ public class WirelessLinkFixer {
                 Vector3i deltas = MMUtils.getRegionDeltas(coordA, coordB);
                 if (deltas == null) return;
 
-                HashSet<Long> internalDests = new HashSet<>(allConnectorDests.values());
-
                 HashMap<Long, HashSet<Long>> baseMap = new HashMap<>();
                 wirelessLinkMap.forEach((key, value) -> baseMap.put(key, new HashSet<>(value)));
                 wirelessLinkMap.clear();
 
                 MMUtils.forEachArrayOffset(state.config.arraySpan, deltas, d -> {
                     t.apply(d);
+
+                    for (long baseInternalDest : baseInternalDests) {
+                        int ix = CoordinatePacker.unpackX(baseInternalDest) + d.x;
+                        int iy = CoordinatePacker.unpackY(baseInternalDest) + d.y;
+                        int iz = CoordinatePacker.unpackZ(baseInternalDest) + d.z;
+
+                        internalWirelessDests.add(CoordinatePacker.pack(ix, iy, iz));
+                    }
 
                     for (var baseEntry : baseMap.entrySet()) {
                         long baseDest = baseEntry.getKey();
@@ -196,7 +206,7 @@ public class WirelessLinkFixer {
                         long offsetDest = CoordinatePacker.pack(bx, by, bz);
 
                         for (long basePartner : baseEntry.getValue()) {
-                            if (internalDests.contains(basePartner)) {
+                            if (baseInternalDests.contains(basePartner)) {
                                 int px = CoordinatePacker.unpackX(basePartner) + d.x;
                                 int py = CoordinatePacker.unpackY(basePartner) + d.y;
                                 int pz = CoordinatePacker.unpackZ(basePartner) + d.z;
@@ -208,11 +218,14 @@ public class WirelessLinkFixer {
                         }
                     }
                 });
+            } else {
+                internalWirelessDests.addAll(baseInternalDests);
             }
 
             if (wirelessLinkMap.isEmpty()) {
                 MMMod.LOG.debug("[WirelessLink] Link map is empty after processing, setting to null");
                 wirelessLinkMap = null;
+                internalWirelessDests = null;
             } else {
                 MMMod.LOG.debug("[WirelessLink] Built link map with {} entries", wirelessLinkMap.size());
                 for (var e : wirelessLinkMap.entrySet()) {
@@ -258,6 +271,8 @@ public class WirelessLinkFixer {
 
         wireless.unlinkAll();
 
+        DimensionalCoord selfCoord = new DimensionalCoord(world, x, y, z);
+
         for (long partnerPacked : partnerPackedSet) {
             int px = CoordinatePacker.unpackX(partnerPacked);
             int py = CoordinatePacker.unpackY(partnerPacked);
@@ -265,9 +280,17 @@ public class WirelessLinkFixer {
 
             MMMod.LOG.debug("[WirelessLink] Applying link at ({},{},{}) -> ({},{},{})", x, y, z, px, py, pz);
 
-            TileEntity partnerTE = world.getTileEntity(px, py, pz);
-            if (partnerTE instanceof TileWirelessBase partner) {
-                WireLessToolHelper.restoreConnection(partner, wireless, new MachineSource(wireless));
+            wireless.addLinkedTarget(new DimensionalCoord(world, px, py, pz));
+
+            // AE2 removes unidirectional hub/connector links, so repair copied internal links that can become one-way depending on
+            // placement timing.
+            // External hubs restore from the copied side and should not be mutated here.
+            if (internalWirelessDests != null && internalWirelessDests.contains(partnerPacked)) {
+                TileEntity partnerTe = world.getTileEntity(px, py, pz);
+                if (partnerTe instanceof TileWirelessBase partner) {
+                    partner.addLinkedTarget(selfCoord);
+                    partner.markDirty();
+                }
             }
         }
 
