@@ -63,7 +63,7 @@ dependencies {
     api("it.unimi.dsi:fastutil:8.5.18")
 
     devOnlyNonPublishable("com.github.GTNewHorizons:Hodgepodge:2.7.166:dev")
-    devOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.8.109-GTNH:dev")
+    devOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.8.110-GTNH:dev")
 
     runtimeOnlyNonPublishable('com.github.GTNewHorizons:Angelica:2.1.49:dev')
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:DuraDisplay:1.4.4:dev")
@@ -96,7 +96,7 @@ dependencies {
 
     addCompat(ae2, "com.github.GTNewHorizons:WanionLib:1.10.1:dev")
     addCompat(ae2, "com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.95-gtnh:dev")
-    addCompat(ae2, "com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-995-GTNH:dev")
+    addCompat(ae2, "com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-996-GTNH:dev")
 
     addCompat(arch, "com.github.GTNewHorizons:ArchitectureCraft:1.12.13")
     addCompat(carpenters, "com.github.GTNewHorizons:CarpentersBlocks:3.7.3-GTNH")
@@ -117,7 +117,7 @@ dependencies {
     addCompat(fmp, rfg.deobf("maven.modrinth:immibis-core:59.1.4"))
     addCompat(fmp, "com.github.GTNewHorizons:ForgeMultipart:1.7.10:dev")
 
-    addCompat(gt5u, "com.github.GTNewHorizons:GT5-Unofficial:5.09.54.07:dev")
+    addCompat(gt5u, "com.github.GTNewHorizons:GT5-Unofficial:5.09.54.09:dev")
 
     addCompat(ic2, "net.industrial-craft:industrialcraft-2:2.2.828-experimental:dev")
 
