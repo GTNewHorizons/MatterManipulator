@@ -209,8 +209,8 @@ public enum InventoryAdapter {
 
         @Override
         public boolean isValidSlot(IInventory inv, int slot) {
-            int patternSlotIndex = TileArcaneAssembler.PATTERN_SLOT_INDEX;
-            boolean isPatternSlot = slot >= patternSlotIndex && slot < patternSlotIndex + HandlerKnowledgeCore.MAXIMUM_STORED_PATTERNS;
+            boolean isPatternSlot = slot >= TileArcaneAssembler.PATTERN_SLOT_INDEX &&
+                slot < TileArcaneAssembler.PATTERN_SLOT_INDEX + HandlerKnowledgeCore.MAXIMUM_STORED_PATTERNS;
             return !isPatternSlot;
         }
     },
