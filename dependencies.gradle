@@ -124,6 +124,7 @@ dependencies {
     addCompat(oc, "com.github.GTNewHorizons:OpenComputers:1.12.48-GTNH:dev")
 
     addCompat(tc, "thaumcraft:Thaumcraft:1.7.10-4.2.3.5:dev")
+    addCompat(tc, "com.github.GTNewHorizons:ThaumicEnergistics:1.7.56-GTNH:dev")
 
     addCompat(waila, "com.github.GTNewHorizons:waila:1.19.30:dev")
 }
