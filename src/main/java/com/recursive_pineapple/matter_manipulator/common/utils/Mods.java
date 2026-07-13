@@ -92,6 +92,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String NOT_ENOUGH_ITEMS = "NotEnoughItems";
         public static final String STORAGE_DRAWERS = "StorageDrawers";
         public static final String THAUMCRAFT = "Thaumcraft";
+        public static final String THAUMIC_ENERGISTICS = "thaumicenergistics";
     }
 
     public final String ID;

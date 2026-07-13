@@ -27,6 +27,8 @@ import com.recursive_pineapple.matter_manipulator.mixin.interfaces.MTELinkedInpu
 
 import gtPlusPlus.xmod.gregtech.api.metatileentity.implementations.MTEHatchTurbine;
 import tectech.thing.metaTileEntity.hatch.MTEHatchRack;
+import thaumicenergistics.common.inventory.HandlerKnowledgeCore;
+import thaumicenergistics.common.tiles.TileArcaneAssembler;
 
 public enum InventoryAdapter {
 
@@ -195,6 +197,21 @@ public enum InventoryAdapter {
         @Override
         public boolean insert(IInventory inv, int slot, ItemStack stack) {
             return ((IHasInventory) inv).addStackToSlot(slot, stack);
+        }
+    },
+    @Optional(Names.THAUMIC_ENERGISTICS)
+    TEArcaneAssembler {
+
+        @Override
+        public boolean canHandle(IInventory inv) {
+            return inv instanceof TileArcaneAssembler;
+        }
+
+        @Override
+        public boolean isValidSlot(IInventory inv, int slot) {
+            boolean isPatternSlot = slot >= TileArcaneAssembler.PATTERN_SLOT_INDEX &&
+                slot < TileArcaneAssembler.PATTERN_SLOT_INDEX + HandlerKnowledgeCore.MAXIMUM_STORED_PATTERNS;
+            return !isPatternSlot;
         }
     },
     SIDED {
