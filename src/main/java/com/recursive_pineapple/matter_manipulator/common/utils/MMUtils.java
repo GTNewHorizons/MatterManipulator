@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import appeng.api.storage.data.IAEFluidStack;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
@@ -74,6 +75,7 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidHandler;
 
 import cpw.mods.fml.relauncher.ReflectionHelper;
@@ -789,6 +791,15 @@ public class MMUtils {
         }
         inv.markDirty();
     }
+    /**
+     * Removes all stacks in an inventory without returning them.
+     */
+    public static void clearInventory(IAEStackInventory inv) {
+        for (int i = 0; i < inv.getSizeInventory(); i++) {
+            inv.putAEStackInSlot(i, null);
+        }
+        inv.markDirty();
+    }
 
     /**
      * Merges stacks together and does not preserve order within the inventory.
@@ -825,7 +836,7 @@ public class MMUtils {
      * Doesn't merge stacks and preserves the order of stacks.
      * Empty indices will be null.
      */
-    public static PortableItemStack[] fromInventoryNoMerge(IAEStackInventory inventory) {
+    public static PortableItemStack[] fromInventoryNoMergeItem(IAEStackInventory inventory) {
         PortableItemStack[] out = new PortableItemStack[inventory.getSizeInventory()];
 
         for (int i = 0; i < out.length; i++) {
@@ -833,6 +844,24 @@ public class MMUtils {
 
             if (stack instanceof IAEItemStack itemStack) {
                 out[i] = new PortableItemStack(itemStack.getItemStack());
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * Doesn't merge stacks and preserves the order of stacks.
+     * Empty indices will be null.
+     */
+    public static FluidStack[] fromInventoryNoMergeFluid(IAEStackInventory inventory) {
+        FluidStack[] out = new FluidStack[inventory.getSizeInventory()];
+
+        for (int i = 0; i < out.length; i++) {
+            IAEStack<?> stack = inventory.getAEStackInSlot(i);
+
+            if (stack instanceof IAEFluidStack fluidStack) {
+                out[i] = fluidStack.getFluidStack();
             }
         }
 
