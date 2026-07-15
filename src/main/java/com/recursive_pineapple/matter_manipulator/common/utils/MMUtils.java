@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import appeng.api.storage.data.IAEFluidStack;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
@@ -95,6 +94,7 @@ import appeng.api.parts.IPartHost;
 import appeng.api.parts.IPartItem;
 import appeng.api.parts.PartItemStack;
 import appeng.api.storage.ICellWorkbenchItem;
+import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.parts.automation.UpgradeInventory;
@@ -791,6 +791,7 @@ public class MMUtils {
         }
         inv.markDirty();
     }
+
     /**
      * Removes all stacks in an inventory without returning them.
      */

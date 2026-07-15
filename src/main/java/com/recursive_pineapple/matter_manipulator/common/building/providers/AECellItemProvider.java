@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import appeng.util.item.AEFluidStack;
-import appeng.util.item.AEItemStack;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
+
+import net.minecraftforge.fluids.FluidStack;
 
 import appeng.api.AEApi;
 import appeng.api.config.FuzzyMode;
@@ -15,12 +15,13 @@ import appeng.api.definitions.IItemDefinition;
 import appeng.api.storage.ICellWorkbenchItem;
 import appeng.parts.automation.UpgradeInventory;
 import appeng.tile.inventory.IAEStackInventory;
+import appeng.util.item.AEFluidStack;
+import appeng.util.item.AEItemStack;
 
 import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInventory;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
-import net.minecraftforge.fluids.FluidStack;
 
 /**
  * An item provider that creates AE cells.
