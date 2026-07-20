@@ -22,6 +22,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 
+import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
@@ -35,6 +36,7 @@ import net.minecraft.item.EnumRarity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.MathHelper;
@@ -58,6 +60,8 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import appeng.api.features.INetworkEncodable;
+import appeng.api.util.AEColor;
+import appeng.tile.networking.TileWirelessBase;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapMaker;
@@ -88,6 +92,7 @@ import com.gtnewhorizons.modularui.common.widget.VanillaButtonWidget;
 import com.gtnewhorizons.modularui.common.widget.textfield.NumericWidget;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
+import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.client.gui.DirectionDrawable;
 import com.recursive_pineapple.matter_manipulator.client.gui.RadialMenuBuilder;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
@@ -96,6 +101,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.InteropConstan
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBuild;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
+import com.recursive_pineapple.matter_manipulator.common.building.WirelessLinker;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItemList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
@@ -105,6 +111,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessDistributionMode;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
@@ -156,6 +163,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     public static final int ALLOW_MOVING = 0b1 << counter++;
     public static final int ALLOW_CABLES = 0b1 << counter++;
     public static final int ALLOW_SMART_COPY = 0b1 << counter++;
+    public static final int ALLOW_WIRELESS_LINK = 0b1 << counter++;
 
     public static final int ALL_MODES = ALLOW_GEOMETRY | ALLOW_COPYING | ALLOW_EXCHANGING | ALLOW_MOVING | ALLOW_CABLES;
 
@@ -185,7 +193,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             64, 5,
             6,
             1_000_000_000L,
-            ALLOW_GEOMETRY | CONNECTS_TO_AE | ALLOW_REMOVING | ALLOW_EXCHANGING | ALLOW_CONFIGURING | ALLOW_CABLES | ALLOW_COPYING | ALLOW_MOVING,
+            ALLOW_GEOMETRY | CONNECTS_TO_AE | ALLOW_REMOVING | ALLOW_EXCHANGING | ALLOW_CONFIGURING | ALLOW_CABLES | ALLOW_COPYING | ALLOW_MOVING | ALLOW_WIRELESS_LINK,
             ImmutableList.of(MMUpgrades.Speed, MMUpgrades.PowerEff),
             MMItemList.MK2
         ),
@@ -194,7 +202,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             GlobalMMConfig.BuildingConfig.mk3BlocksPerPlace, 5,
             7,
             10_000_000_000L,
-            ALLOW_GEOMETRY | CONNECTS_TO_AE | ALLOW_REMOVING | ALLOW_EXCHANGING | ALLOW_CONFIGURING | ALLOW_CABLES | ALLOW_COPYING | ALLOW_MOVING | CONNECTS_TO_UPLINK | ALLOW_SMART_COPY,
+            ALLOW_GEOMETRY | CONNECTS_TO_AE | ALLOW_REMOVING | ALLOW_EXCHANGING | ALLOW_CONFIGURING | ALLOW_CABLES | ALLOW_COPYING | ALLOW_MOVING | CONNECTS_TO_UPLINK | ALLOW_SMART_COPY | ALLOW_WIRELESS_LINK,
             ImmutableList.of(MMUpgrades.PowerEff, MMUpgrades.PowerP2P),
             MMItemList.MK3
         );
@@ -533,6 +541,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     case EXCH_SET_TARGET -> "mm.tooltip.pending_action.exch_set_target";
                     case PICK_CABLE -> "mm.tooltip.pending_action.pick_cable";
                     case MARK_ARRAY -> "mm.tooltip.pending_action.mark_array";
+                    case MARK_WIRELESS_A -> "mm.tooltip.pending_action.mark_wire_a";
+                    case MARK_WIRELESS_B -> "mm.tooltip.pending_action.mark_wire_b";
+                    case MARK_HUB_A -> "mm.tooltip.pending_action.mark_hub_a";
+                    case MARK_HUB_B -> "mm.tooltip.pending_action.mark_hub_b";
+                    case PICK_WIRELESS_COLOR_SET -> "mm.tooltip.pending_action.pick_wire_color_set";
+                    case PICK_WIRELESS_COLOR_ADD -> "mm.tooltip.pending_action.pick_wire_color_add";
                 }));
             }
 
@@ -543,6 +557,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     case COPYING -> "mm.tooltip.mode.copying";
                     case EXCHANGING -> "mm.tooltip.mode.exchanging";
                     case CABLES -> "mm.tooltip.mode.cables";
+                    case WIRELESS_LINK -> "mm.tooltip.mode.wireless_link";
                 }));
             }
 
@@ -615,6 +630,20 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 addInfoLine(desc, "mm.tooltip.coord_b", state.config.coordB);
 
                 addInfoLine(desc, "mm.tooltip.cable", state.config.cables, BlockSpec::toDisplayString);
+            }
+
+            if (state.config.placeMode == PlaceMode.WIRELESS_LINK) {
+                addInfoLine(desc, "mm.tooltip.wireless_link.wire_a", state.config.wirelessA);
+                addInfoLine(desc, "mm.tooltip.wireless_link.wire_b", state.config.wirelessB);
+                addInfoLine(desc, "mm.tooltip.wireless_link.hub_a", state.config.hubA);
+                addInfoLine(desc, "mm.tooltip.wireless_link.hub_b", state.config.hubB);
+
+                desc.add(
+                    StatCollector.translateToLocalFormatted(
+                        "mm.tooltip.wireless_link.colors",
+                        state.config.wirelessColors.isEmpty()
+                            ? StatCollector.translateToLocal("mm.tooltip.wireless_link.colors.any")
+                            : String.valueOf(state.config.wirelessColors.cardinality())));
             }
 
             List<MMUpgrades> upgrades = new ArrayList<>(state.getInstalledUpgrades());
@@ -807,6 +836,36 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 state.config.action = null;
                 return true;
             }
+            case MARK_WIRELESS_A: {
+                state.config.wirelessA = new Location(world, MMUtils.getLookingAtLocation(player));
+                state.config.action = PendingAction.MARK_WIRELESS_B;
+                return true;
+            }
+            case MARK_WIRELESS_B: {
+                state.config.wirelessB = new Location(world, MMUtils.getLookingAtLocation(player));
+                state.config.action = null;
+                return true;
+            }
+            case MARK_HUB_A: {
+                state.config.hubA = new Location(world, MMUtils.getLookingAtLocation(player));
+                state.config.action = PendingAction.MARK_HUB_B;
+                return true;
+            }
+            case MARK_HUB_B: {
+                state.config.hubB = new Location(world, MMUtils.getLookingAtLocation(player));
+                state.config.action = null;
+                return true;
+            }
+            case PICK_WIRELESS_COLOR_SET: {
+                onPickWireColor(world, player, itemStack, state, hit, false);
+                state.config.action = null;
+                return true;
+            }
+            case PICK_WIRELESS_COLOR_ADD: {
+                onPickWireColor(world, player, itemStack, state, hit, true);
+                state.config.action = null;
+                return true;
+            }
         }
 
         return false;
@@ -986,6 +1045,46 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         );
     }
 
+    /**
+     * Picks the color of a wireless connector/hub under the cursor and adds it to the color filter ({@code add}) or
+     * replaces the filter with just that color. Looking at anything else (including air) clears the filter back to
+     * "any color".
+     */
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void onPickWireColor(World world, EntityPlayer player, ItemStack stack, MMState state, MovingObjectPosition hit, boolean add) {
+        AEColor color = null;
+
+        if (hit != null) {
+            Block block = world.getBlock(hit.blockX, hit.blockY, hit.blockZ);
+
+            if (InteropConstants.isWirelessConnector(block, world.getBlockMetadata(hit.blockX, hit.blockY, hit.blockZ))) {
+                TileEntity te = world.getTileEntity(hit.blockX, hit.blockY, hit.blockZ);
+
+                if (te instanceof TileWirelessBase wireless) {
+                    color = wireless.getColor();
+                }
+            }
+        }
+
+        if (color == null) {
+            state.config.wirelessColors.clear();
+
+            sendInfoToPlayer(player, "mm.info.wireless_link.colors_cleared");
+
+            return;
+        }
+
+        if (!add) state.config.wirelessColors.clear();
+
+        state.config.wirelessColors.set(color.ordinal());
+
+        sendInfoToPlayer(
+            player,
+            add ? "mm.info.wireless_link.color_added" : "mm.info.wireless_link.color_set",
+            color.name()
+        );
+    }
+
     private void checkForAECables(MMState state, BlockSpec spec, World world, int x, int y, int z) {
         if (state.hasCap(ALLOW_CABLES) && AppliedEnergistics2.isModLoaded()) {
             if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
@@ -1041,6 +1140,14 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
     @Override
     public void onPlayerStoppedUsing(ItemStack stack, World world, EntityPlayer player, int itemUseCount) {
+        if (!world.isRemote) {
+            MMState state = getState(stack);
+
+            if (state.config.placeMode == PlaceMode.WIRELESS_LINK && AppliedEnergistics2.isModLoaded()) {
+                runWirelessLinkVerbose(player, state, world);
+            }
+        }
+
         stopBuildable(player);
     }
 
@@ -1064,6 +1171,15 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         PENDING_BUILDS.put(player, getPendingMove(player, stack, state));
                         break;
                     }
+                    case WIRELESS_LINK: {
+                        PENDING_BUILDS.put(player, getPendingBuild(player, stack, state));
+
+                        if (AppliedEnergistics2.isModLoaded()) {
+                            runWirelessLinkVerbose(player, state, player.getEntityWorld());
+                        }
+
+                        break;
+                    }
                 }
             }
 
@@ -1077,7 +1193,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 try {
                     IBuildable buildable = PENDING_BUILDS.get(player);
 
-                    if (buildable != null) buildable.tryPlaceBlocks(stack, player);
+                    if (buildable != null) {
+                        buildable.tryPlaceBlocks(stack, player);
+                        if (state.config.placeMode == PlaceMode.WIRELESS_LINK && !buildable.isDone() && AppliedEnergistics2.isModLoaded()) {
+                            runWirelessLinkVerbose(player, state, player.getEntityWorld());
+                        }
+                    }
                 } catch (Throwable t) {
                     MMMod.LOG.error("Could not place blocks", t);
                     sendErrorToPlayer(
@@ -1112,6 +1233,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
     private IBuildable getPendingMove(EntityPlayer player, ItemStack stack, MMState state) {
         return new PendingMove(player, state, tier);
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void runWirelessLinkVerbose(EntityPlayer player, MMState state, World world) {
+        WirelessLinker.report(state, world, player);
     }
 
     @Override
@@ -1183,6 +1309,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     case MOVING -> addMovingOptions(builder, buildContext, heldStack);
                     case EXCHANGING -> addExchangingOptions(builder, buildContext, heldStack);
                     case CABLES -> addCableOptions(builder, buildContext, heldStack);
+                    case WIRELESS_LINK -> addWirelessLinkOptions(builder, initialState);
                 }
             });
     }
@@ -1246,6 +1373,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     .hidden(!state.hasCap(ALLOW_CABLES))
                     .onClicked(() -> {
                         Messages.SetPlaceMode.sendToServer(PlaceMode.CABLES);
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link"))
+                    .hidden(!state.hasCap(ALLOW_WIRELESS_LINK) || !AppliedEnergistics2.isModLoaded())
+                    .onClicked(() -> {
+                        Messages.SetPlaceMode.sendToServer(PlaceMode.WIRELESS_LINK);
                     })
                 .done()
             .done()
@@ -1478,6 +1612,126 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         StatCollector.translateToLocal(initialState.config.replaceInterfacesWithP2P ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
                     .onClicked(() -> {
                         Messages.SetReplaceInterfaces.sendToServer();
+                    })
+                .done()
+            .done();
+    }
+
+    private void addWirelessLinkOptions(RadialMenuBuilder builder, MMState initialState) {
+        builder
+            .option()
+                .label(StatCollector.translateToLocal("mm.gui.wireless_link.mark_connectors"))
+                .onClicked(() -> {
+                    Messages.MarkWire.sendToServer();
+                })
+            .done()
+            .option()
+                .label(StatCollector.translateToLocal("mm.gui.wireless_link.mark_hubs"))
+                .onClicked(() -> {
+                    Messages.MarkHub.sendToServer();
+                })
+            .done()
+            .branch()
+                .label(StatCollector.translateToLocal("mm.gui.wireless_link.color_filter"))
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link.select_color"))
+                    .onClicked(() -> {
+                        Messages.PickWireColorSet.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link.add_color"))
+                    .onClicked(() -> {
+                        Messages.PickWireColorAdd.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link.select_all_colors"))
+                    .onClicked(() -> {
+                        Messages.SelectAllWirelessColors.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link.clear_colors"))
+                    .onClicked(() -> {
+                        Messages.ClearWirelessColors.sendToServer();
+                    })
+                .done()
+            .done()
+            .branch()
+                .label(StatCollector.translateToLocal("mm.gui.wireless_link.distribution"))
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link.even_spread"))
+                    .onClicked(() -> {
+                        Messages.SetWirelessDistribution.sendToServer(WirelessDistributionMode.EVEN_SPREAD);
+                    })
+                .done()
+                .branch()
+                    .label(StatCollector.translateToLocal("mm.gui.wireless_link.fixed_per_hub"))
+                    .option()
+                        .label("1 / hub")
+                        .onClicked(() -> {
+                            Messages.SetWirelessDistribution.sendToServer(WirelessDistributionMode.FIXED_PER_HUB);
+                            Messages.SetWirelessCountPerHub.sendToServer(1);
+                        })
+                    .done()
+                    .option()
+                        .label("2 / hub")
+                        .onClicked(() -> {
+                            Messages.SetWirelessDistribution.sendToServer(WirelessDistributionMode.FIXED_PER_HUB);
+                            Messages.SetWirelessCountPerHub.sendToServer(2);
+                        })
+                    .done()
+                    .option()
+                        .label("4 / hub")
+                        .onClicked(() -> {
+                            Messages.SetWirelessDistribution.sendToServer(WirelessDistributionMode.FIXED_PER_HUB);
+                            Messages.SetWirelessCountPerHub.sendToServer(4);
+                        })
+                    .done()
+                    .option()
+                        .label("8 / hub")
+                        .onClicked(() -> {
+                            Messages.SetWirelessDistribution.sendToServer(WirelessDistributionMode.FIXED_PER_HUB);
+                            Messages.SetWirelessCountPerHub.sendToServer(8);
+                        })
+                    .done()
+                    .option()
+                        .label("16 / hub")
+                        .onClicked(() -> {
+                            Messages.SetWirelessDistribution.sendToServer(WirelessDistributionMode.FIXED_PER_HUB);
+                            Messages.SetWirelessCountPerHub.sendToServer(16);
+                        })
+                    .done()
+                    .option()
+                        .label("32 / hub")
+                        .onClicked(() -> {
+                            Messages.SetWirelessDistribution.sendToServer(WirelessDistributionMode.FIXED_PER_HUB);
+                            Messages.SetWirelessCountPerHub.sendToServer(32);
+                        })
+                    .done()
+                .done()
+            .done()
+            .branch()
+                .label(StatCollector.translateToLocal("mm.gui.wireless_link.hub_shape"))
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.wireless_link.auto_place",
+                        StatCollector.translateToLocal(initialState.config.wirelessAutoPlaceHubs ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> {
+                        Messages.SetWirelessAutoPlaceHubs.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.line"))
+                    .onClicked(() -> {
+                        Messages.SetWirelessHubShape.sendToServer(Shape.LINE);
+                    })
+                .done()
+                .option()
+                    .label(StatCollector.translateToLocal("mm.gui.cube"))
+                    .onClicked(() -> {
+                        Messages.SetWirelessHubShape.sendToServer(Shape.CUBE);
                     })
                 .done()
             .done();

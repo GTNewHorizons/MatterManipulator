@@ -11,4 +11,8 @@ public interface IBuildable {
     public void tryPlaceBlocks(ItemStack stack, EntityPlayer player);
 
     public void onStopped();
+
+    public default boolean isDone() {
+        return false;
+    }
 }

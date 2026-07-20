@@ -24,6 +24,8 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 
+import appeng.api.util.AEColor;
+
 import com.google.common.io.ByteArrayDataInput;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.gtnewhorizons.modularui.common.internal.network.NetworkUtils;
@@ -39,6 +41,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessDistributionMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.uplink.IUplinkMulti;
 import com.recursive_pineapple.matter_manipulator.common.uplink.MTEMMUplink;
@@ -71,10 +74,21 @@ public enum Messages {
             case GEOMETRY -> 0;
             case MOVING -> ItemMatterManipulator.ALLOW_MOVING;
             case CABLES -> ItemMatterManipulator.ALLOW_CABLES;
+            case WIRELESS_LINK -> ItemMatterManipulator.ALLOW_WIRELESS_LINK;
         };
 
         if (state.hasCap(requiredBit)) {
+            PlaceMode previous = state.config.placeMode;
+
             state.config.placeMode = value;
+
+            if (value == PlaceMode.WIRELESS_LINK && previous != PlaceMode.WIRELESS_LINK) {
+                state.config.wirelessA = state.config.coordA == null ? null : state.config.coordA.clone();
+                state.config.wirelessB = state.config.coordB == null ? null : state.config.coordB.clone();
+            } else if (value != PlaceMode.WIRELESS_LINK && previous == PlaceMode.WIRELESS_LINK) {
+                state.config.coordA = state.config.wirelessA == null ? null : state.config.wirelessA.clone();
+                state.config.coordB = state.config.wirelessB == null ? null : state.config.wirelessB.clone();
+            }
         }
     }))),
     SetBlockSelectMode(server(enumPacket(BlockSelectMode.values(), (state, value) -> state.config.blockSelectMode = value))),
@@ -199,6 +213,42 @@ public enum Messages {
     MarkPaste(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MARK_PASTE;
         state.config.coordC = null;
+    }))),
+    MarkWire(server(simple((player, stack, manipulator, state) -> {
+        state.config.action = PendingAction.MARK_WIRELESS_A;
+        state.config.wirelessA = null;
+        state.config.wirelessB = null;
+    }))),
+    MarkHub(server(simple((player, stack, manipulator, state) -> {
+        state.config.action = PendingAction.MARK_HUB_A;
+        state.config.hubA = null;
+        state.config.hubB = null;
+    }))),
+    PickWireColorSet(server(simple((player, stack, manipulator, state) -> {
+        state.config.action = PendingAction.PICK_WIRELESS_COLOR_SET;
+    }))),
+    PickWireColorAdd(server(simple((player, stack, manipulator, state) -> {
+        state.config.action = PendingAction.PICK_WIRELESS_COLOR_ADD;
+    }))),
+    SetWirelessDistribution(server(enumPacket(WirelessDistributionMode.values(), (state, value) -> {
+        state.config.wirelessDistribution = value;
+    }))),
+    SetWirelessCountPerHub(server(intPacket((player, stack, manipulator, state, value) -> {
+        state.config.wirelessCountPerHub = MMUtils.clamp(value, 1, 32);
+    }))),
+    SetWirelessAutoPlaceHubs(server(simple((player, stack, manipulator, state) -> {
+        state.config.wirelessAutoPlaceHubs = !state.config.wirelessAutoPlaceHubs;
+    }))),
+    SetWirelessHubShape(server(enumPacket(Shape.values(), (state, value) -> {
+        state.config.wirelessHubShape = value;
+    }))),
+    ClearWirelessColors(server(simple((player, stack, manipulator, state) -> {
+        state.config.wirelessColors.clear();
+    }))),
+    SelectAllWirelessColors(server(simple((player, stack, manipulator, state) -> {
+        if (AppliedEnergistics2.isModLoaded()) {
+            selectAllWirelessColors(state);
+        }
     }))),
     GetRequiredItems(server(intPacket((player, stack, manipulator, state, value) -> {
         if (state.config.placeMode != PlaceMode.COPYING) { return; }
@@ -697,6 +747,12 @@ public enum Messages {
                 return next.getNewPacket(message, data);
             }
         };
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static void selectAllWirelessColors(MMState state) {
+        state.config.wirelessColors.clear();
+        state.config.wirelessColors.set(0, AEColor.values().length);
     }
 
     private static interface ISimpleHandler {
