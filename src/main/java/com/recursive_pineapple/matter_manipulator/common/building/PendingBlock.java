@@ -59,7 +59,6 @@ public class PendingBlock extends Location {
     public ITileAnalysisIntegration arch;
     public ITileAnalysisIntegration mp;
     public ITileAnalysisIntegration cb;
-    public ITileAnalysisIntegration oc;
     public transient SmartCopyIntegration smartCopy;
 
     public InventoryAnalysis inventory = null;
@@ -153,7 +152,6 @@ public class PendingBlock extends Location {
         if (arch != null) list.add(arch);
         if (mp != null) list.add(mp);
         if (cb != null) list.add(cb);
-        if (oc != null) list.add(oc);
         if (smartCopy != null) list.add(smartCopy);
 
         return list;
@@ -251,7 +249,6 @@ public class PendingBlock extends Location {
         if (arch != null) dup.arch = arch.clone();
         if (mp != null) dup.mp = mp.clone();
         if (cb != null) dup.cb = cb.clone();
-        if (oc != null) dup.oc = oc.clone();
         if (smartCopy != null) dup.smartCopy = smartCopy.clone();
         if (inventory != null) dup.inventory = inventory.clone();
         dup.renderOrder = renderOrder;
@@ -504,9 +501,6 @@ public class PendingBlock extends Location {
         if (cb == null) {
             if (other.cb != null) return false;
         } else if (!cb.equals(other.cb)) return false;
-        if (oc == null) {
-            if (other.oc != null) return false;
-        } else if (!oc.equals(other.oc)) return false;
         if (inventory == null) {
             if (other.inventory != null) return false;
         } else if (!inventory.equals(other.inventory)) return false;
@@ -536,7 +530,6 @@ public class PendingBlock extends Location {
     public static final int ANALYZE_ARCH = 0b1 << counter++;
     public static final int ANALYZE_MP = 0b1 << counter++;
     public static final int ANALYZE_CB = 0b1 << counter++;
-    public static final int ANALYZE_OC = 0b1 << counter++;
     public static final int ANALYZE_INV = 0b1 << counter++;
     public static final int ANALYZE_ALL = -1;
 
@@ -562,10 +555,6 @@ public class PendingBlock extends Location {
                 this.cb = CarpentersBlocksAnalysisResult.analyze(te);
             }
 
-            if ((flags & ANALYZE_OC) != 0 && Mods.OpenComputers.isModLoaded()) {
-                this.oc = OCAnalysisResult.analyze(te);
-            }
-
             if ((flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory) {
                 this.inventory = InventoryAnalysis.fromInventory(inventory, false);
             }
@@ -580,7 +569,6 @@ public class PendingBlock extends Location {
         if (arch != null) arch.migrate();
         if (mp != null) mp.migrate();
         if (cb != null) cb.migrate();
-        if (oc != null) oc.migrate();
 
         return this;
     }
