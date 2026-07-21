@@ -17,6 +17,7 @@ import org.jetbrains.annotations.Nullable;
 
 import it.unimi.dsi.fastutil.booleans.BooleanObjectImmutablePair;
 import li.cil.oc.api.API;
+import li.cil.oc.common.Loot;
 
 public class ComputerComponentItemProvider implements IItemProvider {
 
@@ -46,7 +47,10 @@ public class ComputerComponentItemProvider implements IItemProvider {
         "ram3",
         "ram4",
         "ram5",
-        "ram6"
+        "ram6",
+        "apu1",
+        "apu2",
+        "apuCreative"
         // spotless:on
     })
         .map(name -> API.items.get(name).createItemStack(1).getItemDamage())
@@ -88,17 +92,20 @@ public class ComputerComponentItemProvider implements IItemProvider {
             return result.leftBoolean() || inv.tryConsumeItems(EEPROM) ? component.copy() : null;
         }
 
-        // HDDs and floppies are consumed empty; their data is not copied.
+        if (component.getItemDamage() == FLOPPY.getItemDamage()) { return inv.tryConsumeItems(component) ? component.copy() : null; }
+
+        // HDDs are consumed empty; their data is not copied.
         if (component.getItemDamage() == HDD_1.getItemDamage()) return inv.tryConsumeItems(HDD_1) ? HDD_1.copy() : null;
         if (component.getItemDamage() == HDD_2.getItemDamage()) return inv.tryConsumeItems(HDD_2) ? HDD_2.copy() : null;
         if (component.getItemDamage() == HDD_3.getItemDamage()) return inv.tryConsumeItems(HDD_3) ? HDD_3.copy() : null;
-        if (component.getItemDamage() == FLOPPY.getItemDamage()) return inv.tryConsumeItems(FLOPPY) ? FLOPPY.copy() : null;
 
         return null;
     }
 
     /// Strips the address of EEPROMs. Might work for other components.
     private static @NotNull ItemStack withoutAddress(@NotNull ItemStack source) {
+        if (source.getItemDamage() == FLOPPY.getItemDamage()) { return getFloppy(source); }
+
         ItemStack stripped = source.copy();
 
         if (stripped.getItemDamage() != EEPROM.getItemDamage()) {
@@ -118,6 +125,24 @@ public class ComputerComponentItemProvider implements IItemProvider {
         return stripped;
     }
 
+    /// Try to copy a loot floppy disk
+    private static @NotNull ItemStack getFloppy(@NotNull ItemStack floppy) {
+        if (Loot.isLootDisk(floppy)) {
+            ItemStack disk = floppy.copy();
+
+            // Strip the data tag but keep the fs.label
+            NBTTagCompound oldData = floppy.getTagCompound().getCompoundTag("oc:data");
+            NBTTagCompound newData = new NBTTagCompound();
+
+            newData.setString("oc:fs.label", oldData.getString("oc:fs.label"));
+            disk.getTagCompound().setTag("oc:data", newData);
+
+            return disk;
+        } else {
+            return FLOPPY.copy();
+        }
+    }
+
     @Override
     public IItemProvider clone() {
         return new ComputerComponentItemProvider(component);
@@ -130,7 +155,7 @@ public class ComputerComponentItemProvider implements IItemProvider {
         // Most OC components are equal by descriptor; assigned addresses do not matter.
         if (component.getItemDamage() != EEPROM.getItemDamage()) return API.items.get(component).equals(API.items.get(provider.component));
 
-        // EEPROMs must match exactly, except for their assigned OC address.
+        // EEPROMs and Floppies must match exactly, except for their assigned OC address.
         return ItemStack.areItemStacksEqual(component, provider.component);
     }
 }
