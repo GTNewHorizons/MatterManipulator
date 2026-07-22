@@ -33,7 +33,7 @@ public class MMItemConsumer {
 
     static {
         registerConsumer(Integer.MIN_VALUE, new DefaultItemConsumer());
-        if (Mods.AppliedEnergistics2.isModLoaded() && Mods.GregTech.isModLoaded()) {
+        if (Mods.AppliedEnergistics2.isModLoaded()) {
             registerConsumer(0, new AECableItemConsumer());
         }
     }

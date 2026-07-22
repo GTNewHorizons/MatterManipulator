@@ -7,8 +7,6 @@ import java.util.List;
 
 import net.minecraft.item.ItemStack;
 
-import gregtech.api.enums.ItemList;
-
 import appeng.api.AEApi;
 import appeng.api.util.AEColor;
 import appeng.api.util.AEColoredItemDefinition;
@@ -27,16 +25,9 @@ public class AECableItemConsumer implements IItemConsumer {
     public static final AEColoredItemDefinition AE_DENSE_SMART_CABLE = AEApi.instance().definitions().parts().cableDense();
     public static final AEColoredItemDefinition AE_DENSE_COVERED_CABLE = AEApi.instance().definitions().parts().cableDenseCovered();
 
-    public static final ItemList INFINITY_SPRAY_CAN = ItemList.Spray_Color_Infinite;
-
     @Override
     public void consume(BlockAnalyzer.IBlockApplyContext ctx, BigItemStack in, BigItemStack out) {
         if (in.getItem() != AE_GLASS_CABLE.item(AEColor.Transparent)) return;
-
-        // Only works when the player has infinity spray can
-        BigItemStack infSprayCanStack = BigItemStack.create(INFINITY_SPRAY_CAN.get(1));
-        boolean hasInfSprayCan = ctx.tryConsumeItems(Collections.singletonList(infSprayCanStack), CONSUME_SIMULATED | CONSUME_FUZZY).leftBoolean();
-        if (!hasInfSprayCan) return;
 
         AEColoredItemDefinition definition;
         if (in.getItemDamage() <= AE_GLASS_CABLE.stack(AEColor.Transparent, 1).getItemDamage()) {
