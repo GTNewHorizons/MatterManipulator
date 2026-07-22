@@ -85,6 +85,8 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
+import li.cil.oc.common.item.data.TransposerData;
+import li.cil.oc.common.tileentity.Transposer;
 import li.cil.oc.common.tileentity.traits.Rotatable;
 import lombok.SneakyThrows;
 
@@ -1179,6 +1181,7 @@ public class BlockPropertyRegistry {
 
     @Optional(Names.OPEN_COMPUTERS)
     private static void initOpenComputers() {
+        registerIntrinsicProperty(InteropConstants.OC_TRANSPOSER.getBlock(), new OpenComputersTransposerFluidTransferRateProperty());
         registerTileEntityInterfaceProperty(
             Rotatable.class,
             new OrientationBlockProperty() {
@@ -1749,6 +1752,62 @@ public class BlockPropertyRegistry {
         @Override
         public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
             throw new UnsupportedOperationException("Owner is immutable for in-world blocks");
+        }
+    }
+
+    private static class OpenComputersTransposerFluidTransferRateProperty implements IntrinsicProperty {
+
+        @Override
+        public String getName() {
+            return "fluidTransferRate";
+        }
+
+        @Override
+        public boolean hasValue(ItemStack stack) {
+            return InteropConstants.OC_TRANSPOSER.matches(stack);
+        }
+
+        @Override
+        public boolean hasValue(IBlockAccess world, int x, int y, int z) {
+            return world.getTileEntity(x, y, z) instanceof Transposer;
+        }
+
+        @Override
+        public JsonElement getValue(ItemStack stack) {
+            int fluidTransferRate = new TransposerData(stack).fluidTransferRate();
+            return new JsonPrimitive(fluidTransferRate);
+        }
+
+        @Override
+        public JsonElement getValue(IBlockAccess world, int x, int y, int z) {
+            TileEntity te = world.getTileEntity(x, y, z);
+
+            if (te instanceof Transposer transposer) {
+                return new JsonPrimitive(transposer.info().fluidTransferRate());
+            } else {
+                throw new IllegalStateException("expected " + te + " to be a Transposer");
+            }
+        }
+
+        @Override
+        public void setValue(ItemStack stack, JsonElement value) {
+            NBTTagCompound tag = stack.getTagCompound() != null ? stack.getTagCompound() : new NBTTagCompound();
+            tag.setInteger(TransposerData.FLUID_TRANSFER_RATE(), value.getAsInt());
+            stack.setTagCompound(tag);
+        }
+
+        @Override
+        public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
+            TileEntity te = world.getTileEntity(x, y, z);
+
+            if (te instanceof Transposer transposer) {
+                NBTTagCompound tag = new NBTTagCompound();
+                tag.setInteger(TransposerData.FLUID_TRANSFER_RATE(), value.getAsInt());
+
+                transposer.info().load(tag);
+            } else {
+                throw new IllegalStateException("expected " + te + " to be a Transposer");
+            }
         }
     }
 }
