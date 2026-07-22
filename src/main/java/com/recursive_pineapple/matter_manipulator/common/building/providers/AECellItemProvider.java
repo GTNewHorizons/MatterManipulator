@@ -7,12 +7,16 @@ import java.util.List;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 
+import net.minecraftforge.fluids.FluidStack;
+
 import appeng.api.AEApi;
 import appeng.api.config.FuzzyMode;
 import appeng.api.definitions.IItemDefinition;
 import appeng.api.storage.ICellWorkbenchItem;
 import appeng.parts.automation.UpgradeInventory;
 import appeng.tile.inventory.IAEStackInventory;
+import appeng.util.item.AEFluidStack;
+import appeng.util.item.AEItemStack;
 
 import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInventory;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
@@ -25,7 +29,8 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 public class AECellItemProvider implements IItemProvider {
 
     public PortableItemStack mCell;
-    public PortableItemStack[] mUpgrades, mConfig;
+    public PortableItemStack[] mUpgrades, mConfigItem;
+    public FluidStack[] mConfigFluid;
     public String mOreDict;
     public byte mFuzzyMode;
 
@@ -44,7 +49,8 @@ public class AECellItemProvider implements IItemProvider {
         IInventory upgrades = item.getUpgradesInventory(stack);
         cell.mUpgrades = upgrades == null ? null : MMUtils.fromInventory(upgrades);
         IAEStackInventory config = item.getConfigAEInventory(stack);
-        cell.mConfig = config == null ? null : MMUtils.fromInventoryNoMerge(config);
+        cell.mConfigItem = config == null ? null : MMUtils.fromInventoryNoMergeItem(config);
+        cell.mConfigFluid = config == null ? null : MMUtils.fromInventoryNoMergeFluid(config);
         cell.mFuzzyMode = switch (item.getFuzzyMode(stack)) {
             case IGNORE_ALL -> 0;
             case PERCENT_25 -> 1;
@@ -103,14 +109,19 @@ public class AECellItemProvider implements IItemProvider {
             upgrades.markDirty();
         }
 
-        IInventory config = cellWorkbenchItem.getConfigInventory(cell);
+        IAEStackInventory config = cellWorkbenchItem.getConfigAEInventory(cell);
 
         if (config != null) {
             MMUtils.clearInventory(config);
 
-            for (int i = 0; i < mConfig.length; i++) {
-                if (mConfig[i] != null) {
-                    config.setInventorySlotContents(i, mConfig[i].toStack());
+            for (int i = 0; i < mConfigItem.length; i++) {
+                if (mConfigItem[i] != null) {
+                    config.putAEStackInSlot(i, AEItemStack.create(mConfigItem[i].toStack()));
+                }
+            }
+            for (int i = 0; i < mConfigFluid.length; i++) {
+                if (mConfigFluid[i] != null) {
+                    config.putAEStackInSlot(i, AEFluidStack.create(mConfigFluid[i]));
                 }
             }
 
@@ -153,7 +164,8 @@ public class AECellItemProvider implements IItemProvider {
 
         dup.mCell = mCell.clone();
         dup.mUpgrades = MMUtils.mapToArray(mUpgrades, PortableItemStack[]::new, x -> x == null ? null : x.clone());
-        dup.mConfig = MMUtils.mapToArray(mConfig, PortableItemStack[]::new, x -> x == null ? null : x.clone());
+        dup.mConfigItem = MMUtils.mapToArray(mConfigItem, PortableItemStack[]::new, x -> x == null ? null : x.clone());
+        dup.mConfigFluid = MMUtils.mapToArray(mConfigFluid, FluidStack[]::new, x -> x == null ? null : x.copy());
         dup.mOreDict = mOreDict;
         dup.mFuzzyMode = mFuzzyMode;
 
@@ -166,7 +178,8 @@ public class AECellItemProvider implements IItemProvider {
         int result = 1;
         result = prime * result + ((mCell == null) ? 0 : mCell.hashCode());
         result = prime * result + Arrays.hashCode(mUpgrades);
-        result = prime * result + Arrays.hashCode(mConfig);
+        result = prime * result + Arrays.hashCode(mConfigItem);
+        result = prime * result + Arrays.hashCode(mConfigFluid);
         result = prime * result + ((mOreDict == null) ? 0 : mOreDict.hashCode());
         result = prime * result + mFuzzyMode;
         return result;
@@ -182,7 +195,8 @@ public class AECellItemProvider implements IItemProvider {
             if (other.mCell != null) return false;
         } else if (!mCell.equals(other.mCell)) return false;
         if (!Arrays.equals(mUpgrades, other.mUpgrades)) return false;
-        if (!Arrays.equals(mConfig, other.mConfig)) return false;
+        if (!Arrays.equals(mConfigItem, other.mConfigItem)) return false;
+        if (!Arrays.equals(mConfigFluid, other.mConfigFluid)) return false;
         if (mOreDict == null) {
             if (other.mOreDict != null) return false;
         } else if (!mOreDict.equals(other.mOreDict)) return false;
