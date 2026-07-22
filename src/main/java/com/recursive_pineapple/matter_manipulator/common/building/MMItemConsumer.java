@@ -41,16 +41,28 @@ public class MMItemConsumer {
     /**
      * Try to consume provided item from inventory
      */
-    public static BigItemStack consume(BlockAnalyzer.IBlockApplyContext ctx, BigItemStack item) {
+    public static BigItemStack consume(IPseudoInventory inv, BigItemStack item, int flags) {
         BigItemStack out = item.copy().setStackSize(0);
+
+        int actualFlags = 0;
+        if ((flags & IPseudoInventory.CONSUME_SIMULATED) == 1) {
+            actualFlags |= IPseudoInventory.CONSUME_SIMULATED;
+        }
+        if ((flags & IPseudoInventory.CONSUME_IGNORE_CREATIVE) == 1) {
+            actualFlags |= IPseudoInventory.CONSUME_IGNORE_CREATIVE;
+        }
 
         for (IntObjectImmutablePair<IItemConsumer> pair : consumers) {
             IItemConsumer consumer = pair.right();
-            consumer.consume(ctx, item, out);
+            consumer.consume(inv, item, out, actualFlags);
 
             if (item.getStackSize() <= 0) break;
         }
 
         return out.getStackSize() > 0 ? out : null;
+    }
+
+    public static BigItemStack consume(IPseudoInventory inv, BigItemStack item) {
+        return consume(inv, item, 0);
     }
 }

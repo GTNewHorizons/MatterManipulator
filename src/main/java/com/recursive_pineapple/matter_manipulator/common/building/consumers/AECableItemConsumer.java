@@ -11,7 +11,7 @@ import appeng.api.AEApi;
 import appeng.api.util.AEColor;
 import appeng.api.util.AEColoredItemDefinition;
 
-import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInventory;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 
 /**
@@ -26,7 +26,7 @@ public class AECableItemConsumer implements IItemConsumer {
     public static final AEColoredItemDefinition AE_DENSE_COVERED_CABLE = AEApi.instance().definitions().parts().cableDenseCovered();
 
     @Override
-    public void consume(BlockAnalyzer.IBlockApplyContext ctx, BigItemStack in, BigItemStack out) {
+    public void consume(IPseudoInventory inv, BigItemStack in, BigItemStack out, int flags) {
         if (in.getItem() != AE_GLASS_CABLE.item(AEColor.Transparent)) return;
 
         AEColoredItemDefinition definition;
@@ -47,7 +47,7 @@ public class AECableItemConsumer implements IItemConsumer {
             ItemStack cableStack = definition.stack(AEColor.fromOrdinal(color), 1);
             BigItemStack cableBigStack = BigItemStack.create(cableStack).setStackSize(in.getStackSize());
 
-            List<BigItemStack> extractedStacks = ctx.tryConsumeItems(Collections.singletonList(cableBigStack), CONSUME_PARTIAL).right();
+            List<BigItemStack> extractedStacks = inv.tryConsumeItems(Collections.singletonList(cableBigStack), CONSUME_PARTIAL | flags).right();
             if (!extractedStacks.isEmpty()) {
                 BigItemStack extracted = extractedStacks.get(0);
 
