@@ -374,7 +374,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
 
         if (!partHost.canAddPart(partStack, side)) { return false; }
 
-        if (MMConsumer.consume(context, BigItemStack.create(partStack)) == null) {
+        if (MMItemConsumer.consume(context, BigItemStack.create(partStack)) == null) {
             context.warn(new ChatComponentTranslation("mm.info.warning.could_not_find_item", new ChatComponentItemName(partStack)));
             return false;
         }

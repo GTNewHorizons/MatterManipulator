@@ -251,7 +251,7 @@ public class PendingBuild extends AbstractBuildable {
         // if the block we're placing isn't free (ae cable busses) we need to consume it
         if (!first.isFree()) {
             total = toPlace.size() * (long) perBlock.stackSize;
-            extracted = MMConsumer.consume(applyContext, BigItemStack.create(perBlock).setStackSize(total));
+            extracted = MMItemConsumer.consume(applyContext, BigItemStack.create(perBlock).setStackSize(total));
 
             if (extracted == null) {
                 sendWarningToPlayer(

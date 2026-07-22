@@ -15,12 +15,11 @@ import appeng.api.util.AEColoredItemDefinition;
 
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
-import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 
 /**
  * A consumer that can consume AE cables with any color
  */
-public class AECableConsumer implements IConsumer {
+public class AECableItemConsumer implements IItemConsumer {
 
     public static final AEColoredItemDefinition AE_GLASS_CABLE = AEApi.instance().definitions().parts().cableGlass();
     public static final AEColoredItemDefinition AE_COVERED_CABLE = AEApi.instance().definitions().parts().cableCovered();
@@ -32,7 +31,6 @@ public class AECableConsumer implements IConsumer {
 
     @Override
     public void consume(BlockAnalyzer.IBlockApplyContext ctx, BigItemStack in, BigItemStack out) {
-        if (!Mods.AppliedEnergistics2.isModLoaded() || !Mods.GregTech.isModLoaded()) return;
         if (in.getItem() != AE_GLASS_CABLE.item(AEColor.Transparent)) return;
 
         // Only works when the player has infinity spray can

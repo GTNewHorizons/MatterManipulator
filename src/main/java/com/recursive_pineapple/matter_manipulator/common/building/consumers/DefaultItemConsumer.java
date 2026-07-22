@@ -8,7 +8,7 @@ import java.util.List;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 
-public class DefaultConsumer implements IConsumer {
+public class DefaultItemConsumer implements IItemConsumer {
 
     @Override
     public void consume(IBlockApplyContext ctx, BigItemStack in, BigItemStack out) {
