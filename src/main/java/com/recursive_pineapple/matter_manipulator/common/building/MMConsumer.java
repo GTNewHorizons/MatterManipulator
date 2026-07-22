@@ -32,6 +32,7 @@ public class MMConsumer {
 
     static {
         registerConsumer(Integer.MIN_VALUE, new DefaultConsumer());
+        registerConsumer(0, new AECableConsumer());
     }
 
     /**
