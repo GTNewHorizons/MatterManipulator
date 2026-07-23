@@ -120,6 +120,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInvento
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.building.MMInventory;
+import com.recursive_pineapple.matter_manipulator.common.building.MMItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
@@ -130,7 +131,6 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
 import org.joml.Vector3i;
 
-import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 
 public class MMUtils {
@@ -1400,12 +1400,16 @@ public class MMUtils {
 
         MMInventory inv = new MMInventory(player, state, manipulator.tier);
 
-        Pair<Boolean, List<BigItemStack>> extractResult = inv.tryConsumeItems(
-            requiredItems,
-            IPseudoInventory.CONSUME_SIMULATED | IPseudoInventory.CONSUME_PARTIAL | IPseudoInventory.CONSUME_IGNORE_CREATIVE
-        );
+        List<BigItemStack> availableItems = new ArrayList<>();
 
-        List<BigItemStack> availableItems = extractResult.right() == null ? new ArrayList<>() : extractResult.right();
+        for (BigItemStack requiredItem : requiredItems) {
+            BigItemStack availableItem = MMItemConsumer.consume(
+                inv,
+                requiredItem.copy(),
+                IPseudoInventory.CONSUME_SIMULATED | IPseudoInventory.CONSUME_IGNORE_CREATIVE
+            );
+            if (availableItem != null) availableItems.add(availableItem);
+        }
 
         sendInfoToPlayer(player, "mm.info.required_items");
 

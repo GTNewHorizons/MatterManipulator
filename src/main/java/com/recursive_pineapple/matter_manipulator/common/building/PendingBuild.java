@@ -7,7 +7,6 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregT
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -252,10 +251,7 @@ public class PendingBuild extends AbstractBuildable {
         // if the block we're placing isn't free (ae cable busses) we need to consume it
         if (!first.isFree()) {
             total = toPlace.size() * (long) perBlock.stackSize;
-
-            List<BigItemStack> extractedStacks = tryConsumeItems(Arrays.asList(BigItemStack.create(perBlock).setStackSize(total)), CONSUME_PARTIAL).right();
-
-            extracted = extractedStacks.isEmpty() ? null : extractedStacks.get(0);
+            extracted = MMItemConsumer.consume(applyContext, BigItemStack.create(perBlock).setStackSize(total));
 
             if (extracted == null) {
                 sendWarningToPlayer(
