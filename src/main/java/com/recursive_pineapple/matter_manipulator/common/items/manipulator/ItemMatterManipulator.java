@@ -1180,7 +1180,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 switch (initialState.config.placeMode) {
                     case GEOMETRY -> addGeometryOptions(builder, buildContext, heldStack, initialState);
                     case COPYING -> addCopyingOptions(builder, buildContext, heldStack, initialState);
-                    case MOVING -> addMovingOptions(builder, buildContext, heldStack);
+                    case MOVING -> addMovingOptions(builder, buildContext, heldStack, initialState);
                     case EXCHANGING -> addExchangingOptions(builder, buildContext, heldStack);
                     case CABLES -> addCableOptions(builder, buildContext, heldStack);
                 }
@@ -1441,7 +1441,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .label(StatCollector.translateToLocal("mm.gui.edit_transform"))
                 .onClicked((menu, option, mouseButton, doubleClicked) -> {
                     UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
-                    ModularWindow window = createTransformWindow(buildContext2, heldStack, initialState);
+                    ModularWindow window = createCopyModeTransformWindow(buildContext2, heldStack, initialState);
                     GuiScreen screen = new TransparentModularGui(
                             new ModularUIContainer(new ModularUIContext(buildContext2, null, true), window));
                     FMLCommonHandler.instance().showGuiScreen(screen);
@@ -1492,7 +1492,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         public void drawDefaultBackground() {}
     }
 
-    private void addMovingOptions(RadialMenuBuilder builder, UIBuildContext buildContext, ItemStack heldStack) {
+    private void addMovingOptions(RadialMenuBuilder builder, UIBuildContext buildContext, ItemStack heldStack, MMState initialState) {
         builder
             .option()
                 .label(StatCollector.translateToLocal("mm.gui.mark_cut"))
@@ -1504,6 +1504,16 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .label(StatCollector.translateToLocal("mm.gui.mark_paste"))
                 .onClicked(() -> {
                     Messages.MarkPaste.sendToServer();
+                })
+            .done()
+            .option()
+                .label(StatCollector.translateToLocal("mm.gui.edit_transform"))
+                .onClicked((menu, option, mouseButton, doubleClicked) -> {
+                    UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
+                    ModularWindow window = createMoveModeTransformWindow(buildContext2, heldStack, initialState);
+                    GuiScreen screen = new TransparentModularGui(
+                        new ModularUIContainer(new ModularUIContext(buildContext2, null, true), window));
+                    FMLCommonHandler.instance().showGuiScreen(screen);
                 })
             .done();
     }
@@ -1612,8 +1622,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         return new Row().setSize(width, height);
     }
 
-    public ModularWindow createTransformWindow(UIBuildContext buildContext, ItemStack heldStack,
-        MMState initialState) {
+    public ModularWindow createCopyModeTransformWindow(UIBuildContext buildContext, ItemStack heldStack,
+                                                       MMState initialState) {
         buildContext.setShowNEI(false);
 
         ModularWindow.Builder builder = ModularWindow.builderFullScreen();
@@ -1829,6 +1839,132 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     new Column()
                         .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
                         .widgets(left)).fillParent());
+
+            Column columnRight, columnLessRight;
+
+            builder.widget(
+                (columnRight = new Column())
+                    .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.END)
+                    .widgets(right)
+                    .setPosProvider((screenSize, window, parent) -> {
+                        return new Pos2d(screenSize.width - columnRight.getSize().width - 10, 0);
+                    }));
+
+            builder.widget(
+                (columnLessRight = new Column())
+                    .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.END)
+                    .widgets(lessRight)
+                    .setPosProvider((screenSize, window, parent) -> {
+                        return new Pos2d(screenSize.width - columnRight.getSize().width - columnLessRight.getSize().width - 20, 0);
+                    }));
+        }
+
+        return builder.build();
+    }
+
+    public ModularWindow createMoveModeTransformWindow(UIBuildContext buildContext, ItemStack heldStack,
+                                                       MMState initialState) {
+        buildContext.setShowNEI(false);
+
+        ModularWindow.Builder builder = ModularWindow.builderFullScreen();
+
+        builder.bindPlayerInventory(buildContext.getPlayer(), 0, -9001);
+
+        if (NetworkUtils.isClient()) {
+            Widget[] right, lessRight;
+
+            if (Minecraft.getMinecraft().gameSettings.guiScale <= 2) {
+                right = new Widget[]{
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_a")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Z),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_b")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Z),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Z),
+                    padding(10, 2),
+
+                    new Row()
+                        .widget(new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.swap"))
+                        .setOnClick((t, u) -> { Messages.SwapRegion.sendToServer(); })
+                        .setSynced(false, false)
+                        .setSize(130, 18)),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.paste")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Y),
+                    padding(10, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Z),
+                };
+
+                lessRight = new Widget[0];
+            } else {
+                right = new Widget[]{
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Copy, CoordComponent.Z),
+                    padding(10, 2),
+
+                    new Row()
+                        .widget(new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.swap"))
+                        .setOnClick((t, u) -> { Messages.SwapRegion.sendToServer(); })
+                        .setSynced(false, false)
+                        .setSize(130, 18)),
+                    padding(10, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.paste")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Y),
+                    padding(10, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.Paste, CoordComponent.Z),
+                };
+
+                lessRight = new Widget[]{
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_a")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyA, CoordComponent.Z),
+                    padding(2, 2),
+
+                    makeHeader(StatCollector.translateToLocal("mm.transform.header.copy_b")),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.X),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Y),
+                    padding(2, 2),
+                    makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Z)
+                };
+            }
 
             Column columnRight, columnLessRight;
 

@@ -117,6 +117,23 @@ public enum Messages {
         state.config.coordBOffset = null;
         state.config.coordCOffset = new Vector3i();
     }))),
+    SwapRegion(server(simple((player, stack, manipulator, state) -> {
+        Location coordA = state.config.coordA;
+        Location coordB = state.config.coordB;
+        Location coordC = state.config.coordC;
+
+        if (coordA == null || coordB == null || coordC == null) return;
+
+        Vector3i newCoordBVector = new Vector3i(
+            coordC.x + coordB.x - coordA.x,
+            coordC.y + coordB.y - coordA.y,
+            coordC.z + coordB.z - coordA.z
+        );
+
+        state.config.coordA = coordC;
+        state.config.coordB = new Location(player.worldObj, newCoordBVector);
+        state.config.coordC = coordA;
+    }))),
     MoveAll(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
 
