@@ -89,6 +89,7 @@ import li.cil.oc.common.item.data.TransposerData;
 import li.cil.oc.common.tileentity.Transposer;
 import li.cil.oc.common.tileentity.traits.Rotatable;
 import lombok.SneakyThrows;
+import thaumic.tinkerer.common.block.tile.tablet.TileAnimationTablet;
 
 public class BlockPropertyRegistry {
 
@@ -272,6 +273,7 @@ public class BlockPropertyRegistry {
         if (Mods.EnderStorage.isModLoaded()) initEnderStorage();
         if (Mods.ExtraUtilities.isModLoaded()) initEXU();
         if (Mods.OpenComputers.isModLoaded()) initOpenComputers();
+        if (Mods.ThaumicTinkerer.isModLoaded()) initThaumicTinkerer();
     }
 
     // #region Vanilla
@@ -1286,6 +1288,76 @@ public class BlockPropertyRegistry {
                 }
             }
         );
+    }
+
+    // #endregion
+
+    // #region ThaumicTinkerer
+
+    @Optional(Names.THAUMIC_TINKERER)
+    private static void initThaumicTinkerer() {
+        registerTileEntityInterfaceProperty(TileAnimationTablet.class, new AbstractDirectionBlockProperty("facing") {
+
+            @Override
+            public ForgeDirection getValue(World world, int x, int y, int z) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return UNKNOWN;
+
+                return ForgeDirection.getOrientation(tablet.getBlockMetadata());
+            }
+
+            @Override
+            public void setValue(World world, int x, int y, int z, ForgeDirection forgeDirection) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return;
+
+                world.setBlockMetadataWithNotify(x, y, z, forgeDirection.ordinal(), 1 | 2);
+            }
+        });
+
+        registerTileEntityInterfaceProperty(TileAnimationTablet.class, new BooleanProperty() {
+
+            @Override
+            public String getName() {
+                return "mode";
+            }
+
+            @Override
+            public boolean getBoolean(World world, int x, int y, int z) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return false;
+
+                return tablet.leftClick;
+            }
+
+            @Override
+            public void setBoolean(World world, int x, int y, int z, boolean value) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return;
+
+                tablet.leftClick = value;
+                world.markBlockForUpdate(x, y, z);
+            }
+        });
+
+        registerTileEntityInterfaceProperty(TileAnimationTablet.class, new BooleanProperty() {
+
+            @Override
+            public String getName() {
+                return "inverted";
+            }
+
+            @Override
+            public boolean getBoolean(World world, int x, int y, int z) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return false;
+
+                return tablet.redstone;
+            }
+
+            @Override
+            public void setBoolean(World world, int x, int y, int z, boolean value) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return;
+
+                tablet.redstone = value;
+                world.markBlockForUpdate(x, y, z);
+            }
+        });
     }
 
     // #endregion

@@ -57,6 +57,7 @@ public enum Mods implements IMod, ITargetMod {
     NotEnoughItems(Names.NOT_ENOUGH_ITEMS),
     StorageDrawers(Names.STORAGE_DRAWERS),
     Thaumcraft(Names.THAUMCRAFT),
+    ThaumicTinkerer(Names.THAUMIC_TINKERER)
 
     ;
 
@@ -93,6 +94,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String STORAGE_DRAWERS = "StorageDrawers";
         public static final String THAUMCRAFT = "Thaumcraft";
         public static final String THAUMIC_ENERGISTICS = "thaumicenergistics";
+        public static final String THAUMIC_TINKERER = "ThaumicTinkerer";
     }
 
     public final String ID;
