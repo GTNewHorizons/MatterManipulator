@@ -4,6 +4,7 @@ import java.util.Comparator;
 
 import com.recursive_pineapple.matter_manipulator.common.building.consumers.AECableItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.building.consumers.DefaultItemConsumer;
+import com.recursive_pineapple.matter_manipulator.common.building.consumers.EnderStorageItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.building.consumers.IItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
@@ -35,6 +36,9 @@ public class MMItemConsumer {
         registerConsumer(Integer.MIN_VALUE, new DefaultItemConsumer());
         if (Mods.AppliedEnergistics2.isModLoaded()) {
             registerConsumer(0, new AECableItemConsumer());
+        }
+        if (Mods.EnderStorage.isModLoaded()) {
+            registerConsumer(0, new EnderStorageItemConsumer());
         }
     }
 
