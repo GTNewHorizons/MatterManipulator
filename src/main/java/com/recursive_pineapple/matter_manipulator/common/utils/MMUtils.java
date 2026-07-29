@@ -910,37 +910,44 @@ public class MMUtils {
             .map(BigItemStack::create)
             .collect(Collectors.toList());
 
-        List<BigItemStack> extracted;
-
         if (consume) {
             var result = src.tryConsumeItems(toInstallBig, IPseudoInventory.CONSUME_PARTIAL);
 
-            extracted = result.right();
+            List<BigItemStack> extracted = result.right();
 
-            for (BigItemStack wanted : toInstallBig) {
-                for (BigItemStack found : extracted) {
-                    if (!found.isSameType(wanted)) continue;
-
-                    wanted.stackSize -= found.stackSize;
-                }
-            }
-
-            if (src instanceof IBlockApplyContext ctx) {
+            // Skip check on creative
+            if (extracted != toInstallBig) {
                 for (BigItemStack wanted : toInstallBig) {
-                    if (wanted.stackSize > 0) {
-                        ctx.warn(
-                            new ChatComponentTranslation(
-                                "mm.info.warning.could_not_find_upgrade",
-                                new ChatComponentItemName(wanted.getItemStack()),
-                                wanted.stackSize
-                            )
-                        );
-                        success = false;
+                    long installAmount = wanted.stackSize;
+
+                    for (BigItemStack found : extracted) {
+                        if (found.stackSize <= 0) continue;
+                        if (!found.isSameType(wanted)) continue;
+
+                        long foundAmount = Math.min(wanted.stackSize, found.stackSize);
+
+                        wanted.stackSize -= foundAmount;
+                        found.stackSize -= foundAmount;
+
+                        if (wanted.stackSize == 0) break;
                     }
+
+                    if (src instanceof IBlockApplyContext ctx) {
+                        if (wanted.stackSize > 0) {
+                            ctx.warn(
+                                new ChatComponentTranslation(
+                                    "mm.info.warning.could_not_find_upgrade",
+                                    new ChatComponentItemName(wanted.getItemStack()),
+                                    wanted.stackSize
+                                )
+                            );
+                            success = false;
+                        }
+                    }
+
+                    wanted.stackSize = installAmount - wanted.stackSize;
                 }
             }
-        } else {
-            extracted = mapToList(toInstallBig, BigItemStack::copy);
         }
 
         if (!simulate) {
@@ -963,7 +970,7 @@ public class MMUtils {
 
             int slot = 0;
 
-            outer: for (BigItemStack stack : extracted) {
+            outer: for (BigItemStack stack : toInstallBig) {
                 for (ItemStack split : stack.toStacks(1)) {
                     while (dest.getStackInSlot(slot) != null) {
                         slot++;
