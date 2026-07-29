@@ -916,7 +916,8 @@ public class MMUtils {
             List<BigItemStack> extracted = result.right();
 
             // Skip check on creative
-            if (extracted != toInstallBig) {
+            if (!(src instanceof IBlockApplyContext ctx &&
+                ctx.getRealPlayer() != null && ctx.getRealPlayer().capabilities.isCreativeMode)) {
                 for (BigItemStack wanted : toInstallBig) {
                     long installAmount = wanted.stackSize;
 
