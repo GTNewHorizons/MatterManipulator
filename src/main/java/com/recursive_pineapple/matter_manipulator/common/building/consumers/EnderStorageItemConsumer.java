@@ -49,9 +49,6 @@ public class EnderStorageItemConsumer implements IItemConsumer {
                     boolean isExtractedPrivate = extracted.tag != null &&
                         extracted.tag.hasKey("owner", Constants.NBT.TAG_STRING);
 
-                    // We're in planning and freq 0 non-private is used for crafting, skip it
-                    if (isPlanning && !isExtractedPrivate && freq == 0) continue;
-
                     if (isPrivate == isExtractedPrivate) {
                         in.decStackSize(extracted.getStackSize());
                         toExtract.add(extracted);
@@ -110,7 +107,7 @@ public class EnderStorageItemConsumer implements IItemConsumer {
         }
 
         boolean shouldReturnPersonalItem = (!success && isPrivate) || (success && !isPrivate);
-        if (!isPlanning && shouldReturnPersonalItem) {
+        if (shouldReturnPersonalItem && (flags & CONSUME_SIMULATED) == 0) {
             // Give player personalItems if success and not private
             // or return personalItems if private and failed
 
