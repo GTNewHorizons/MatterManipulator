@@ -129,6 +129,9 @@ dependencies {
     addCompat(tc, "thaumcraft:Thaumcraft:1.7.10-4.2.3.5:dev")
     addCompat(tc, "com.github.GTNewHorizons:ThaumicEnergistics:1.7.56-GTNH:dev")
 
+    compileOnly("curse.maven:computercraft-67504:2269339", { transitive = false })
+    addCompat(tc, "com.github.GTNewHorizons:ThaumicTinkerer:2.12.28:dev")
+
     addCompat(waila, "com.github.GTNewHorizons:waila:1.19.30:dev")
 }
 
