@@ -79,6 +79,9 @@ import codechicken.enderstorage.storage.item.TileEnderChest;
 import codechicken.enderstorage.storage.liquid.TileEnderTank;
 import de.keridos.floodlights.tileentity.TileEntityMetaFloodlight;
 import de.keridos.floodlights.tileentity.TileEntitySmallFloodlight;
+import forestry.arboriculture.blocks.BlockRegistryArboriculture;
+import forestry.arboriculture.tiles.TileWood;
+import forestry.plugins.PluginArboriculture;
 import gcewing.architecture.common.tile.TileArchitecture;
 import ic2.api.tile.IWrenchable;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
@@ -268,6 +271,7 @@ public class BlockPropertyRegistry {
         if (Mods.IndustrialCraft2.isModLoaded()) initIC2();
         if (Mods.ArchitectureCraft.isModLoaded()) initArch();
         if (Mods.FloodLights.isModLoaded()) initFloodLights();
+        if (Mods.Forestry.isModLoaded()) initForestry();
         if (Mods.GregTech.isModLoaded()) initGT5u();
         if (Mods.AppliedEnergistics2.isModLoaded()) initAE2Wireless();
         if (Mods.EnderStorage.isModLoaded()) initEnderStorage();
@@ -1067,6 +1071,74 @@ public class BlockPropertyRegistry {
                 world.markBlockForUpdate(x, y, z);
             }
         });
+    }
+
+    // #endregion
+
+    // #region Forestry
+
+    @Optional(Names.FORESTRY)
+    private static void initForestry() {
+        ForestryWoodTypeProperty property = new ForestryWoodTypeProperty();
+
+        BlockRegistryArboriculture blocks = PluginArboriculture.blocks;
+
+        registerIntrinsicProperty(blocks.logs, property);
+        registerIntrinsicProperty(blocks.logsFireproof, property);
+        registerIntrinsicProperty(blocks.planks, property);
+        registerIntrinsicProperty(blocks.planksFireproof, property);
+        registerIntrinsicProperty(blocks.slabs, property);
+        registerIntrinsicProperty(blocks.slabsDouble, property);
+        registerIntrinsicProperty(blocks.slabsFireproof, property);
+        registerIntrinsicProperty(blocks.slabsDoubleFireproof, property);
+        registerIntrinsicProperty(blocks.fences, property);
+        registerIntrinsicProperty(blocks.fencesFireproof, property);
+        registerIntrinsicProperty(blocks.stairs, property);
+        registerIntrinsicProperty(blocks.stairsFireproof, property);
+    }
+
+    /*
+     * Forestry always places wood blocks (planks, logs, slabs, fences, stairs) with metadata 0 and instead stores
+     * the real wood type in the {@link TileWood} tile entity.
+     */
+    private static class ForestryWoodTypeProperty implements IntrinsicProperty {
+
+        @Override
+        public String getName() {
+            return "woodType";
+        }
+
+        @Override
+        public boolean hasValue(ItemStack stack) {
+            return stack != null;
+        }
+
+        @Override
+        public boolean hasValue(IBlockAccess world, int x, int y, int z) {
+            return world.getTileEntity(x, y, z) instanceof TileWood;
+        }
+
+        @Override
+        public JsonElement getValue(ItemStack stack) {
+            return new JsonPrimitive(stack.getItemDamage());
+        }
+
+        @Override
+        public JsonElement getValue(IBlockAccess world, int x, int y, int z) {
+            if (!(world.getTileEntity(x, y, z) instanceof TileWood wood)) return null;
+
+            return new JsonPrimitive(wood.getWoodType().ordinal());
+        }
+
+        @Override
+        public void setValue(ItemStack stack, JsonElement value) {
+            stack.setItemDamage(value.getAsInt());
+        }
+
+        @Override
+        public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
+            throw new UnsupportedOperationException("Wood type is immutable for in-world blocks");
+        }
     }
 
     // #endregion

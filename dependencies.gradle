@@ -43,6 +43,7 @@ def carpenters = false
 def avaritia = false
 def eio = false
 def fl = false
+def forestry = false
 def xu = false
 def fmp = false
 def gt5u = false
@@ -112,6 +113,8 @@ dependencies {
     addCompat(xu, rfg.deobf("curse.maven:extra-utilities-225561:2264384"))
 
     addCompat(fl, "com.github.GTNewHorizons:FloodLights:1.5.6:dev")
+
+    addCompat(forestry, "com.github.GTNewHorizons:ForestryMC:4.11.31:dev")
 
     addCompat(fmp, rfg.deobf("maven.modrinth:immibis-microblocks:59.1.2"))
     addCompat(fmp, rfg.deobf("maven.modrinth:immibis-core:59.1.4"))
