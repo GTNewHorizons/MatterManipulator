@@ -25,7 +25,6 @@ public class EnderStorageItemConsumer implements IItemConsumer {
 
         boolean isTank = in.meta >= 4096;
         boolean isPrivate = in.tag != null && in.tag.hasKey("owner", Constants.NBT.TAG_STRING);
-        boolean isPlanning = (flags & CONSUME_SIMULATED) == 1 && (flags & CONSUME_IGNORE_CREATIVE) == 1;
 
         long initial = in.getStackSize();
         long specialAmount = 0;
