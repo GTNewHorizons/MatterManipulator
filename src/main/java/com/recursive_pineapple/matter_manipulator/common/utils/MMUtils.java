@@ -916,37 +916,40 @@ public class MMUtils {
             List<BigItemStack> extracted = result.right();
 
             // Skip check on creative
-            if (!(src instanceof IBlockApplyContext ctx &&
-                ctx.getRealPlayer() != null && ctx.getRealPlayer().capabilities.isCreativeMode)) {
+            if (
+                !(src instanceof IBlockApplyContext ctx &&
+                    ctx.getRealPlayer() != null &&
+                    ctx.getRealPlayer().capabilities.isCreativeMode)
+            ) {
                 for (BigItemStack wanted : toInstallBig) {
-                    long installAmount = wanted.stackSize;
+                    long totalAmountFound = 0;
 
                     for (BigItemStack found : extracted) {
                         if (found.stackSize <= 0) continue;
                         if (!found.isSameType(wanted)) continue;
 
-                        long foundAmount = Math.min(wanted.stackSize, found.stackSize);
+                        long foundAmount = Math.min(found.stackSize, wanted.stackSize - totalAmountFound);
 
-                        wanted.stackSize -= foundAmount;
-                        found.stackSize -= foundAmount;
+                        found.decStackSize(foundAmount);
+                        totalAmountFound += foundAmount;
 
-                        if (wanted.stackSize == 0) break;
+                        if (wanted.stackSize == totalAmountFound) break;
                     }
 
                     if (src instanceof IBlockApplyContext ctx) {
-                        if (wanted.stackSize > 0) {
+                        if (wanted.stackSize - totalAmountFound > 0) {
                             ctx.warn(
                                 new ChatComponentTranslation(
                                     "mm.info.warning.could_not_find_upgrade",
                                     new ChatComponentItemName(wanted.getItemStack()),
-                                    wanted.stackSize
+                                    wanted.stackSize - totalAmountFound
                                 )
                             );
                             success = false;
                         }
                     }
 
-                    wanted.stackSize = installAmount - wanted.stackSize;
+                    wanted.setStackSize(totalAmountFound);
                 }
             }
         }
