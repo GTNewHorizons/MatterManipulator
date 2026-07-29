@@ -1309,7 +1309,10 @@ public class BlockPropertyRegistry {
             public void setValue(World world, int x, int y, int z, ForgeDirection forgeDirection) {
                 if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return;
 
-                world.setBlockMetadataWithNotify(x, y, z, forgeDirection.ordinal(), 1 | 2);
+                int ordinal = forgeDirection.ordinal();
+                if (ordinal < 2) return;
+
+                world.setBlockMetadataWithNotify(x, y, z, ordinal, 1 | 2);
             }
         });
 
