@@ -35,9 +35,6 @@ public class EnderStorageItemConsumer implements IItemConsumer {
 
         // Start searching from frequency 0
         for (int freq = 0; freq < 4096; freq++) {
-            // We're in planning and freq 0 is used for crafting, skip it
-            if (isPlanning && freq == 0) continue;
-
             BigItemStack simulateStack = in.copy();
             simulateStack.meta = isTank ? 4096 + freq : freq;
             simulateStack.tag = null;
@@ -51,6 +48,9 @@ public class EnderStorageItemConsumer implements IItemConsumer {
                 for (BigItemStack extracted : extractSimulated) {
                     boolean isExtractedPrivate = extracted.tag != null &&
                         extracted.tag.hasKey("owner", Constants.NBT.TAG_STRING);
+
+                    // We're in planning and freq 0 non-private is used for crafting, skip it
+                    if (isPlanning && !isExtractedPrivate && freq == 0) continue;
 
                     if (isPrivate == isExtractedPrivate) {
                         in.decStackSize(extracted.getStackSize());
@@ -78,6 +78,8 @@ public class EnderStorageItemConsumer implements IItemConsumer {
 
                 if (personalItems != null && !personalItems.isEmpty()) {
                     specialAmount = personalItems.get(0).getStackSize();
+                } else {
+                    specialAmount = 0;
                 }
             }
 
@@ -107,7 +109,8 @@ public class EnderStorageItemConsumer implements IItemConsumer {
             out.incStackSize(initial - in.getStackSize());
         }
 
-        if ((!success && isPrivate) || (success && !isPrivate) && !isPlanning) {
+        boolean shouldReturnPersonalItem = (!success && isPrivate) || (success && !isPrivate);
+        if (!isPlanning && shouldReturnPersonalItem) {
             // Give player personalItems if success and not private
             // or return personalItems if private and failed
 
