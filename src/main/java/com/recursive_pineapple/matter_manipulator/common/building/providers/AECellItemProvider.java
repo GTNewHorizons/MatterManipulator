@@ -13,6 +13,7 @@ import appeng.api.AEApi;
 import appeng.api.config.FuzzyMode;
 import appeng.api.definitions.IItemDefinition;
 import appeng.api.storage.ICellWorkbenchItem;
+import appeng.helpers.ICellRestriction;
 import appeng.parts.automation.UpgradeInventory;
 import appeng.tile.inventory.IAEStackInventory;
 import appeng.util.item.AEFluidStack;
@@ -33,6 +34,8 @@ public class AECellItemProvider implements IItemProvider {
     public FluidStack[] mConfigFluid;
     public String mOreDict;
     public byte mFuzzyMode;
+    public byte mRestrictionTypes;
+    public long mRestrictionAmount;
 
     public AECellItemProvider() {}
 
@@ -71,6 +74,13 @@ public class AECellItemProvider implements IItemProvider {
                 .anyMatch(oredictCard::isSameAs);
         if (hasOredictCard) {
             cell.mOreDict = item.getOreFilter(stack);
+        }
+
+        if (item instanceof ICellRestriction restriction) {
+            ICellRestriction.CellRestrictionData data = restriction.getCellRestrictionData(stack);
+
+            cell.mRestrictionTypes = data.restrictionTypes;
+            cell.mRestrictionAmount = data.restrictionAmount;
         }
 
         return cell;
@@ -150,6 +160,16 @@ public class AECellItemProvider implements IItemProvider {
             }
         }
 
+        if (cellWorkbenchItem instanceof ICellRestriction restriction) {
+            restriction.setCellRestriction(
+                cell,
+                new ICellRestriction.CellRestrictionData(
+                    mRestrictionTypes,
+                    mRestrictionAmount
+                )
+            );
+        }
+
         return cell;
     }
 
@@ -168,6 +188,8 @@ public class AECellItemProvider implements IItemProvider {
         dup.mConfigFluid = MMUtils.mapToArray(mConfigFluid, FluidStack[]::new, x -> x == null ? null : x.copy());
         dup.mOreDict = mOreDict;
         dup.mFuzzyMode = mFuzzyMode;
+        dup.mRestrictionTypes = mRestrictionTypes;
+        dup.mRestrictionAmount = mRestrictionAmount;
 
         return dup;
     }
@@ -201,6 +223,8 @@ public class AECellItemProvider implements IItemProvider {
             if (other.mOreDict != null) return false;
         } else if (!mOreDict.equals(other.mOreDict)) return false;
         if (mFuzzyMode != other.mFuzzyMode) return false;
+        if (mRestrictionTypes != other.mRestrictionTypes) return false;
+        if (mRestrictionAmount != other.mRestrictionAmount) return false;
         return true;
     }
 }
