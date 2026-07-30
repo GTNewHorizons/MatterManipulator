@@ -1176,7 +1176,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         return new RadialMenuBuilder(buildContext)
             .innerIcon(new ItemStack(this))
             .pipe(builder -> {
-                addCommonOptions(builder, initialState);
+                addCommonOptions(builder, buildContext, initialState);
             })
             .pipe(builder -> {
                 switch (initialState.config.placeMode) {
@@ -1189,7 +1189,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             });
     }
 
-    private void addCommonOptions(RadialMenuBuilder builder, MMState state) {
+    private void addCommonOptions(RadialMenuBuilder builder, UIBuildContext buildContext, MMState state) {
         builder
             .branch()
                 .label(StatCollector.translateToLocal("mm.gui.set_mode"))
@@ -1272,6 +1272,26 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         Messages.SetRemoveMode.sendToServer(BlockRemoveMode.ALL);
                     })
                 .done()
+            .done()
+            .option()
+                .label(StatCollector.translateToLocal("mm.gui.edit_transform"))
+                .onClicked((menu, option, mouseButton, doubleClicked) -> {
+                    UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
+                    TransformWindow transformWindow = new TransformWindow(buildContext2);
+
+                    switch (state.config.placeMode) {
+                        case CABLES -> transformWindow.buildCableMode();
+                        case EXCHANGING -> transformWindow.buildExchangeMode();
+                        case MOVING -> transformWindow.buildMoveMode();
+                        case COPYING -> transformWindow.buildCopyMode();
+                        case GEOMETRY -> transformWindow.buildGeomMode();
+                    }
+
+                    ModularWindow window = transformWindow.build();
+                    GuiScreen screen = new TransparentModularGui(
+                        new ModularUIContainer(new ModularUIContext(buildContext2, null, true), window));
+                    FMLCommonHandler.instance().showGuiScreen(screen);
+                })
             .done();
     }
 
@@ -1440,16 +1460,6 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .done()
             .done()
             .option()
-                .label(StatCollector.translateToLocal("mm.gui.edit_transform"))
-                .onClicked((menu, option, mouseButton, doubleClicked) -> {
-                    UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
-                    ModularWindow window = createCopyModeTransformWindow(buildContext2, heldStack, initialState);
-                    GuiScreen screen = new TransparentModularGui(
-                            new ModularUIContainer(new ModularUIContext(buildContext2, null, true), window));
-                    FMLCommonHandler.instance().showGuiScreen(screen);
-                })
-            .done()
-            .option()
                 .label(StatCollector.translateToLocal("mm.gui.mark_paste"))
                 .onClicked(() -> {
                     Messages.MarkPaste.sendToServer();
@@ -1506,16 +1516,6 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .label(StatCollector.translateToLocal("mm.gui.mark_paste"))
                 .onClicked(() -> {
                     Messages.MarkPaste.sendToServer();
-                })
-            .done()
-            .option()
-                .label(StatCollector.translateToLocal("mm.gui.edit_transform"))
-                .onClicked((menu, option, mouseButton, doubleClicked) -> {
-                    UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
-                    ModularWindow window = createMoveModeTransformWindow(buildContext2, heldStack, initialState);
-                    GuiScreen screen = new TransparentModularGui(
-                        new ModularUIContainer(new ModularUIContext(buildContext2, null, true), window));
-                    FMLCommonHandler.instance().showGuiScreen(screen);
                 })
             .done();
     }
