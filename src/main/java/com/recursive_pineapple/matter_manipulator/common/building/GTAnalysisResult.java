@@ -16,10 +16,10 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidRegistry;
 
-import gregtech.api.GregTechAPI;
 import gregtech.api.covers.CoverRegistry;
 import gregtech.api.enums.ItemList;
 import gregtech.api.enums.VoidingMode;
+import gregtech.api.enums.materials.PipeShapes;
 import gregtech.api.interfaces.IConfigurationCircuitSupport;
 import gregtech.api.interfaces.IDataCopyable;
 import gregtech.api.interfaces.IMEConnectable;
@@ -33,6 +33,7 @@ import gregtech.api.metatileentity.implementations.MTEFluidPipe;
 import gregtech.api.metatileentity.implementations.MTEHatchInputBus;
 import gregtech.api.metatileentity.implementations.MTEHatchOutput;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
+import gregtech.common.blocks.FrameShapeBlock;
 import gregtech.common.covers.Cover;
 import gregtech.common.tileentities.machines.multi.MTEIntegratedOreFactory;
 
@@ -48,7 +49,7 @@ import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
-import com.recursive_pineapple.matter_manipulator.mixin.interfaces.BlockFrameBoxExt;
+import com.ruling_0.materiallib.api.MaterialLibAPI;
 
 import gtnhlanth.common.beamline.MTEBeamlinePipe;
 import lombok.EqualsAndHashCode;
@@ -278,8 +279,8 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         TileEntity te = ctx.getTileEntity();
 
         // Create the frame tile if it doesn't have one and we're about to apply covers
-        if (world.getBlock(x, y, z) == GregTechAPI.sBlockFrames && te == null && mCovers != null) {
-            ((BlockFrameBoxExt) GregTechAPI.sBlockFrames).spawnFrameEntityExt(world, x, y, z);
+        if (world.getBlock(x, y, z) == MaterialLibAPI.getBlock(PipeShapes.frameGt) && te == null && mCovers != null) {
+            ((FrameShapeBlock) MaterialLibAPI.getBlock(PipeShapes.frameGt)).spawnFrameEntity(world, null, x, y, z);
             te = ctx.getTileEntity();
         }
 

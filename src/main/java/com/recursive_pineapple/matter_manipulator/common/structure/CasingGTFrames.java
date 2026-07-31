@@ -7,32 +7,33 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import net.minecraft.block.Block;
 
-import gregtech.api.GregTechAPI;
 import gregtech.api.casing.ICasing;
-import gregtech.api.enums.Materials;
+import gregtech.api.enums.materials.PipeShapes;
 
 import com.gtnewhorizon.structurelib.structure.IStructureElement;
+import com.ruling_0.materiallib.api.Material;
+import com.ruling_0.materiallib.api.MaterialLibAPI;
 
 import org.jetbrains.annotations.NotNull;
 
 public class CasingGTFrames implements ICasing {
 
-    public final Materials material;
+    public final Material material;
 
-    private static final Map<Materials, CasingGTFrames> FRAMES = new ConcurrentHashMap<>();
+    private static final Map<Material, CasingGTFrames> FRAMES = new ConcurrentHashMap<>();
 
-    private CasingGTFrames(Materials material) {
+    private CasingGTFrames(Material material) {
         this.material = material;
     }
 
     @Override
     public @NotNull Block getBlock() {
-        return GregTechAPI.sBlockFrames;
+        return MaterialLibAPI.getBlock(PipeShapes.frameGt);
     }
 
     @Override
     public int getBlockMeta() {
-        return material.mMetaItemSubID;
+        return material.getIndex();
     }
 
     @Override
@@ -50,7 +51,7 @@ public class CasingGTFrames implements ICasing {
         throw new UnsupportedOperationException("CasingGTFrames does not support getTextureId()");
     }
 
-    public static CasingGTFrames forMaterial(Materials material) {
+    public static CasingGTFrames forMaterial(Material material) {
         return FRAMES.computeIfAbsent(material, CasingGTFrames::new);
     }
 }
