@@ -2149,6 +2149,21 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private static @NotNull IntConsumer createSetter(EntityPlayer player, Coord coord, CoordComponent component) {
+        boolean pin = false;
+        MMState state = getState(player.getHeldItem());
+
+        if (state.config.placeMode == PlaceMode.GEOMETRY && state.config.shape == Shape.CYLINDER && coord == Coord.CopyA) {
+            Vector3i vecA = state.config.coordA.toVec();
+            Vector3i vecB = MMState.pinToPlanes(vecA, state.config.coordB.toVec());
+
+            switch (vecB.sub(vecA).minComponent()) {
+                case 0 -> pin = component == CoordComponent.X;
+                case 1 -> pin = component == CoordComponent.Y;
+                case 2 -> pin = component == CoordComponent.Z;
+            }
+        }
+
+        final boolean shouldPin = pin;
         return i -> {
             MMState currState = getState(player.getHeldItem());
 
@@ -2156,45 +2171,115 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
             component.set(loc, i);
 
-            switch (coord) {
-                case Copy -> {
-                    if (currState.config.coordA != null) {
-                        currState.config.coordA = new Location(player.worldObj, currState.config.coordA.toVec().add(loc));
+            // Cylinder shape coords handling
+            if (currState.config.placeMode == PlaceMode.GEOMETRY && currState.config.shape == Shape.CYLINDER) {
+                switch (coord) {
+                    case Copy -> {
+                        if (currState.config.coordA != null) {
+                            currState.config.coordA = new Location(player.worldObj, currState.config.coordA.toVec().add(loc));
+                        }
+                        if (currState.config.coordB != null) {
+                            currState.config.coordB = new Location(player.worldObj, currState.config.coordB.toVec().add(loc));
+                        }
+                        if (currState.config.coordC != null) {
+                            currState.config.coordC = new Location(player.worldObj, currState.config.coordC.toVec().add(loc));
+                        }
                     }
+                    case CopyA -> {
+                        Vector3i vecA = currState.config.coordA.toVec();
+                        Vector3i vecB = currState.config.coordB.toVec();
+                        Vector3i vecC = currState.config.coordC.toVec();
 
-                    if (currState.config.coordB != null) {
-                        currState.config.coordB = new Location(player.worldObj, currState.config.coordB.toVec().add(loc));
+                        if (shouldPin) {
+                            component.set(vecB, i);
+                            component.set(vecC,
+                                component.get(vecC.sub(vecA)) + i);
+                        } else {
+                            component.set(vecC, i);
+
+                            if (Math.abs(component.get(loc) - component.get(vecB)) < 1) break;
+                        }
+
+                        currState.config.coordA = new Location(player.worldObj, loc);
+                        currState.config.coordB = new Location(player.worldObj, vecB);
+                        currState.config.coordC = new Location(player.worldObj, vecC);
                     }
+                    case CopyB -> {
+                        Vector3i vecA = currState.config.coordA.toVec();
+
+                        if (Math.abs(component.get(loc) - component.get(vecA)) < 1) break;
+
+                        currState.config.coordB = new Location(player.worldObj, loc);
+                    }
+                    case Paste -> currState.config.coordC = new Location(player.worldObj, loc);
                 }
-                case CopyA -> currState.config.coordA = new Location(player.worldObj, loc);
-                case CopyB -> currState.config.coordB = new Location(player.worldObj, loc);
-                case Paste -> currState.config.coordC = new Location(player.worldObj, loc);
-                case Stack -> currState.config.arraySpan = loc;
-            }
 
-            ItemMatterManipulator.setState(player.getHeldItem(), currState);
+                ItemMatterManipulator.setState(player.getHeldItem(), currState);
 
-            switch (coord) {
-                case Copy -> {
-                    if (currState.config.coordA != null) {
-                        Messages.SetA.sendToServer(currState.config.coordA.toVec());
+                switch (coord) {
+                    case Copy:
+                    case CopyA: {
+                        if (currState.config.coordA != null) {
+                            Messages.SetA.sendToServer(currState.config.coordA.toVec());
+                        }
+                        if (currState.config.coordB != null) {
+                            Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                        }
+                        if (currState.config.coordC != null) {
+                            Messages.SetC.sendToServer(currState.config.coordC.toVec());
+                        }
+                        break;
                     }
-
-                    if (currState.config.coordB != null) {
+                    case CopyB: {
                         Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                        break;
+                    }
+                    case Paste: {
+                        Messages.SetC.sendToServer(currState.config.coordC.toVec());
+                        break;
                     }
                 }
-                case CopyA -> {
-                    Messages.SetA.sendToServer(loc);
+            } else {
+                switch (coord) {
+                    case Copy -> {
+                        if (currState.config.coordA != null) {
+                            currState.config.coordA = new Location(player.worldObj, currState.config.coordA.toVec().add(loc));
+                        }
+
+                        if (currState.config.coordB != null) {
+                            currState.config.coordB = new Location(player.worldObj, currState.config.coordB.toVec().add(loc));
+                        }
+                    }
+                    case CopyA -> currState.config.coordA = new Location(player.worldObj, loc);
+                    case CopyB -> currState.config.coordB = new Location(player.worldObj, loc);
+                    case Paste -> currState.config.coordC = new Location(player.worldObj, loc);
+                    case Stack -> currState.config.arraySpan = loc;
                 }
-                case CopyB -> {
-                    Messages.SetB.sendToServer(loc);
-                }
-                case Paste -> {
-                    Messages.SetC.sendToServer(loc);
-                }
-                case Stack -> {
-                    Messages.SetArray.sendToServer(loc);
+
+                ItemMatterManipulator.setState(player.getHeldItem(), currState);
+
+                switch (coord) {
+                    case Copy -> {
+                        if (currState.config.coordA != null) {
+                            Messages.SetA.sendToServer(currState.config.coordA.toVec());
+                        }
+
+                        if (currState.config.coordB != null) {
+                            Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                        }
+                    }
+                    case CopyA -> {
+                        Messages.SetA.sendToServer(loc);
+                    }
+                    case CopyB -> {
+                        Messages.SetB.sendToServer(loc);
+                    }
+                    case Paste -> {
+                        Messages.SetC.sendToServer(loc);
+                    }
+                    case Stack -> {
+                        Messages.SetArray.sendToServer(loc);
+                    }
                 }
             }
         };
