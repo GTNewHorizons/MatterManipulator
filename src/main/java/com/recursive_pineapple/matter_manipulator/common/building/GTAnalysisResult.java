@@ -19,7 +19,7 @@ import net.minecraftforge.fluids.FluidRegistry;
 import gregtech.api.covers.CoverRegistry;
 import gregtech.api.enums.ItemList;
 import gregtech.api.enums.VoidingMode;
-import gregtech.api.enums.materials.PipeShapes;
+import gregtech.api.enums.materials.TEBlockShapes;
 import gregtech.api.interfaces.IConfigurationCircuitSupport;
 import gregtech.api.interfaces.IDataCopyable;
 import gregtech.api.interfaces.IMEConnectable;
@@ -279,8 +279,8 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         TileEntity te = ctx.getTileEntity();
 
         // Create the frame tile if it doesn't have one and we're about to apply covers
-        if (world.getBlock(x, y, z) == MaterialLibAPI.getBlock(PipeShapes.frameGt) && te == null && mCovers != null) {
-            ((FrameShapeBlock) MaterialLibAPI.getBlock(PipeShapes.frameGt)).spawnFrameEntity(world, null, x, y, z);
+        if (world.getBlock(x, y, z) == MaterialLibAPI.getBlock(TEBlockShapes.frameGt) && te == null && mCovers != null) {
+            ((FrameShapeBlock) MaterialLibAPI.getBlock(TEBlockShapes.frameGt)).spawnFrameEntity(world, null, x, y, z);
             te = ctx.getTileEntity();
         }
 

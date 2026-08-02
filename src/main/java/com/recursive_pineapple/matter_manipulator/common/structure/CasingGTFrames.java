@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.block.Block;
 
 import gregtech.api.casing.ICasing;
-import gregtech.api.enums.materials.PipeShapes;
+import gregtech.api.enums.materials.TEBlockShapes;
 
 import com.gtnewhorizon.structurelib.structure.IStructureElement;
 import com.ruling_0.materiallib.api.Material;
@@ -28,7 +28,7 @@ public class CasingGTFrames implements ICasing {
 
     @Override
     public @NotNull Block getBlock() {
-        return MaterialLibAPI.getBlock(PipeShapes.frameGt);
+        return MaterialLibAPI.getBlock(TEBlockShapes.frameGt);
     }
 
     @Override
