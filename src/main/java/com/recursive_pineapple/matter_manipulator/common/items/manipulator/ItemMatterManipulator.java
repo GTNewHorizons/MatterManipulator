@@ -374,6 +374,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
     @Override
     public void onUpdate(ItemStack stack, World worldIn, Entity entityIn, int p_77663_4_, boolean p_77663_5_) {
+        if (worldIn.isRemote) return;
         if (worldIn.getTotalWorldTime() % 100 == 0) {
             MMState state = getState(stack);
 
