@@ -30,6 +30,7 @@ public class InteropConstants {
     public static final LazyBlockSpec AE_BLOCK_CABLE = LazyBlockSpec.ofBlock(Mods.AppliedEnergistics2, "tile.BlockCableBus", 0);
     public static final LazyBlock FMP_BLOCK = new LazyBlock(Mods.ForgeMultipart, "block");
     public static final LazyBlock OC_CABLE = new LazyBlock(Mods.OpenComputers, "cable");
+    public static final LazyBlockSpec OC_TRANSPOSER = LazyBlockSpec.ofBlock(Mods.OpenComputers, "transposer", MMValues.W);
     public static final LazyBlockSpec ENDER_STORAGE = LazyBlockSpec.ofBlock(Mods.EnderStorage, "enderChest", MMValues.W);
 
     public static boolean isWirelessConnector(Block block, int meta) {

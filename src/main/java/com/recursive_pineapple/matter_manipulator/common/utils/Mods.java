@@ -29,6 +29,7 @@ public enum Mods implements IMod, ITargetMod {
     /** The forge multipart library. */
     ForgeMultipart(Names.FORGE_MULTIPART),
     FloodLights(Names.FLOOD_LIGHTS),
+    Forestry(Names.FORESTRY),
     GalacticraftCore(Names.GALACTICRAFT_CORE),
     GalaxySpace(Names.GALAXY_SPACE),
     GregTech(Names.GREG_TECH) {
@@ -57,6 +58,7 @@ public enum Mods implements IMod, ITargetMod {
     NotEnoughItems(Names.NOT_ENOUGH_ITEMS),
     StorageDrawers(Names.STORAGE_DRAWERS),
     Thaumcraft(Names.THAUMCRAFT),
+    ThaumicTinkerer(Names.THAUMIC_TINKERER)
 
     ;
 
@@ -75,6 +77,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String FORGE_MICROBLOCKS = "ForgeMicroblock";
         public static final String FORGE_MULTIPART = "ForgeMultipart";
         public static final String FLOOD_LIGHTS = "FloodLights";
+        public static final String FORESTRY = "Forestry";
         public static final String GALACTICRAFT_CORE = "GalacticraftCore";
         public static final String GALAXY_SPACE = "GalaxySpace";
         public static final String GREG_TECH = "gregtech";
@@ -93,6 +96,7 @@ public enum Mods implements IMod, ITargetMod {
         public static final String STORAGE_DRAWERS = "StorageDrawers";
         public static final String THAUMCRAFT = "Thaumcraft";
         public static final String THAUMIC_ENERGISTICS = "thaumicenergistics";
+        public static final String THAUMIC_TINKERER = "ThaumicTinkerer";
     }
 
     public final String ID;

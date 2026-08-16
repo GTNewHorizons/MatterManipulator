@@ -43,6 +43,7 @@ def carpenters = false
 def avaritia = false
 def eio = false
 def fl = false
+def forestry = false
 def xu = false
 def fmp = false
 def gt5u = false
@@ -113,6 +114,8 @@ dependencies {
 
     addCompat(fl, "com.github.GTNewHorizons:FloodLights:1.5.6:dev")
 
+    addCompat(forestry, "com.github.GTNewHorizons:ForestryMC:4.11.31:dev")
+
     addCompat(fmp, rfg.deobf("maven.modrinth:immibis-microblocks:59.1.2"))
     addCompat(fmp, rfg.deobf("maven.modrinth:immibis-core:59.1.4"))
     addCompat(fmp, "com.github.GTNewHorizons:ForgeMultipart:1.7.10:dev")
@@ -125,6 +128,9 @@ dependencies {
 
     addCompat(tc, "thaumcraft:Thaumcraft:1.7.10-4.2.3.5:dev")
     addCompat(tc, "com.github.GTNewHorizons:ThaumicEnergistics:1.7.56-GTNH:dev")
+
+    compileOnly("curse.maven:computercraft-67504:2269339", { transitive = false })
+    addCompat(tc, "com.github.GTNewHorizons:ThaumicTinkerer:2.12.28:dev")
 
     addCompat(waila, "com.github.GTNewHorizons:waila:1.19.30:dev")
 }

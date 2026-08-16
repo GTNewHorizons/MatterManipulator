@@ -74,6 +74,7 @@ import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidHandler;
 
 import cpw.mods.fml.relauncher.ReflectionHelper;
@@ -93,6 +94,7 @@ import appeng.api.parts.IPartHost;
 import appeng.api.parts.IPartItem;
 import appeng.api.parts.PartItemStack;
 import appeng.api.storage.ICellWorkbenchItem;
+import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.parts.automation.UpgradeInventory;
@@ -118,6 +120,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInvento
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
 import com.recursive_pineapple.matter_manipulator.common.building.MMInventory;
+import com.recursive_pineapple.matter_manipulator.common.building.MMItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
@@ -128,7 +131,6 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
 import org.joml.Vector3i;
 
-import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 
 public class MMUtils {
@@ -791,6 +793,16 @@ public class MMUtils {
     }
 
     /**
+     * Removes all stacks in an inventory without returning them.
+     */
+    public static void clearInventory(IAEStackInventory inv) {
+        for (int i = 0; i < inv.getSizeInventory(); i++) {
+            inv.putAEStackInSlot(i, null);
+        }
+        inv.markDirty();
+    }
+
+    /**
      * Merges stacks together and does not preserve order within the inventory.
      * Array will never contain null indices.
      */
@@ -825,7 +837,7 @@ public class MMUtils {
      * Doesn't merge stacks and preserves the order of stacks.
      * Empty indices will be null.
      */
-    public static PortableItemStack[] fromInventoryNoMerge(IAEStackInventory inventory) {
+    public static PortableItemStack[] fromInventoryNoMergeItem(IAEStackInventory inventory) {
         PortableItemStack[] out = new PortableItemStack[inventory.getSizeInventory()];
 
         for (int i = 0; i < out.length; i++) {
@@ -833,6 +845,24 @@ public class MMUtils {
 
             if (stack instanceof IAEItemStack itemStack) {
                 out[i] = new PortableItemStack(itemStack.getItemStack());
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * Doesn't merge stacks and preserves the order of stacks.
+     * Empty indices will be null.
+     */
+    public static FluidStack[] fromInventoryNoMergeFluid(IAEStackInventory inventory) {
+        FluidStack[] out = new FluidStack[inventory.getSizeInventory()];
+
+        for (int i = 0; i < out.length; i++) {
+            IAEStack<?> stack = inventory.getAEStackInSlot(i);
+
+            if (stack instanceof IAEFluidStack fluidStack) {
+                out[i] = fluidStack.getFluidStack();
             }
         }
 
@@ -880,37 +910,48 @@ public class MMUtils {
             .map(BigItemStack::create)
             .collect(Collectors.toList());
 
-        List<BigItemStack> extracted;
-
         if (consume) {
             var result = src.tryConsumeItems(toInstallBig, IPseudoInventory.CONSUME_PARTIAL);
 
-            extracted = result.right();
+            List<BigItemStack> extracted = result.right();
 
-            for (BigItemStack wanted : toInstallBig) {
-                for (BigItemStack found : extracted) {
-                    if (!found.isSameType(wanted)) continue;
-
-                    wanted.stackSize -= found.stackSize;
-                }
-            }
-
-            if (src instanceof IBlockApplyContext ctx) {
+            // Skip check on creative
+            if (
+                !(src instanceof IBlockApplyContext ctx &&
+                    ctx.getRealPlayer() != null &&
+                    ctx.getRealPlayer().capabilities.isCreativeMode)
+            ) {
                 for (BigItemStack wanted : toInstallBig) {
-                    if (wanted.stackSize > 0) {
-                        ctx.warn(
-                            new ChatComponentTranslation(
-                                "mm.info.warning.could_not_find_upgrade",
-                                new ChatComponentItemName(wanted.getItemStack()),
-                                wanted.stackSize
-                            )
-                        );
-                        success = false;
+                    long totalAmountFound = 0;
+
+                    for (BigItemStack found : extracted) {
+                        if (found.stackSize <= 0) continue;
+                        if (!found.isSameType(wanted)) continue;
+
+                        long foundAmount = Math.min(found.stackSize, wanted.stackSize - totalAmountFound);
+
+                        found.decStackSize(foundAmount);
+                        totalAmountFound += foundAmount;
+
+                        if (wanted.stackSize == totalAmountFound) break;
                     }
+
+                    if (src instanceof IBlockApplyContext ctx) {
+                        if (wanted.stackSize - totalAmountFound > 0) {
+                            ctx.warn(
+                                new ChatComponentTranslation(
+                                    "mm.info.warning.could_not_find_upgrade",
+                                    new ChatComponentItemName(wanted.getItemStack()),
+                                    wanted.stackSize - totalAmountFound
+                                )
+                            );
+                            success = false;
+                        }
+                    }
+
+                    wanted.setStackSize(totalAmountFound);
                 }
             }
-        } else {
-            extracted = mapToList(toInstallBig, BigItemStack::copy);
         }
 
         if (!simulate) {
@@ -933,7 +974,7 @@ public class MMUtils {
 
             int slot = 0;
 
-            outer: for (BigItemStack stack : extracted) {
+            outer: for (BigItemStack stack : toInstallBig) {
                 for (ItemStack split : stack.toStacks(1)) {
                     while (dest.getStackInSlot(slot) != null) {
                         slot++;
@@ -1370,12 +1411,16 @@ public class MMUtils {
 
         MMInventory inv = new MMInventory(player, state, manipulator.tier);
 
-        Pair<Boolean, List<BigItemStack>> extractResult = inv.tryConsumeItems(
-            requiredItems,
-            IPseudoInventory.CONSUME_SIMULATED | IPseudoInventory.CONSUME_PARTIAL | IPseudoInventory.CONSUME_IGNORE_CREATIVE
-        );
+        List<BigItemStack> availableItems = new ArrayList<>();
 
-        List<BigItemStack> availableItems = extractResult.right() == null ? new ArrayList<>() : extractResult.right();
+        for (BigItemStack requiredItem : requiredItems) {
+            BigItemStack availableItem = MMItemConsumer.consume(
+                inv,
+                requiredItem.copy(),
+                IPseudoInventory.CONSUME_SIMULATED | IPseudoInventory.CONSUME_IGNORE_CREATIVE
+            );
+            if (availableItem != null) availableItems.add(availableItem);
+        }
 
         sendInfoToPlayer(player, "mm.info.required_items");
 

@@ -20,6 +20,7 @@ public class PatternItemProvider implements IItemProvider {
 
     private Integer amount;
     private NBTTagCompound pattern;
+    private boolean isUltimate;
 
     private static final IItemDefinition BLANK_PATTERN = AEApi.instance()
         .definitions()
@@ -29,23 +30,28 @@ public class PatternItemProvider implements IItemProvider {
         .definitions()
         .items()
         .encodedPattern();
+    private static final IItemDefinition ULTIMATE_PATTERN = AEApi.instance()
+        .definitions()
+        .items()
+        .encodedUltimatePattern();
 
     public PatternItemProvider() {}
 
     public static PatternItemProvider fromPattern(ItemStack stack) {
-        if (!PATTERN.isSameAs(stack)) { return null; }
+        if (!PATTERN.isSameAs(stack) && !ULTIMATE_PATTERN.isSameAs(stack)) { return null; }
 
         PatternItemProvider pattern = new PatternItemProvider();
 
         pattern.amount = stack.stackSize != 1 ? stack.stackSize : null;
         pattern.pattern = stack.getTagCompound();
+        pattern.isUltimate = ULTIMATE_PATTERN.isSameAs(stack);
 
         return pattern;
     }
 
     @Override
     public @Nullable ItemStack getStack(IPseudoInventory inv, boolean consume) {
-        ItemStack stack = PATTERN.maybeStack(1).get();
+        ItemStack stack = isUltimate ? ULTIMATE_PATTERN.maybeStack(1).get() : PATTERN.maybeStack(1).get();
 
         stack.stackSize = amount == null ? 1 : amount;
         stack.setTagCompound(pattern != null ? (NBTTagCompound) pattern.copy() : null);
@@ -71,6 +77,7 @@ public class PatternItemProvider implements IItemProvider {
 
         dup.amount = amount;
         dup.pattern = (NBTTagCompound) pattern.copy();
+        dup.isUltimate = isUltimate;
 
         return dup;
     }

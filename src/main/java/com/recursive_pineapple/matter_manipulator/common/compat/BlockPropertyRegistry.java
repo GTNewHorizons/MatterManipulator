@@ -79,14 +79,20 @@ import codechicken.enderstorage.storage.item.TileEnderChest;
 import codechicken.enderstorage.storage.liquid.TileEnderTank;
 import de.keridos.floodlights.tileentity.TileEntityMetaFloodlight;
 import de.keridos.floodlights.tileentity.TileEntitySmallFloodlight;
+import forestry.arboriculture.blocks.BlockRegistryArboriculture;
+import forestry.arboriculture.tiles.TileWood;
+import forestry.plugins.PluginArboriculture;
 import gcewing.architecture.common.tile.TileArchitecture;
 import ic2.api.tile.IWrenchable;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
+import li.cil.oc.common.item.data.TransposerData;
+import li.cil.oc.common.tileentity.Transposer;
 import li.cil.oc.common.tileentity.traits.Rotatable;
 import lombok.SneakyThrows;
+import thaumic.tinkerer.common.block.tile.tablet.TileAnimationTablet;
 
 public class BlockPropertyRegistry {
 
@@ -265,11 +271,13 @@ public class BlockPropertyRegistry {
         if (Mods.IndustrialCraft2.isModLoaded()) initIC2();
         if (Mods.ArchitectureCraft.isModLoaded()) initArch();
         if (Mods.FloodLights.isModLoaded()) initFloodLights();
+        if (Mods.Forestry.isModLoaded()) initForestry();
         if (Mods.GregTech.isModLoaded()) initGT5u();
         if (Mods.AppliedEnergistics2.isModLoaded()) initAE2Wireless();
         if (Mods.EnderStorage.isModLoaded()) initEnderStorage();
         if (Mods.ExtraUtilities.isModLoaded()) initEXU();
         if (Mods.OpenComputers.isModLoaded()) initOpenComputers();
+        if (Mods.ThaumicTinkerer.isModLoaded()) initThaumicTinkerer();
     }
 
     // #region Vanilla
@@ -1067,6 +1075,74 @@ public class BlockPropertyRegistry {
 
     // #endregion
 
+    // #region Forestry
+
+    @Optional(Names.FORESTRY)
+    private static void initForestry() {
+        ForestryWoodTypeProperty property = new ForestryWoodTypeProperty();
+
+        BlockRegistryArboriculture blocks = PluginArboriculture.blocks;
+
+        registerIntrinsicProperty(blocks.logs, property);
+        registerIntrinsicProperty(blocks.logsFireproof, property);
+        registerIntrinsicProperty(blocks.planks, property);
+        registerIntrinsicProperty(blocks.planksFireproof, property);
+        registerIntrinsicProperty(blocks.slabs, property);
+        registerIntrinsicProperty(blocks.slabsDouble, property);
+        registerIntrinsicProperty(blocks.slabsFireproof, property);
+        registerIntrinsicProperty(blocks.slabsDoubleFireproof, property);
+        registerIntrinsicProperty(blocks.fences, property);
+        registerIntrinsicProperty(blocks.fencesFireproof, property);
+        registerIntrinsicProperty(blocks.stairs, property);
+        registerIntrinsicProperty(blocks.stairsFireproof, property);
+    }
+
+    /*
+     * Forestry always places wood blocks (planks, logs, slabs, fences, stairs) with metadata 0 and instead stores
+     * the real wood type in the {@link TileWood} tile entity.
+     */
+    private static class ForestryWoodTypeProperty implements IntrinsicProperty {
+
+        @Override
+        public String getName() {
+            return "woodType";
+        }
+
+        @Override
+        public boolean hasValue(ItemStack stack) {
+            return stack != null;
+        }
+
+        @Override
+        public boolean hasValue(IBlockAccess world, int x, int y, int z) {
+            return world.getTileEntity(x, y, z) instanceof TileWood;
+        }
+
+        @Override
+        public JsonElement getValue(ItemStack stack) {
+            return new JsonPrimitive(stack.getItemDamage());
+        }
+
+        @Override
+        public JsonElement getValue(IBlockAccess world, int x, int y, int z) {
+            if (!(world.getTileEntity(x, y, z) instanceof TileWood wood)) return null;
+
+            return new JsonPrimitive(wood.getWoodType().ordinal());
+        }
+
+        @Override
+        public void setValue(ItemStack stack, JsonElement value) {
+            stack.setItemDamage(value.getAsInt());
+        }
+
+        @Override
+        public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
+            throw new UnsupportedOperationException("Wood type is immutable for in-world blocks");
+        }
+    }
+
+    // #endregion
+
     // #region GT5u
 
     @Optional(Names.GREG_TECH_NH)
@@ -1179,6 +1255,7 @@ public class BlockPropertyRegistry {
 
     @Optional(Names.OPEN_COMPUTERS)
     private static void initOpenComputers() {
+        registerIntrinsicProperty(InteropConstants.OC_TRANSPOSER.getBlock(), new OpenComputersTransposerFluidTransferRateProperty());
         registerTileEntityInterfaceProperty(
             Rotatable.class,
             new OrientationBlockProperty() {
@@ -1283,6 +1360,79 @@ public class BlockPropertyRegistry {
                 }
             }
         );
+    }
+
+    // #endregion
+
+    // #region ThaumicTinkerer
+
+    @Optional(Names.THAUMIC_TINKERER)
+    private static void initThaumicTinkerer() {
+        registerTileEntityInterfaceProperty(TileAnimationTablet.class, new AbstractDirectionBlockProperty("facing") {
+
+            @Override
+            public ForgeDirection getValue(World world, int x, int y, int z) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return UNKNOWN;
+
+                return ForgeDirection.getOrientation(tablet.getBlockMetadata());
+            }
+
+            @Override
+            public void setValue(World world, int x, int y, int z, ForgeDirection forgeDirection) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return;
+
+                int ordinal = forgeDirection.ordinal();
+                if (ordinal < 2) return;
+
+                world.setBlockMetadataWithNotify(x, y, z, ordinal, 1 | 2);
+            }
+        });
+
+        registerTileEntityInterfaceProperty(TileAnimationTablet.class, new BooleanProperty() {
+
+            @Override
+            public String getName() {
+                return "mode";
+            }
+
+            @Override
+            public boolean getBoolean(World world, int x, int y, int z) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return false;
+
+                return tablet.leftClick;
+            }
+
+            @Override
+            public void setBoolean(World world, int x, int y, int z, boolean value) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return;
+
+                tablet.leftClick = value;
+                world.markBlockForUpdate(x, y, z);
+            }
+        });
+
+        registerTileEntityInterfaceProperty(TileAnimationTablet.class, new BooleanProperty() {
+
+            @Override
+            public String getName() {
+                return "inverted";
+            }
+
+            @Override
+            public boolean getBoolean(World world, int x, int y, int z) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return false;
+
+                return tablet.redstone;
+            }
+
+            @Override
+            public void setBoolean(World world, int x, int y, int z, boolean value) {
+                if (!(world.getTileEntity(x, y, z) instanceof TileAnimationTablet tablet)) return;
+
+                tablet.redstone = value;
+                world.markBlockForUpdate(x, y, z);
+            }
+        });
     }
 
     // #endregion
@@ -1749,6 +1899,62 @@ public class BlockPropertyRegistry {
         @Override
         public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
             throw new UnsupportedOperationException("Owner is immutable for in-world blocks");
+        }
+    }
+
+    private static class OpenComputersTransposerFluidTransferRateProperty implements IntrinsicProperty {
+
+        @Override
+        public String getName() {
+            return "fluidTransferRate";
+        }
+
+        @Override
+        public boolean hasValue(ItemStack stack) {
+            return InteropConstants.OC_TRANSPOSER.matches(stack);
+        }
+
+        @Override
+        public boolean hasValue(IBlockAccess world, int x, int y, int z) {
+            return world.getTileEntity(x, y, z) instanceof Transposer;
+        }
+
+        @Override
+        public JsonElement getValue(ItemStack stack) {
+            int fluidTransferRate = new TransposerData(stack).fluidTransferRate();
+            return new JsonPrimitive(fluidTransferRate);
+        }
+
+        @Override
+        public JsonElement getValue(IBlockAccess world, int x, int y, int z) {
+            TileEntity te = world.getTileEntity(x, y, z);
+
+            if (te instanceof Transposer transposer) {
+                return new JsonPrimitive(transposer.info().fluidTransferRate());
+            } else {
+                throw new IllegalStateException("expected " + te + " to be a Transposer");
+            }
+        }
+
+        @Override
+        public void setValue(ItemStack stack, JsonElement value) {
+            NBTTagCompound tag = stack.getTagCompound() != null ? stack.getTagCompound() : new NBTTagCompound();
+            tag.setInteger(TransposerData.FLUID_TRANSFER_RATE(), value.getAsInt());
+            stack.setTagCompound(tag);
+        }
+
+        @Override
+        public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
+            TileEntity te = world.getTileEntity(x, y, z);
+
+            if (te instanceof Transposer transposer) {
+                NBTTagCompound tag = new NBTTagCompound();
+                tag.setInteger(TransposerData.FLUID_TRANSFER_RATE(), value.getAsInt());
+
+                transposer.info().load(tag);
+            } else {
+                throw new IllegalStateException("expected " + te + " to be a Transposer");
+            }
         }
     }
 }

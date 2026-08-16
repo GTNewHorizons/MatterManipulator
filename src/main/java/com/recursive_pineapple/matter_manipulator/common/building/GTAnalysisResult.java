@@ -210,7 +210,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         }
 
         // check if the machine has a locked fluid
-        if (mte instanceof IFluidLockableMui2 lockable && lockable.isFluidLocked()) {
+        if (mte instanceof IFluidLockableMui2 lockable && lockable.isFluidLocked() && lockable.getLockedFluid() != null) {
             mGTFluidLock = lockable.getLockedFluid().getName();
         }
 
