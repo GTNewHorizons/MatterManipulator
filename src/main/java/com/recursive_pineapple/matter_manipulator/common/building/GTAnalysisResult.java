@@ -5,6 +5,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.nu
 import java.util.List;
 import java.util.Objects;
 
+import net.minecraft.block.Block;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -278,9 +279,11 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
 
         TileEntity te = ctx.getTileEntity();
 
+        Block frameBlock = MaterialLibAPI.getBlock(TEBlockShapes.frameGt);
+
         // Create the frame tile if it doesn't have one and we're about to apply covers
-        if (world.getBlock(x, y, z) == MaterialLibAPI.getBlock(TEBlockShapes.frameGt) && te == null && mCovers != null) {
-            ((FrameShapeBlock) MaterialLibAPI.getBlock(TEBlockShapes.frameGt)).spawnFrameEntity(world, null, x, y, z);
+        if (world.getBlock(x, y, z) == frameBlock && te == null && mCovers != null) {
+            ((FrameShapeBlock) frameBlock).spawnFrameEntity(world, null, x, y, z);
             te = ctx.getTileEntity();
         }
 
