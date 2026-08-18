@@ -25,7 +25,7 @@ import net.minecraft.util.EnumChatFormatting;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
-import gregtech.GTMod;
+import gregtech.GTLoggers;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -481,7 +481,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 );
                 craftingTracker.addCraftingOption(this, pattern);
             } catch (IllegalStateException e) {
-                GTMod.GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
+                GTLoggers.GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
                 continue;
             }
         }
@@ -495,7 +495,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 );
                 craftingTracker.addCraftingOption(this, pattern);
             } catch (IllegalStateException e) {
-                GTMod.GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
+                GTLoggers.GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
                 continue;
             }
         }
