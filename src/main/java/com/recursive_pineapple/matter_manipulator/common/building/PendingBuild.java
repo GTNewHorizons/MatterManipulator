@@ -76,6 +76,11 @@ public class PendingBuild extends AbstractBuildable {
     }
 
     @Override
+    public boolean isDone() {
+        return pendingBlocks.isEmpty();
+    }
+
+    @Override
     public void tryPlaceBlocks(ItemStack stack, EntityPlayer player) {
         resetWarnings();
         refillPower(stack);

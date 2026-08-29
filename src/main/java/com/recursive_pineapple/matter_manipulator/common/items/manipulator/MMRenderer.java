@@ -142,6 +142,10 @@ public class MMRenderer {
                     renderRegions(event, player, state, manipulator);
                     break;
                 }
+                case WIRELESS_LINK: {
+                    renderWirelessLink(event, player, state, manipulator);
+                    break;
+                }
             }
         } else {
             if (lastDrawer != null) {
@@ -486,6 +490,124 @@ public class MMRenderer {
                     false,
                     false
                 );
+            }
+        } finally {
+            BoxRenderer.INSTANCE.finish();
+        }
+    }
+
+    private static void renderWirelessLink(RenderWorldLastEvent event, EntityPlayer player, MMState state, ItemMatterManipulator manipulator) {
+        Location wireA = state.config.wirelessA;
+        Location wireB = state.config.wirelessB;
+        Location hubA = state.config.hubA;
+        Location hubB = state.config.hubB;
+
+        Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
+
+        if (state.config.action != null) {
+            switch (state.config.action) {
+                case MARK_WIRELESS_A: {
+                    wireA = new Location(player.worldObj, lookingAt);
+                    GL11.glColor4f(0.15f, 0.6f, 0.75f, 0.75F);
+                    drawRulers(player, wireA, false, event.partialTicks);
+                    break;
+                }
+                case MARK_WIRELESS_B: {
+                    wireB = new Location(player.worldObj, lookingAt);
+                    GL11.glColor4f(0.15f, 0.6f, 0.75f, 0.75F);
+                    drawRulers(player, wireB, false, event.partialTicks);
+                    break;
+                }
+                case MARK_HUB_A: {
+                    hubA = new Location(player.worldObj, lookingAt);
+                    GL11.glColor4f(0.75f, 0.5f, 0.15f, 0.75F);
+                    drawRulers(player, hubA, false, event.partialTicks);
+                    break;
+                }
+                case MARK_HUB_B: {
+                    hubB = new Location(player.worldObj, lookingAt);
+                    GL11.glColor4f(0.75f, 0.5f, 0.15f, 0.75F);
+                    drawRulers(player, hubB, false, event.partialTicks);
+                    break;
+                }
+                default: {
+                    return;
+                }
+            }
+        }
+
+        state.config.wirelessA = wireA;
+        state.config.wirelessB = wireB;
+        state.config.hubA = hubA;
+        state.config.hubB = hubB;
+
+        boolean isWireValid = wireA != null && wireA.isInWorld(player.worldObj) && wireB != null && wireB.isInWorld(player.worldObj);
+        boolean isHubValid = hubA != null && hubA.isInWorld(player.worldObj) && hubB != null && hubB.isInWorld(player.worldObj);
+
+        boolean isValid = isWireValid || isHubValid;
+
+        if (!isValid && wasValid) {
+            clear(player);
+            wasValid = false;
+            return;
+        }
+
+        wasValid = isValid;
+
+        BoxRenderer.INSTANCE.start(event.partialTicks);
+
+        try {
+            if (isWireValid) {
+                Objects.requireNonNull(wireA);
+                Objects.requireNonNull(wireB);
+
+                VoxelAABB wireDeltas = new VoxelAABB(wireA.toVec(), wireB.toVec());
+
+                BoxRenderer.INSTANCE.drawAround(wireDeltas.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+            }
+
+            if (isHubValid) {
+                Objects.requireNonNull(hubA);
+                Objects.requireNonNull(hubB);
+
+                VoxelAABB hubDeltas = new VoxelAABB(hubA.toVec(), hubB.toVec());
+
+                BoxRenderer.INSTANCE.drawAround(hubDeltas.toBoundingBox(), new Vector3f(0.75f, 0.5f, 0.15f));
+
+                Location playerLocation = new Location(
+                    player.getEntityWorld(),
+                    MathHelper.floor_double(player.posX),
+                    MathHelper.floor_double(player.posY),
+                    MathHelper.floor_double(player.posZ)
+                );
+
+                long now = System.currentTimeMillis();
+
+                needsAnalysis = needsAnalysis ||
+                    (now - lastAnalysisMS) >= ANALYSIS_INTERVAL_MS ||
+                    lastDrawer != manipulator ||
+                    !Objects.equals(lastAnalyzedConfig, state.config);
+
+                needsHintDraw = needsHintDraw ||
+                    needsAnalysis ||
+                    (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
+
+                if (needsAnalysis) {
+                    lastAnalysisMS = now;
+                    lastAnalyzedConfig = state.config;
+                    analysisCache = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
+                    analysisCache.removeIf(Objects::isNull);
+                    analysisCache.sort(Comparator.comparingInt((PendingBlock b) -> b.renderOrder));
+                    needsAnalysis = false;
+                }
+
+                if (needsHintDraw) {
+                    lastPlayerPosition = playerLocation;
+                    lastDrawer = manipulator;
+                    needsHintDraw = false;
+
+                    drawHints(event, state, player, playerLocation, manipulator.tier.maxRange);
+                }
             }
         } finally {
             BoxRenderer.INSTANCE.finish();
