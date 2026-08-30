@@ -11,6 +11,7 @@ import net.minecraftforge.fluids.FluidStack;
 
 import appeng.api.AEApi;
 import appeng.api.config.FuzzyMode;
+import appeng.api.config.Upgrades;
 import appeng.api.definitions.IItemDefinition;
 import appeng.api.storage.ICellWorkbenchItem;
 import appeng.helpers.ICellRestriction;
@@ -138,16 +139,23 @@ public class AECellItemProvider implements IItemProvider {
             config.markDirty();
         }
 
-        cellWorkbenchItem.setFuzzyMode(cell, switch (mFuzzyMode) {
-            case 0 -> FuzzyMode.IGNORE_ALL;
-            case 1 -> FuzzyMode.PERCENT_25;
-            case 2 -> FuzzyMode.PERCENT_50;
-            case 3 -> FuzzyMode.PERCENT_75;
-            case 4 -> FuzzyMode.PERCENT_99;
-            case 5 -> FuzzyMode.PERCENT_10;
-            case 6 -> FuzzyMode.PERCENT_1;
-            default -> FuzzyMode.IGNORE_ALL;
-        });
+        boolean hasFuzzyCard = false;
+        if (upgrades != null) {
+            hasFuzzyCard = upgrades.getInstalledUpgrades(Upgrades.FUZZY) >= 1;
+        }
+
+        if (hasFuzzyCard) {
+            cellWorkbenchItem.setFuzzyMode(cell, switch (mFuzzyMode) {
+                case 0 -> FuzzyMode.IGNORE_ALL;
+                case 1 -> FuzzyMode.PERCENT_25;
+                case 2 -> FuzzyMode.PERCENT_50;
+                case 3 -> FuzzyMode.PERCENT_75;
+                case 4 -> FuzzyMode.PERCENT_99;
+                case 5 -> FuzzyMode.PERCENT_10;
+                case 6 -> FuzzyMode.PERCENT_1;
+                default -> FuzzyMode.IGNORE_ALL;
+            });
+        }
 
         IItemDefinition oredictCard = AEApi.instance()
             .definitions()
