@@ -2,6 +2,7 @@ package com.recursive_pineapple.matter_manipulator.common.uplink;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
+import static gregtech.GTLoggers.GT_FML_LOGGER;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_ME_INPUT_FLUID_HATCH;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_ME_INPUT_FLUID_HATCH_ACTIVE;
 
@@ -25,7 +26,6 @@ import net.minecraft.util.EnumChatFormatting;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
-import gregtech.GTMod;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -481,7 +481,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 );
                 craftingTracker.addCraftingOption(this, pattern);
             } catch (IllegalStateException e) {
-                GTMod.GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
+                GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
                 continue;
             }
         }
@@ -495,7 +495,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 );
                 craftingTracker.addCraftingOption(this, pattern);
             } catch (IllegalStateException e) {
-                GTMod.GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
+                GT_FML_LOGGER.error("Could not load matter manipulator plan", e);
                 continue;
             }
         }
