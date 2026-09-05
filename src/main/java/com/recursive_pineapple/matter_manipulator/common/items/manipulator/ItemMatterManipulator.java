@@ -756,7 +756,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             case GEOM_SELECTING_BLOCK: {
                 state.config.action = null;
 
-                onPickBlock(world, player, itemStack, state, hit);
+                onPickBlock(world, player, itemStack, state, hit, player.isSneaking(), null);
 
                 return true;
             }
@@ -786,7 +786,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 return true;
             }
             case EXCH_SET_TARGET: {
-                onExchangeSetTarget(world, player, itemStack, state, hit);
+                onExchangeSetTarget(world, player, itemStack, state, hit, null);
                 state.config.action = null;
                 return true;
             }
@@ -796,12 +796,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 return true;
             }
             case EXCH_SET_REPLACE: {
-                onExchangeSetWhitelist(world, player, itemStack, state, hit);
+                onExchangeSetWhitelist(world, player, itemStack, state, hit, null);
                 state.config.action = null;
                 return true;
             }
             case PICK_CABLE: {
-                onPickCable(world, player, itemStack, state, hit);
+                onPickCable(world, player, itemStack, state, hit, null);
                 state.config.action = null;
                 return true;
             }
@@ -817,33 +817,53 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
     public void onMMBPressed(EntityPlayer player, ItemStack stack, MMState state) {
         if (state.config.placeMode == PlaceMode.GEOMETRY) {
-            onPickBlock(player.getEntityWorld(), player, stack, state, MMUtils.getHitResult(player, true));
+            onPickBlock(player.getEntityWorld(), player, stack, state, MMUtils.getHitResult(player, true), player.isSneaking(), null);
         }
         if (state.config.placeMode == PlaceMode.EXCHANGING) {
             if (player.isSneaking()) {
-                onExchangeSetWhitelist(player.worldObj, player, stack, state, MMUtils.getHitResult(player, true));
+                onExchangeSetWhitelist(player.worldObj, player, stack, state, MMUtils.getHitResult(player, true), null);
             } else {
-                onExchangeSetTarget(player.worldObj, player, stack, state, MMUtils.getHitResult(player, true));
+                onExchangeSetTarget(player.worldObj, player, stack, state, MMUtils.getHitResult(player, true), null);
             }
         }
         if (state.config.placeMode == PlaceMode.CABLES) {
-            onPickCable(player.getEntityWorld(), player, stack, state, MMUtils.getHitResult(player, true));
+            onPickCable(player.getEntityWorld(), player, stack, state, MMUtils.getHitResult(player, true), null);
         }
     }
 
-    private void onPickBlock(
+    static public void onMMBPressedInGUI(EntityPlayer player, ItemStack stack, MMState state, final boolean isSneaking, ItemStack hoveredStack) {
+        BlockSpec block = new BlockSpec();
+        if (hoveredStack != null) // set to air otherwise
+            block.setObject(hoveredStack);
+
+        if (state.config.placeMode == PlaceMode.GEOMETRY) {
+            onPickBlock(player.getEntityWorld(), player, stack, state, null, isSneaking, block);
+        }
+        if (state.config.placeMode == PlaceMode.EXCHANGING) {
+            if (isSneaking) {
+                onExchangeSetWhitelist(player.worldObj, player, stack, state, null, block);
+            } else {
+                onExchangeSetTarget(player.worldObj, player, stack, state, null, block);
+            }
+        }
+        if (state.config.placeMode == PlaceMode.CABLES) {
+            onPickCable(player.getEntityWorld(), player, stack, state, null, block);
+        }
+    }
+
+    static private void onPickBlock(
         World world,
         EntityPlayer player,
         ItemStack stack,
         MMState state,
-        MovingObjectPosition hit
+        MovingObjectPosition hit,
+        final boolean add,
+        BlockSpec block
     ) {
 
-        BlockSpec block = BlockSpec.fromPickBlock(world, player, hit);
+        if (block == null) block = BlockSpec.fromPickBlock(world, player, hit);
 
         String whatKey = null;
-
-        boolean add = player.isSneaking();
 
         switch (state.config.blockSelectMode) {
             case CORNERS: {
@@ -901,15 +921,15 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
     }
 
-    private void onExchangeSetTarget(
+    static private void onExchangeSetTarget(
         World world,
         EntityPlayer player,
         ItemStack stack,
         MMState state,
-        MovingObjectPosition hit
+        MovingObjectPosition hit,
+        BlockSpec block
     ) {
-
-        BlockSpec block = BlockSpec.fromPickBlock(player.worldObj, player, hit);
+        if (block == null) block = BlockSpec.fromPickBlock(player.worldObj, player, hit);
 
         if (hit != null) checkForAECables(state, block, world, hit.blockX, hit.blockY, hit.blockZ);
 
@@ -948,8 +968,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         );
     }
 
-    private void onExchangeSetWhitelist(World world, EntityPlayer player, ItemStack stack, MMState state, MovingObjectPosition hit) {
-        BlockSpec block = BlockSpec.fromPickBlock(player.worldObj, player, hit);
+    static private void onExchangeSetWhitelist(World world, EntityPlayer player, ItemStack stack, MMState state, MovingObjectPosition hit, BlockSpec block) {
+        if (block == null) block = BlockSpec.fromPickBlock(player.worldObj, player, hit);
 
         if (hit != null) checkForAECables(state, block, world, hit.blockX, hit.blockY, hit.blockZ);
 
@@ -963,8 +983,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         );
     }
 
-    private void onPickCable(World world, EntityPlayer player, ItemStack stack, MMState state, MovingObjectPosition hit) {
-        BlockSpec cable = new BlockSpec();
+    static private void onPickCable(World world, EntityPlayer player, ItemStack stack, MMState state, MovingObjectPosition hit, BlockSpec cable) {
+        if (cable == null) cable = new BlockSpec();
 
         if (hit != null) {
             if (Mods.GregTech.isModLoaded()) {
@@ -989,7 +1009,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         );
     }
 
-    private void checkForAECables(MMState state, BlockSpec spec, World world, int x, int y, int z) {
+    static private void checkForAECables(MMState state, BlockSpec spec, World world, int x, int y, int z) {
         if (state.hasCap(ALLOW_CABLES) && AppliedEnergistics2.isModLoaded()) {
             if (InteropConstants.AE_BLOCK_CABLE.matches(spec)) {
                 MMUtils.getAECable(spec, world, x, y, z);
