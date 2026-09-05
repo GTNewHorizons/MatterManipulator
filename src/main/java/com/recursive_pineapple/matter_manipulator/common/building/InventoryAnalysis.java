@@ -165,7 +165,7 @@ public class InventoryAnalysis {
     }
 
     @Override
-    protected InventoryAnalysis clone() {
+    public InventoryAnalysis clone() {
         InventoryAnalysis dup = new InventoryAnalysis();
 
         dup.mFuzzy = mFuzzy;
