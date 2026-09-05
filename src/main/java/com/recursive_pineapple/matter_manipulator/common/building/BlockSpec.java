@@ -362,12 +362,16 @@ public class BlockSpec implements ImmutableBlockSpec {
     public final boolean equals(Object o) {
         if (!(o instanceof BlockSpec blockSpec)) return false;
 
-        return isBlock == blockSpec.isBlock && metadata == blockSpec.metadata &&
-            getBlock() == blockSpec.getBlock() &&
-            Objects.equals(objectId, blockSpec.objectId) &&
-            MMUtils.areMapsEqual(properties, blockSpec.properties) &&
-            (!Mods.ArchitectureCraft.isModLoaded() || Objects.equals(arch, blockSpec.arch)) &&
-            MMUtils.areMapsEqual(intrinsicProperties, blockSpec.intrinsicProperties);
+        if (isBlock == blockSpec.isBlock)
+            return metadata == blockSpec.metadata &&
+                getBlock() == blockSpec.getBlock() &&
+                Objects.equals(objectId, blockSpec.objectId) &&
+                MMUtils.areMapsEqual(properties, blockSpec.properties) &&
+                (!Mods.ArchitectureCraft.isModLoaded() || Objects.equals(arch, blockSpec.arch)) &&
+                MMUtils.areMapsEqual(intrinsicProperties, blockSpec.intrinsicProperties);
+        else {
+            return getItem().equals(blockSpec.getItem());
+        }
     }
 
     @Override
