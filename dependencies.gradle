@@ -120,7 +120,7 @@ dependencies {
     addCompat(fmp, rfg.deobf("maven.modrinth:immibis-core:59.1.4"))
     addCompat(fmp, "com.github.GTNewHorizons:ForgeMultipart:1.7.12:dev")
 
-    addCompat(gt5u, "com.github.GTNewHorizons:GT5-Unofficial:5.09.54.130:dev")
+    addCompat(gt5u, "com.github.GTNewHorizons:GT5-Unofficial:5.09.54.132:dev")
 
     addCompat(ic2, "net.industrial-craft:industrialcraft-2:2.2.828-experimental:dev")
 
