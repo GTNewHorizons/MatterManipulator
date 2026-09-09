@@ -189,7 +189,14 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
 
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
             if (mAEPatterns != null && patterns != null) {
-                mAEPatterns.apply(ctx, patterns, true, false);
+                MMUtils.installPatterns(
+                    segmentedInventory,
+                    ctx,
+                    mAEPatterns,
+                    patterns,
+                    true,
+                    false
+                );
             }
         }
 

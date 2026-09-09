@@ -88,8 +88,11 @@ import gregtech.common.blocks.BlockMachines;
 import gregtech.common.tileentities.machines.MTEHatchInputBusME;
 import gregtech.common.tileentities.machines.MTEHatchInputME;
 
+import appeng.api.config.Upgrades;
+import appeng.api.implementations.IUpgradeableHost;
 import appeng.api.implementations.items.IUpgradeModule;
 import appeng.api.implementations.parts.IPartCable;
+import appeng.api.implementations.tiles.ISegmentedInventory;
 import appeng.api.parts.IPartHost;
 import appeng.api.parts.IPartItem;
 import appeng.api.parts.PartItemStack;
@@ -119,6 +122,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInventory;
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
+import com.recursive_pineapple.matter_manipulator.common.building.InventoryAnalysis;
 import com.recursive_pineapple.matter_manipulator.common.building.MMInventory;
 import com.recursive_pineapple.matter_manipulator.common.building.MMItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
@@ -1003,6 +1007,38 @@ public class MMUtils {
         }
 
         return success;
+    }
+
+    /**
+     * Install patterns into AE Inventory by respecting pattern capacity upgrades in interfaces
+     *
+     * @param inv The segmented inventory interface
+     * @param ctx Block apply context
+     * @param src Source of the patterns
+     * @param dst Inventory destination to apply
+     * @param consume Whether to consume
+     * @param simulate Whether to simulate
+     * @return
+     */
+    public static boolean installPatterns(
+        ISegmentedInventory inv,
+        BlockAnalyzer.IBlockApplyContext ctx,
+        InventoryAnalysis src,
+        IInventory dst,
+        boolean consume,
+        boolean simulate
+    ) {
+        InventoryAnalysis actualSrc = src.clone();
+
+        if (inv instanceof IUpgradeableHost upgradeable) {
+            int validSlot = 9 * (1 + upgradeable.getInstalledUpgrades(Upgrades.PATTERN_CAPACITY));
+
+            for (int i = min(dst.getSizeInventory(), 36); i > validSlot; i--) {
+                actualSrc.mItems[i - 1] = null;
+            }
+        }
+
+        return actualSrc.apply(ctx, dst, consume, simulate);
     }
 
     public static NBTTagCompound copy(NBTTagCompound tag) {
