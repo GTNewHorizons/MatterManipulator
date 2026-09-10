@@ -27,6 +27,7 @@ public class InteropConstants {
     public static final LazyBlock ARCANE_LAMP_LIGHT = new LazyBlock(Mods.Thaumcraft, "blockAiry", 2);
     public static final LazyBlock WIRELESS_CONNECTOR = new LazyBlock(Mods.AppliedEnergistics2, "tile.BlockWirelessConnector");
     public static final LazyBlock WIRELESS_HUB = new LazyBlock(Mods.AppliedEnergistics2, "tile.BlockWirelessHub");
+    public static final LazyBlockSpec WIRELESS_HUB_SPEC = LazyBlockSpec.ofBlock(Mods.AppliedEnergistics2, "tile.BlockWirelessHub", 0);
     public static final LazyBlockSpec AE_BLOCK_CABLE = LazyBlockSpec.ofBlock(Mods.AppliedEnergistics2, "tile.BlockCableBus", 0);
     public static final LazyBlock FMP_BLOCK = new LazyBlock(Mods.ForgeMultipart, "block");
     public static final LazyBlock OC_CABLE = new LazyBlock(Mods.OpenComputers, "cable");

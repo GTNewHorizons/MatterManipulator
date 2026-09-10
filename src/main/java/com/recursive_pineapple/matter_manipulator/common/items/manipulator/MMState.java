@@ -64,6 +64,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
 import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration;
 import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration.SmartCopyAction;
+import com.recursive_pineapple.matter_manipulator.common.building.WirelessLinker;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
@@ -340,7 +341,15 @@ public class MMState {
             case GEOMETRY -> getGeomPendingBlocks(world);
             case EXCHANGING -> getExchangeBlocks(tier, world);
             case CABLES -> getCableBlocks(world);
+            case WIRELESS_LINK -> getWirelessHubPendingBlocks(world);
         };
+    }
+
+    private List<PendingBlock> getWirelessHubPendingBlocks(World world) {
+        if (!config.wirelessAutoPlaceHubs) return new ArrayList<>();
+        if (!AppliedEnergistics2.isModLoaded()) return new ArrayList<>();
+
+        return WirelessLinker.getHubShortfallBlocks(this, world);
     }
 
     private List<PendingBlock> getAnalysis(World world) {
@@ -827,6 +836,12 @@ public class MMState {
         return pending;
     }
 
+    public static List<PendingBlock> getShapeBlocks(World world, MMConfig shapeConfig) {
+        MMState temp = new MMState();
+        temp.config = shapeConfig;
+        return temp.getGeomPendingBlocks(world);
+    }
+
     private static List<Vector3i> getLineVoxels(int x1, int y1, int z1, int x2, int y2, int z2) {
         List<Vector3i> voxels = new ArrayList<>();
 
@@ -1246,6 +1261,12 @@ public class MMState {
         EXCH_SET_REPLACE,
         PICK_CABLE,
         MARK_ARRAY,
+        MARK_WIRELESS_A,
+        MARK_WIRELESS_B,
+        MARK_HUB_A,
+        MARK_HUB_B,
+        PICK_WIRELESS_COLOR_SET,
+        PICK_WIRELESS_COLOR_ADD,
     }
 
     public static enum BlockSelectMode {
@@ -1268,6 +1289,12 @@ public class MMState {
         COPYING,
         EXCHANGING,
         CABLES,
+        WIRELESS_LINK,
+    }
+
+    public static enum WirelessDistributionMode {
+        EVEN_SPREAD,
+        FIXED_PER_HUB,
     }
 
 }

@@ -1,5 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
+import java.util.BitSet;
+
 import javax.annotation.Nullable;
 
 import net.minecraft.util.AxisAlignedBB;
@@ -12,6 +14,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.WirelessDistributionMode;
 
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -47,6 +50,25 @@ public class MMConfig {
     public Vector3i arraySpan;
 
     public boolean linkExternalHubs = false;
+
+    // Wireless Link mode
+    /** Corners of the region that is scanned for wireless connectors to link. */
+    public Location wirelessA, wirelessB;
+    /** Corners of the region that is scanned for wireless hubs to link connectors to. */
+    public Location hubA, hubB;
+
+    public WirelessDistributionMode wirelessDistribution = WirelessDistributionMode.EVEN_SPREAD;
+    /** Used by {@link WirelessDistributionMode#FIXED_PER_HUB}. */
+    public int wirelessCountPerHub = 2;
+    /** Shape used to place new hubs when the target region doesn't have enough. */
+    public Shape wirelessHubShape = Shape.CUBE;
+
+    public boolean wirelessAutoPlaceHubs = false;
+    /**
+     * Bit N set means AEColor.values()[N] is an allowed connector/hub color filter. Empty means any color
+     * (including uncolored) is accepted, and newly-placed hubs are left uncolored.
+     */
+    public BitSet wirelessColors = new BitSet();
 
     /**
      * When true, CRIBs (Crafting Input Buses) in the copy region are replaced with Crafting Input Proxies linked to the
@@ -278,6 +300,15 @@ public class MMConfig {
         result = prime * result + Boolean.hashCode(linkExternalHubs);
         result = prime * result + Boolean.hashCode(replaceCribsWithProxies);
         result = prime * result + Boolean.hashCode(replaceInterfacesWithP2P);
+        result = prime * result + ((wirelessDistribution == null) ? 0 : wirelessDistribution.hashCode());
+        result = prime * result + wirelessCountPerHub;
+        result = prime * result + ((wirelessHubShape == null) ? 0 : wirelessHubShape.hashCode());
+        result = prime * result + Boolean.hashCode(wirelessAutoPlaceHubs);
+        result = prime * result + ((wirelessColors == null) ? 0 : wirelessColors.hashCode());
+        result = prime * result + ((wirelessA == null) ? 0 : wirelessA.hashCode());
+        result = prime * result + ((wirelessB == null) ? 0 : wirelessB.hashCode());
+        result = prime * result + ((hubA == null) ? 0 : hubA.hashCode());
+        result = prime * result + ((hubB == null) ? 0 : hubB.hashCode());
         return result;
     }
 
@@ -341,6 +372,25 @@ public class MMConfig {
         if (linkExternalHubs != other.linkExternalHubs) return false;
         if (replaceCribsWithProxies != other.replaceCribsWithProxies) return false;
         if (replaceInterfacesWithP2P != other.replaceInterfacesWithP2P) return false;
+        if (wirelessDistribution != other.wirelessDistribution) return false;
+        if (wirelessCountPerHub != other.wirelessCountPerHub) return false;
+        if (wirelessHubShape != other.wirelessHubShape) return false;
+        if (wirelessAutoPlaceHubs != other.wirelessAutoPlaceHubs) return false;
+        if (wirelessColors == null) {
+            if (other.wirelessColors != null) return false;
+        } else if (!wirelessColors.equals(other.wirelessColors)) return false;
+        if (wirelessA == null) {
+            if (other.wirelessA != null) return false;
+        } else if (!wirelessA.equals(other.wirelessA)) return false;
+        if (wirelessB == null) {
+            if (other.wirelessB != null) return false;
+        } else if (!wirelessB.equals(other.wirelessB)) return false;
+        if (hubA == null) {
+            if (other.hubA != null) return false;
+        } else if (!hubA.equals(other.hubA)) return false;
+        if (hubB == null) {
+            if (other.hubB != null) return false;
+        } else if (!hubB.equals(other.hubB)) return false;
         return true;
     }
 }
