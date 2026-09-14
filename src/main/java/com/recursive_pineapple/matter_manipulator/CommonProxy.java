@@ -7,7 +7,6 @@ import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 
-import com.recursive_pineapple.matter_manipulator.client.nei.NEICompat;
 import com.recursive_pineapple.matter_manipulator.common.compat.BlockPropertyRegistry;
 import com.recursive_pineapple.matter_manipulator.common.entities.EntityItemLarge;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItems;
@@ -17,8 +16,6 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.server.BlockStateCommand;
 
 public class CommonProxy {
-
-    public NEICompat neiCompat = null;
 
     public void preInit(FMLPreInitializationEvent event) {
         MMMod.LOG.info("Loading Matter Manipulator version " + Tags.VERSION);
@@ -33,10 +30,6 @@ public class CommonProxy {
 
         if (Mods.AppliedEnergistics2.isModLoaded() && Mods.GregTech.isModLoaded()) {
             MMItems.registerMultis();
-        }
-
-        if (Mods.NotEnoughItems.isModLoaded()) {
-            neiCompat = new NEICompat();
         }
 
         RecipeInstallUpgrade.register();

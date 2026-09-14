@@ -1,9 +1,5 @@
 package com.recursive_pineapple.matter_manipulator.mixin.mixins.early;
 
-import com.recursive_pineapple.matter_manipulator.MMMod;
-import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
-import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
-import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.entity.player.EntityPlayer;
@@ -15,6 +11,15 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import codechicken.nei.NEIClientConfig;
+import codechicken.nei.guihook.GuiContainerManager;
+
+import com.recursive_pineapple.matter_manipulator.MMMod;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
+import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
+import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 
 @Mixin(GuiContainer.class)
 public abstract class MixinGuiContainer_PickBlock {
@@ -50,16 +55,13 @@ public abstract class MixinGuiContainer_PickBlock {
             }
 
             // try NEI
-            if (hoveredStack == null && MMMod.proxy.neiCompat != null && !MMMod.proxy.neiCompat.isNEIHidden()) {
-                hoveredStack = MMMod.proxy.neiCompat.getStackMouseOver( (GuiContainer) (Object) this);
+            if (hoveredStack == null && Mods.NotEnoughItems.isModLoaded() && !NEIClientConfig.isHidden()) {
+                hoveredStack = GuiContainerManager.getStackMouseOver((GuiContainer) (Object) this);
             }
-        } catch (RuntimeException e) {
-            throw e;
         } catch (Exception e) {
-            e.printStackTrace();
+            MMMod.LOG.error("Error while handling middle click in GUI", e);
         }
-        // I hate it, but haven't found another way to make this work with sneak key.
-        final boolean isSneak = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) ;
+        final boolean isSneak = Keyboard.isKeyDown(Minecraft.getMinecraft().gameSettings.keyBindSneak.getKeyCode());
 
         // call onMMBPressed on the client and the server
         MMState state = ItemMatterManipulator.getState(cursorStack);
