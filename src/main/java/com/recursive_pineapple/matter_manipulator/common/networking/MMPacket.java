@@ -3,8 +3,6 @@ package com.recursive_pineapple.matter_manipulator.common.networking;
 import net.minecraft.network.INetHandler;
 import net.minecraft.world.IBlockAccess;
 
-import com.google.common.io.ByteArrayDataInput;
-
 import io.netty.buffer.ByteBuf;
 
 public abstract class MMPacket {
@@ -24,7 +22,7 @@ public abstract class MMPacket {
     /**
      * Decode byte buffer into packet object.
      */
-    public abstract MMPacket decode(ByteArrayDataInput buffer);
+    public abstract MMPacket decode(ByteBuf buffer);
 
     /**
      * Process the received packet.

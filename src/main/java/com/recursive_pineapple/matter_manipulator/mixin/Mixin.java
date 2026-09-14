@@ -36,6 +36,11 @@ public enum Mixin implements IMixins {
             .addRequiredMod(Mods.GregTech)
             .setPhase(Phase.LATE)
     ),
+    BlockPickMiddleMouseGUI(
+        new MixinBuilder("Allow middle mouse button to select MM blocks in GuiContainer when MM picked up")
+            .addClientMixins("MixinGuiContainer_PickBlock")
+            .setPhase(Phase.EARLY)
+    ),
     //
     ;
 
