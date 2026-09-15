@@ -59,6 +59,14 @@ public class WeightedSpecList {
         return false;
     }
 
+    public boolean containsEquivalent(BlockSpec spec) {
+        for (var p : specs) {
+            if (Objects.equals(p.first(), spec) || p.first().isEquivalent(spec)) { return true; }
+        }
+
+        return false;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

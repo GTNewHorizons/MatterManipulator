@@ -14,8 +14,6 @@ import cpw.mods.fml.common.network.NetworkRegistry;
 import cpw.mods.fml.common.network.internal.FMLProxyPacket;
 import cpw.mods.fml.relauncher.Side;
 
-import com.google.common.io.ByteArrayDataInput;
-import com.google.common.io.ByteStreams;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 
 import io.netty.buffer.ByteBuf;
@@ -61,11 +59,8 @@ public class Network extends MessageToMessageCodec<FMLProxyPacket, MMPacket> {
 
     @Override
     protected void decode(ChannelHandlerContext aContext, FMLProxyPacket aPacket, List<Object> aOutput) {
-        final ByteArrayDataInput aData = ByteStreams.newDataInput(
-            aPacket.payload()
-                .array()
-        );
-        final MMPacket tPacket = this.mSubChannels[aData.readByte()].decode(aData);
+        final ByteBuf payload = aPacket.payload();
+        final MMPacket tPacket = this.mSubChannels[payload.readByte()].decode(payload);
         tPacket.setINetHandler(aPacket.handler());
         aOutput.add(tPacket);
     }

@@ -587,7 +587,7 @@ public class MMState {
                 MMUtils.getAECable(existing, world, x, y, z);
             }
 
-            if (!config.replaceWhitelist.contains(existing)) continue;
+            if (!config.replaceWhitelist.containsEquivalent(existing)) continue;
 
             ImmutableBlockSpec replacement = config.replaceWith.get(rng);
             ImmutableBlockSpec block = replacement;

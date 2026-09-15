@@ -109,6 +109,11 @@ public class BlockSpec implements ImmutableBlockSpec {
         reset();
         this.isBlock = false;
         this.objectId = GameRegistry.findUniqueIdentifierFor(stack.getItem());
+
+        return setStackData(stack);
+    }
+
+    private BlockSpec setStackData(ItemStack stack) {
         this.metadata = stack.itemDamage;
 
         List<IntrinsicProperty> props = new ArrayList<>();
@@ -361,7 +366,6 @@ public class BlockSpec implements ImmutableBlockSpec {
     @Override
     public final boolean equals(Object o) {
         if (!(o instanceof BlockSpec blockSpec)) return false;
-
         return isBlock == blockSpec.isBlock && metadata == blockSpec.metadata &&
             getBlock() == blockSpec.getBlock() &&
             Objects.equals(objectId, blockSpec.objectId) &&
@@ -474,6 +478,29 @@ public class BlockSpec implements ImmutableBlockSpec {
                 spec.intrinsicProperties.put(prop.getName(), prop.getValue(world, x, y, z));
             }
         }
+
+        return spec;
+    }
+
+    public static BlockSpec fromStack(BlockSpec pooled, ItemStack stack) {
+        // Convert a stack to a BlockSpec as obtained from an in-world pick.
+        if (stack == null || stack.getItem() == null) return pooled != null ? pooled.reset() : air();
+
+        BlockSpec spec = (pooled != null ? pooled : new BlockSpec()).setObject(stack);
+
+        Item item = stack.getItem();
+        int itemDamage = stack.itemDamage;
+
+        // AE2 cables are placed as parts, not blocks: keep them item-based so that they stay
+        // consistent with the world pick path (MMUtils#getAECable) and are recognized as cables.
+        if (Mods.AppliedEnergistics2.isModLoaded() && MMUtils.isAECable(item, itemDamage)) return spec;
+
+        Block block = MMUtils.getBlockFromItem(item, item.getMetadata(itemDamage));
+        if (block == null) block = Blocks.air;
+
+        spec.isBlock = true;
+        spec.objectId = GameRegistry.findUniqueIdentifierFor(block);
+        spec.block = block;
 
         return spec;
     }
