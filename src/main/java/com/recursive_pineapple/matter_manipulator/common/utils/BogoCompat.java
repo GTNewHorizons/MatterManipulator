@@ -1,11 +1,13 @@
 package com.recursive_pineapple.matter_manipulator.common.utils;
 
-import com.cleanroommc.bogosorter.api.BeforeSortEvent;
-import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
+import net.minecraft.item.ItemStack;
+
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
-import net.minecraft.item.ItemStack;
+
+import com.cleanroommc.bogosorter.api.BeforeSortEvent;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 
 public class BogoCompat {
 
@@ -24,8 +26,10 @@ public class BogoCompat {
 
         ItemStack item = null;
 
-        if (isInGui) item = event.getPlayer().inventory.getItemStack();
-        else item = event.getPlayer().getHeldItem();
+        if (isInGui)
+            item = event.getPlayer().inventory.getItemStack();
+        else
+            item = event.getPlayer().getHeldItem();
 
         if (item == null || !(item.getItem() instanceof ItemMatterManipulator)) return;
 
