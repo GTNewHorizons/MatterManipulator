@@ -39,7 +39,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import net.minecraft.block.Block;
-import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Blocks;
@@ -267,9 +266,7 @@ public class MMUtils {
      * Gets the standard vanilla hit result for a player.
      */
     public static MovingObjectPosition getHitResult(EntityPlayer player, boolean includeLiquids) {
-        double reachDistance = player instanceof EntityPlayerMP mp ?
-            mp.theItemInWorldManager.getBlockReachDistance() :
-            Minecraft.getMinecraft().playerController.getBlockReachDistance();
+        double reachDistance = getBlockReachDistance(player);
 
         Vec3 posVec = Vec3.createVectorHelper(player.posX, player.posY + player.getEyeHeight(), player.posZ);
 
@@ -294,9 +291,7 @@ public class MMUtils {
      * Gets the 'location' that the player is looking at.
      */
     public static Vector3i getLookingAtLocation(EntityPlayer player) {
-        double dist = player instanceof EntityPlayerMP mp ?
-            mp.theItemInWorldManager.getBlockReachDistance() :
-            Minecraft.getMinecraft().playerController.getBlockReachDistance();
+        double dist = getBlockReachDistance(player);
 
         Vec3 start = getPosition(player, 0);
         Vec3 look = player.getLookVec();
@@ -327,6 +322,10 @@ public class MMUtils {
         }
 
         return target;
+    }
+
+    private static double getBlockReachDistance(EntityPlayer player) {
+        return player.capabilities.isCreativeMode ? 5.0 : 4.5;
     }
 
     /**
