@@ -124,7 +124,11 @@ public class BlockSpec implements ImmutableBlockSpec {
             this.intrinsicProperties = new Object2ObjectOpenHashMap<>();
 
             for (IntrinsicProperty prop : props) {
-                intrinsicProperties.put(prop.getName(), prop.getValue(stack));
+                JsonElement value = prop.getValue(stack);
+
+                if (value != null) {
+                    intrinsicProperties.put(prop.getName(), value);
+                }
             }
         }
 
