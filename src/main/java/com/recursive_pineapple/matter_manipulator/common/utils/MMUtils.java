@@ -39,6 +39,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import net.minecraft.block.Block;
+import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Blocks;
@@ -325,7 +326,11 @@ public class MMUtils {
     }
 
     private static double getBlockReachDistance(EntityPlayer player) {
-        return player.capabilities.isCreativeMode ? 5.0 : 4.5;
+        if (player instanceof EntityPlayerMP mp) {
+            // The server's base reach is 5 in both modes; the client uses 4.5 in survival.
+            return mp.theItemInWorldManager.getBlockReachDistance() - (player.capabilities.isCreativeMode ? 0 : 0.5);
+        }
+        return Minecraft.getMinecraft().playerController.getBlockReachDistance();
     }
 
     /**
