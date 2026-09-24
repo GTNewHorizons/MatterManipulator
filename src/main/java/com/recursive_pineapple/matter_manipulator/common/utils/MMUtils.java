@@ -267,9 +267,7 @@ public class MMUtils {
      * Gets the standard vanilla hit result for a player.
      */
     public static MovingObjectPosition getHitResult(EntityPlayer player, boolean includeLiquids) {
-        double reachDistance = player instanceof EntityPlayerMP mp ?
-            mp.theItemInWorldManager.getBlockReachDistance() :
-            Minecraft.getMinecraft().playerController.getBlockReachDistance();
+        double reachDistance = getBlockReachDistance(player);
 
         Vec3 posVec = Vec3.createVectorHelper(player.posX, player.posY + player.getEyeHeight(), player.posZ);
 
@@ -294,9 +292,7 @@ public class MMUtils {
      * Gets the 'location' that the player is looking at.
      */
     public static Vector3i getLookingAtLocation(EntityPlayer player) {
-        double dist = player instanceof EntityPlayerMP mp ?
-            mp.theItemInWorldManager.getBlockReachDistance() :
-            Minecraft.getMinecraft().playerController.getBlockReachDistance();
+        double dist = getBlockReachDistance(player);
 
         Vec3 start = getPosition(player, 0);
         Vec3 look = player.getLookVec();
@@ -327,6 +323,14 @@ public class MMUtils {
         }
 
         return target;
+    }
+
+    private static double getBlockReachDistance(EntityPlayer player) {
+        if (player instanceof EntityPlayerMP mp) {
+            // The server's base reach is 5 in both modes; the client uses 4.5 in survival.
+            return mp.theItemInWorldManager.getBlockReachDistance() - (player.capabilities.isCreativeMode ? 0 : 0.5);
+        }
+        return Minecraft.getMinecraft().playerController.getBlockReachDistance();
     }
 
     /**
