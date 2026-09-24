@@ -108,7 +108,9 @@ dependencies {
 
     compileOnly("curse.maven:mekanism-268560:2475797") { transitive = false }
     addCompat(eio, "curse.maven:cofh-lib-220333:2388748")
-    addCompat(eio, "com.github.GTNewHorizons:EnderIO:2.10.44:dev")
+    def enderIO = "com.github.GTNewHorizons:EnderIO:2.10.44:dev"
+    addCompat(eio, enderIO)
+    testImplementation(enderIO)
     addCompat(eio, "com.github.GTNewHorizons:EnderStorage:1.8.7:dev")
 
     addCompat(xu, rfg.deobf("curse.maven:extra-utilities-225561:2264384"))

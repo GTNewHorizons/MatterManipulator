@@ -156,6 +156,7 @@ mm.info.error.error_setting_property=Error setting property: %s
 mm.info.error.move_overlapping=Cannot move when the cut and paste regions overlap.
 mm.info.warning.could_not_extract_item=Could not extract item: %s
 mm.info.warning.could_not_find_item=Could not find %s
+mm.info.warning.conduit_missing_items=Skipped %s: conduit, filter or function upgrade items are missing
 mm.info.warning.could_not_find_cladding=Could not find cladding: %s
 mm.info.warning.inventory_was_the_wrong_size=Inventory was the wrong size (expected %s, was %s)
 mm.info.warning.could_not_extract_item_in_slot=Could not extract item in slot %s: %s
