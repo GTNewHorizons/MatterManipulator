@@ -55,6 +55,8 @@ import lombok.EqualsAndHashCode;
 import tectech.thing.metaTileEntity.hatch.MTEHatchDynamoTunnel;
 import tectech.thing.metaTileEntity.hatch.MTEHatchEnergyTunnel;
 import tectech.thing.metaTileEntity.multi.base.TTMultiblockBase;
+import tectech.thing.metaTileEntity.multi.base.parameter.Parameter;
+import tectech.thing.metaTileEntity.multi.bec.MTEBECIONode;
 import tectech.thing.metaTileEntity.pipe.MTEPipeData;
 import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
 
@@ -74,6 +76,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     public String mGTFluidLock = null;
     public int mGTMode = 0;
     public JsonElement mGTData = null;
+    public JsonElement mBECIONodeParameters = null;
     public double[] mTTParams = null;
     public int mAmperes = 0;
     public byte mFluidPipeRestriction = 0;
@@ -253,6 +256,13 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
 
         if (mte instanceof TTMultiblockBase tt && tt.parametrization.hasInputs()) {
             mTTParams = tt.parametrization.getInputs();
+        }
+
+        if (mte instanceof MTEBECIONode node) {
+            NBTTagCompound parameters = new NBTTagCompound();
+            for (Parameter<?, ?> parameter : node.getParameters())
+                parameter.saveNBT(parameters);
+            mBECIONodeParameters = MMUtils.toJsonObjectExact(parameters);
         }
 
         if (mte instanceof MTEHatchEnergyTunnel hatch) {
@@ -492,6 +502,13 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
                 tt.parametrization.setInputs(mTTParams);
             }
 
+            if (mBECIONodeParameters != null && mte instanceof MTEBECIONode node) {
+                NBTTagCompound parameters = (NBTTagCompound) MMUtils.toNbtExact(mBECIONodeParameters);
+                for (Parameter<?, ?> parameter : node.getParameters())
+                    parameter.loadNBT(parameters);
+                mte.markDirty();
+            }
+
             if (mAmperes > 0 && mte instanceof MTEHatchEnergyTunnel hatch) {
                 hatch.setAmperes(MMUtils.clamp(mAmperes, 0, hatch.maxAmperes));
             }
@@ -665,6 +682,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     @Override
     public void migrate() {
         mGTMode = 0;
+        mBECIONodeParameters = null;
         mTTParams = null;
         mAmperes = 0;
     }
@@ -687,6 +705,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         dup.mGTFluidLock = mGTFluidLock;
         dup.mGTMode = mGTMode;
         dup.mGTData = mGTData == null ? null : MMUtils.toJsonObject(MMUtils.toNbt(mGTData));
+        dup.mBECIONodeParameters = mBECIONodeParameters == null ? null : MMUtils.toJsonObjectExact(MMUtils.toNbtExact(mBECIONodeParameters));
         dup.mTTParams = mTTParams == null ? null : mTTParams.clone();
         dup.mAmperes = mAmperes;
         dup.mFluidPipeRestriction = mFluidPipeRestriction;
