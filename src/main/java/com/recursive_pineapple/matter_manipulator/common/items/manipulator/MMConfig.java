@@ -243,7 +243,6 @@ public class MMConfig {
             }
         }
 
-
         return aabb;
     }
 
