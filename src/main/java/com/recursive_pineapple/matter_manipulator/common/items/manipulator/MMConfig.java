@@ -233,13 +233,16 @@ public class MMConfig {
 
         aabb.moveOrigin(coordC.toVec());
 
-        if (arraySpan != null) {
-            aabb.scale(arraySpan.x, arraySpan.y, arraySpan.z);
+        if (placeMode == PlaceMode.COPYING) {
+            if (arraySpan != null) {
+                aabb.scale(arraySpan.x, arraySpan.y, arraySpan.z);
+            }
+
+            if (transform && this.transform != null) {
+                this.transform.apply(aabb);
+            }
         }
 
-        if (transform && this.transform != null) {
-            this.transform.apply(aabb);
-        }
 
         return aabb;
     }
