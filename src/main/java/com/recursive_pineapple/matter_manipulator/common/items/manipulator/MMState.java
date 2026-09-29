@@ -7,6 +7,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregT
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -42,9 +43,11 @@ import appeng.api.parts.IPartItem;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.DimensionalCoord;
+import appeng.parts.p2p.PartP2PInterface;
 import appeng.tile.misc.TileSecurity;
 import appeng.tile.networking.TileWireless;
 
+import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -131,6 +134,11 @@ public class MMState {
 
         if (state == null) state = new MMState();
         if (state.config == null) state.config = new MMConfig();
+        // Gson loads an enum name it does not know as null
+        if (state.config.interfaceCopyMode == null) state.config.interfaceCopyMode = InterfaceCopyMode.COPY;
+        if (state.config.p2pInterfaceCopyMode == null) {
+            state.config.p2pInterfaceCopyMode = P2PInterfaceCopyMode.COPY_PATTERNS;
+        }
 
         state.migrate();
         state.onLoad();
@@ -151,7 +159,7 @@ public class MMState {
         return copy;
     }
 
-    private static final int LASTEST_JSON_VERSION = 2;
+    private static final int LASTEST_JSON_VERSION = 3;
     private static final int LASTEST_DATA_VERSION = 0;
 
     private static void migrateJson(JsonObject obj) {
@@ -185,6 +193,19 @@ public class MMState {
             }
 
             version = 2;
+        }
+
+        if (version == 2) {
+            if (obj.get("config") instanceof JsonObject config && config.has("replaceInterfacesWithP2P")) {
+                if (config.get("replaceInterfacesWithP2P").getAsBoolean()) {
+                    config.addProperty("interfaceCopyMode", InterfaceCopyMode.CONVERT_TO_P2P.name());
+                    config.addProperty("p2pInterfaceCopyMode", P2PInterfaceCopyMode.LINK_TO_ORIGINAL.name());
+                }
+
+                config.remove("replaceInterfacesWithP2P");
+            }
+
+            version = 3;
         }
 
         obj.addProperty("jv", version);
@@ -356,7 +377,7 @@ public class MMState {
         RegionAnalysis analysis = BlockAnalyzer
             .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING ? true : false);
 
-        if (config.placeMode == PlaceMode.COPYING && (config.replaceCribsWithProxies || config.replaceInterfacesWithP2P)) {
+        if (config.placeMode == PlaceMode.COPYING) {
             applySmartCopySubstitutions(world, analysis.blocks, coordA);
         }
 
@@ -391,14 +412,22 @@ public class MMState {
                 MMUtils.forEachArrayOffset(config.arraySpan, analysis.deltas, d -> {
                     t.apply(d);
 
+                    List<PendingBlock> copy = new ArrayList<>(base.size());
+
                     for (PendingBlock original : base) {
                         PendingBlock dup = original.clone();
                         dup.x += d.x;
                         dup.y += d.y;
                         dup.z += d.z;
-                        analysis.blocks.add(dup);
+                        copy.add(dup);
                     }
+
+                    if (AppliedEnergistics2.isModLoaded()) giveCopiedP2PInputsNewFrequencies(copy, coordC, d);
+
+                    analysis.blocks.addAll(copy);
                 });
+            } else if (AppliedEnergistics2.isModLoaded()) {
+                giveCopiedP2PInputsNewFrequencies(analysis.blocks, coordC, new Vector3i());
             }
 
             analysis.deltas = t.apply(analysis.deltas);
@@ -420,8 +449,12 @@ public class MMState {
             applySmartCopyCribs(world, blocks, coordA);
         }
 
-        if (AppliedEnergistics2.isModLoaded() && config.replaceInterfacesWithP2P) {
-            applySmartCopyP2P(world, blocks, coordA);
+        if (AppliedEnergistics2.isModLoaded()) {
+            applyP2PInterfaceCopyMode(blocks);
+
+            if (config.interfaceCopyMode == InterfaceCopyMode.CONVERT_TO_P2P) {
+                applySmartCopyP2P(world, blocks, coordA);
+            }
         }
     }
 
@@ -536,6 +569,74 @@ public class MMState {
                 block.smartCopy.p2pActions.add(info);
             }
         }
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void applyP2PInterfaceCopyMode(List<PendingBlock> blocks) {
+        if (config.p2pInterfaceCopyMode != P2PInterfaceCopyMode.LINK_TO_ORIGINAL) return;
+
+        for (AEPartData partData : getBoundP2PInterfaces(blocks)) {
+            partData.mP2POutput = true;
+            partData.mAEPatterns = null;
+        }
+    }
+
+    /**
+     * AE allows one input per frequency. The new frequency depends only on the old one and the paste position, so
+     * analysing the same paste again gives the same result.
+     */
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void giveCopiedP2PInputsNewFrequencies(List<PendingBlock> copy, Location dest, Vector3i arrayOffset) {
+        if (config.p2pInterfaceCopyMode != P2PInterfaceCopyMode.COPY_PATTERNS) return;
+
+        List<AEPartData> p2ps = getBoundP2PInterfaces(copy);
+
+        Set<Long> copiedInputs = new HashSet<>();
+
+        for (AEPartData partData : p2ps) {
+            if (!partData.mP2POutput) copiedInputs.add(partData.mP2PFreq);
+        }
+
+        if (copiedInputs.isEmpty()) return;
+
+        for (AEPartData partData : p2ps) {
+            if (copiedInputs.contains(partData.mP2PFreq)) {
+                partData.mP2PFreq = getCopiedFrequency(partData.mP2PFreq, dest, arrayOffset);
+            }
+        }
+    }
+
+    private static long getCopiedFrequency(long original, Location dest, Vector3i arrayOffset) {
+        long freq = Hashing.murmur3_128()
+            .newHasher()
+            .putLong(original)
+            .putInt(dest.worldId)
+            .putInt(dest.x + arrayOffset.x)
+            .putInt(dest.y + arrayOffset.y)
+            .putInt(dest.z + arrayOffset.z)
+            .hash()
+            .asLong();
+
+        return freq == 0 || freq == original ? freq + 1 : freq;
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static List<AEPartData> getBoundP2PInterfaces(List<PendingBlock> blocks) {
+        List<AEPartData> out = new ArrayList<>();
+
+        for (PendingBlock block : blocks) {
+            if (!(block.ae instanceof AEAnalysisResult aeResult)) continue;
+            if (aeResult.mAEParts == null) continue;
+
+            for (AEPartData partData : aeResult.mAEParts) {
+                if (partData == null || partData.mP2PFreq == 0) continue;
+                if (!partData.isPartSubclassOf(PartP2PInterface.class)) continue;
+
+                out.add(partData);
+            }
+        }
+
+        return out;
     }
 
     private static synchronized long nextP2PFrequency() {
@@ -1266,6 +1367,16 @@ public class MMState {
         NONE,
         REPLACEABLE,
         ALL
+    }
+
+    public static enum InterfaceCopyMode {
+        COPY,
+        CONVERT_TO_P2P
+    }
+
+    public static enum P2PInterfaceCopyMode {
+        LINK_TO_ORIGINAL,
+        COPY_PATTERNS
     }
 
     public static enum PlaceMode {
