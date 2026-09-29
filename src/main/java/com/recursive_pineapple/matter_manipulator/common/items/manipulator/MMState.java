@@ -120,6 +120,8 @@ public class MMState {
     @Optional(Names.APPLIED_ENERGISTICS2)
     public transient IMEMonitor<IAEItemStack> itemStorage;
 
+    private static long lastP2PFrequency;
+
     public static MMState load(NBTTagCompound tag) {
         JsonObject obj = (JsonObject) MMUtils.toJsonObject(tag);
 
@@ -477,9 +479,6 @@ public class MMState {
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void applySmartCopyP2P(World world, List<PendingBlock> blocks, Location coordA) {
-        long freqBase = System.currentTimeMillis();
-        int freqOffset = 0;
-
         ItemStack p2pIfaceStack = AEApi.instance().definitions().parts().p2PTunnelMEInterface().maybeStack(1).orNull();
         if (p2pIfaceStack == null) return;
 
@@ -506,7 +505,8 @@ public class MMState {
                 ItemStack replacementStack = isDual ? p2pDualIfaceStack : p2pIfaceStack;
 
                 ForgeDirection side = AEAnalysisResult.ALL_DIRECTIONS[i];
-                long freq = freqBase + freqOffset++;
+                long freq = nextP2PFrequency();
+                PortableItemStack sourcePart = partData.mPart;
 
                 // Replace the interface part with a P2P tunnel in the analysis
                 partData.mPart = new PortableItemStack(replacementStack);
@@ -532,9 +532,15 @@ public class MMState {
                 info.srcSide = side;
                 info.destSide = side;
                 info.p2pItem = new PortableItemStack(replacementStack);
+                info.sourcePart = sourcePart;
                 block.smartCopy.p2pActions.add(info);
             }
         }
+    }
+
+    private static synchronized long nextP2PFrequency() {
+        lastP2PFrequency = Math.max(System.currentTimeMillis(), lastP2PFrequency + 1);
+        return lastP2PFrequency;
     }
 
     @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
