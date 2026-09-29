@@ -36,6 +36,8 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMRen
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockRemoveMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockSelectMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.InterfaceCopyMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.P2PInterfaceCopyMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
@@ -333,8 +335,15 @@ public enum Messages {
     SetReplaceCribs(server(simple((player, stack, manipulator, state) -> {
         state.config.replaceCribsWithProxies = !state.config.replaceCribsWithProxies;
     }))),
-    SetReplaceInterfaces(server(simple((player, stack, manipulator, state) -> {
-        state.config.replaceInterfacesWithP2P = !state.config.replaceInterfacesWithP2P;
+    SetInterfaceCopyMode(server(simple((player, stack, manipulator, state) -> {
+        state.config.interfaceCopyMode = state.config.interfaceCopyMode == InterfaceCopyMode.COPY ?
+            InterfaceCopyMode.CONVERT_TO_P2P :
+            InterfaceCopyMode.COPY;
+    }))),
+    SetP2PInterfaceCopyMode(server(simple((player, stack, manipulator, state) -> {
+        state.config.p2pInterfaceCopyMode = state.config.p2pInterfaceCopyMode == P2PInterfaceCopyMode.LINK_TO_ORIGINAL ?
+            P2PInterfaceCopyMode.COPY_PATTERNS :
+            P2PInterfaceCopyMode.LINK_TO_ORIGINAL;
     }))),
     SetArray(server(locationPacket((player, stack, manipulator, state, span) -> {
         state.config.arraySpan = span;

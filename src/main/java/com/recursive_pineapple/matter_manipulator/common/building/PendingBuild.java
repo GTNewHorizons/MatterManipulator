@@ -11,6 +11,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -19,8 +20,10 @@ import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
@@ -30,6 +33,16 @@ import net.minecraftforge.common.util.ForgeDirection;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 
+import appeng.api.implementations.tiles.ISegmentedInventory;
+import appeng.api.parts.IPart;
+import appeng.api.parts.IPartHost;
+import appeng.api.parts.PartItemStack;
+import appeng.me.GridAccessException;
+import appeng.parts.AEBasePart;
+import appeng.parts.p2p.PartP2PTunnel;
+import appeng.util.SettingsFrom;
+
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
@@ -42,6 +55,7 @@ import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.networking.SoundResource;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigFluidStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
+import com.recursive_pineapple.matter_manipulator.common.utils.ItemId;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
@@ -63,6 +77,9 @@ public class PendingBuild extends AbstractBuildable {
     private final LongList warnings = new LongArrayList();
 
     private final WirelessLinkFixer wirelessLinkFixer;
+
+    private final List<PendingBlock> appliedP2POutputs = new ArrayList<>();
+    private final Set<Pair<Long, ForgeDirection>> convertedSources = new HashSet<>();
 
     public PendingBuild(
         EntityPlayer player,
@@ -148,6 +165,7 @@ public class PendingBuild extends AbstractBuildable {
                 if (supportsConfiguring()) {
                     applyContext.pendingBlock = block;
                     block.apply(applyContext, world);
+                    rememberP2POutputs(block);
                     playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
                 }
 
@@ -237,6 +255,8 @@ public class PendingBuild extends AbstractBuildable {
                 sendInfoToPlayer(player, "mm.info.finished_placing");
             }
 
+            if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
+
             actuallyGivePlayerStuff();
             playSounds();
             return;
@@ -298,6 +318,7 @@ public class PendingBuild extends AbstractBuildable {
                 if (supportsConfiguring()) {
                     applyContext.pendingBlock = pending;
                     pending.apply(applyContext, world);
+                    rememberP2POutputs(pending);
                 }
 
                 wirelessLinkFixer.tryApply(world, x, y, z);
@@ -349,6 +370,7 @@ public class PendingBuild extends AbstractBuildable {
 
             applyContext.pendingBlock = pending;
             pending.apply(applyContext, world);
+            rememberP2POutputs(pending);
 
             wirelessLinkFixer.tryApply(world, x, y, z);
         }
@@ -393,177 +415,169 @@ public class PendingBuild extends AbstractBuildable {
             visited.remove(coord);
         }
 
-        if (Mods.AppliedEnergistics2.isModLoaded()) {
-            for (PendingBlock placed : toPlace) {
-                if (placed.smartCopy != null && placed.smartCopy.action == SmartCopyIntegration.SmartCopyAction.INTERFACE_TO_P2P) {
-                    placeSourceP2P(world, placed, applyContext);
-                }
-            }
-        }
+        if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
 
         actuallyGivePlayerStuff();
         playSounds();
     }
 
-    @Optional(Names.APPLIED_ENERGISTICS2)
-    private void placeSourceP2P(World world, PendingBlock placed, PendingBuildApplyContext applyContext) {
-        if (placed.smartCopy == null || placed.smartCopy.p2pActions == null || placed.smartCopy.p2pActions.isEmpty()) return;
-
-        for (SmartCopyIntegration.P2PInfo info : placed.smartCopy.p2pActions) {
-            placeSourceP2PSingle(world, placed, info);
+    private void rememberP2POutputs(PendingBlock applied) {
+        if (applied.smartCopy != null && applied.smartCopy.action == SmartCopyIntegration.SmartCopyAction.INTERFACE_TO_P2P) {
+            appliedP2POutputs.add(applied);
         }
     }
 
+    /** Array copies share their sources, so each one is converted once, after one of its outputs exists. */
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private void placeSourceP2PSingle(World world, PendingBlock placed, SmartCopyIntegration.P2PInfo info) {
-        int srcX = info.srcX;
-        int srcY = info.srcY;
-        int srcZ = info.srcZ;
-        ForgeDirection srcSide = info.srcSide;
-        ForgeDirection destSide = info.destSide != null ? info.destSide : srcSide;
-        long freq = info.freq;
+    private void convertSourceInterfaces(World world) {
+        Set<Pair<Long, ForgeDirection>> triedThisTick = new HashSet<>();
 
-        if (srcSide == null || srcSide == ForgeDirection.UNKNOWN) {
-            MMMod.LOG.warn("SmartCopy: skipping P2P for block at {},{},{} - invalid source side", placed.x, placed.y, placed.z);
-            return;
-        }
+        for (PendingBlock applied : appliedP2POutputs) {
+            if (applied.smartCopy.p2pActions == null) continue;
 
-        TileEntity te = world.getTileEntity(srcX, srcY, srcZ);
-        if (!(te instanceof appeng.api.parts.IPartHost partHost)) {
-            MMMod.LOG.warn("SmartCopy: source at {},{},{} is not an IPartHost", srcX, srcY, srcZ);
-            return;
-        }
+            for (SmartCopyIntegration.P2PInfo info : applied.smartCopy.p2pActions) {
+                if (!hasP2POutput(world, applied, info)) continue;
 
-        java.util.List<ItemStack> extractedPatterns = new java.util.ArrayList<>();
-        appeng.api.parts.IPart existingPart = partHost.getPart(srcSide);
-        if (existingPart instanceof appeng.api.implementations.tiles.ISegmentedInventory srcSegInv) {
-            IInventory patternInv = srcSegInv.getInventoryByName("patterns");
-            if (patternInv != null) {
-                for (int i = 0; i < patternInv.getSizeInventory(); i++) {
-                    ItemStack pattern = patternInv.getStackInSlot(i);
-                    if (pattern != null) {
-                        extractedPatterns.add(pattern.copy());
-                        patternInv.setInventorySlotContents(i, null);
-                    }
-                }
+                Pair<Long, ForgeDirection> source = Pair.of(CoordinatePacker.pack(info.srcX, info.srcY, info.srcZ), info.srcSide);
+
+                if (convertedSources.contains(source) || !triedThisTick.add(source)) continue;
+
+                if (convertSourceInterface(world, info)) convertedSources.add(source);
             }
         }
 
-        if (existingPart != null) {
-            partHost.removePart(srcSide, false);
+        appliedP2POutputs.clear();
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static boolean hasP2POutput(World world, PendingBlock applied, SmartCopyIntegration.P2PInfo info) {
+        ForgeDirection destSide = info.destSide != null ? info.destSide : info.srcSide;
+
+        if (destSide == null) return false;
+        if (!(world.getTileEntity(applied.x, applied.y, applied.z) instanceof IPartHost partHost)) return false;
+
+        return partHost.getPart(destSide) instanceof PartP2PTunnel<?> tunnel && tunnel.isOutput() && tunnel.getFrequency() == info.freq;
+    }
+
+    /** @return false to try again later */
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private boolean convertSourceInterface(World world, SmartCopyIntegration.P2PInfo info) {
+        int x = info.srcX;
+        int y = info.srcY;
+        int z = info.srcZ;
+        ForgeDirection side = info.srcSide;
+
+        if (side == null || side == ForgeDirection.UNKNOWN) return true;
+
+        if (!isEditable(world, x, y, z, false)) return true;
+
+        IPartHost partHost = world.getTileEntity(x, y, z) instanceof IPartHost host ? host : null;
+        IPart existing = partHost == null ? null : partHost.getPart(side);
+
+        // An earlier paste of the same copy may have converted it already
+        if (existing == null || info.sourcePart == null || !isSamePart(existing, info.sourcePart)) {
+            sendSourceWarning(x, y, z, new ChatComponentTranslation("mm.info.warning.p2p_source_changed"));
+            return true;
         }
 
-        ItemStack p2pStack = info.p2pItem != null ?
-            info.p2pItem.toStack() :
-            appeng.api.AEApi.instance()
-                .definitions()
-                .parts()
-                .p2PTunnelMEInterface()
-                .maybeStack(1)
-                .orNull();
-        if (p2pStack == null) {
-            MMMod.LOG.warn("SmartCopy: no P2P item available for source at {},{},{} side {}", srcX, srcY, srcZ, srcSide);
-            for (ItemStack pattern : extractedPatterns) {
-                givePlayerItems(pattern);
-            }
-            return;
-        }
+        ItemStack p2pStack = info.p2pItem.toStack();
 
         if (!tryConsumeItems(p2pStack)) {
-            sendWarningToPlayer(
-                player,
-                "mm.info.warning.only_message",
-                srcX,
-                srcY,
-                srcZ,
-                new ChatComponentText("Could not find P2P Interface for source side " + srcSide)
-            );
-            for (ItemStack pattern : extractedPatterns) {
-                givePlayerItems(pattern);
-            }
-            return;
+            sendSourceWarning(x, y, z, new ChatComponentTranslation("mm.info.warning.could_not_find_item", new ChatComponentItemName(p2pStack)));
+            return false;
         }
 
-        if (partHost.addPart(p2pStack, srcSide, player) == null) {
+        NBTTagCompound settings = existing instanceof AEBasePart aePart ? aePart.downloadSettings(SettingsFrom.MEMORY_CARD) : null;
+        List<ItemStack> upgrades = takeInventory(existing, "upgrades");
+        List<ItemStack> patterns = takeInventory(existing, "patterns");
+
+        AEAnalysisResult.removePart(this, partHost, side, false);
+
+        if (partHost.addPart(p2pStack, side, player) == null) {
             givePlayerItems(p2pStack);
-            sendWarningToPlayer(
-                player,
-                "mm.info.warning.only_message",
-                srcX,
-                srcY,
-                srcZ,
-                new ChatComponentText("Could not place P2P Interface on source " + srcSide + " side")
-            );
-            for (ItemStack pattern : extractedPatterns) {
-                givePlayerItems(pattern);
-            }
-            return;
+            givePlayerItems(upgrades.toArray(new ItemStack[0]));
+            givePlayerItems(patterns.toArray(new ItemStack[0]));
+            sendSourceWarning(x, y, z, new ChatComponentTranslation("mm.info.warning.could_not_place_p2p_source"));
+            return true;
         }
 
-        appeng.api.parts.IPart srcPart = partHost.getPart(srcSide);
-        if (srcPart instanceof appeng.parts.p2p.PartP2PTunnel<?> tunnel) {
+        IPart p2p = partHost.getPart(side);
+
+        if (p2p instanceof PartP2PTunnel<?> tunnel) {
             tunnel.output = false;
+
             try {
-                appeng.me.cache.P2PCache p2p = tunnel.getProxy()
-                    .getP2P();
-                p2p.updateFreq(tunnel, freq);
-            } catch (appeng.me.GridAccessException e) {
-                tunnel.setFrequency(freq);
+                tunnel.getProxy()
+                    .getP2P()
+                    .updateFreq(tunnel, info.freq);
+            } catch (GridAccessException e) {
+                tunnel.setFrequency(info.freq);
             }
+
             tunnel.onTunnelConfigChange();
         }
 
-        playSound(world, srcX, srcY, srcZ, SoundResource.MOB_ENDERMEN_PORTAL);
+        // Capacity cards add pattern slots
+        putInventory(p2p, "upgrades", upgrades);
+        if (settings != null && p2p instanceof AEBasePart aePart) aePart.uploadSettings(SettingsFrom.MEMORY_CARD, settings);
+        putInventory(p2p, "patterns", patterns);
 
-        if (!extractedPatterns.isEmpty()) {
-            appeng.api.parts.IPart newSrcPart = partHost.getPart(srcSide);
-            if (newSrcPart instanceof appeng.api.implementations.tiles.ISegmentedInventory srcSegInv) {
-                IInventory srcPatternInv = srcSegInv.getInventoryByName("patterns");
-                if (srcPatternInv != null) {
-                    int slot = 0;
-                    for (ItemStack pattern : extractedPatterns) {
-                        while (slot < srcPatternInv.getSizeInventory() && srcPatternInv.getStackInSlot(slot) != null) {
-                            slot++;
-                        }
-                        if (slot >= srcPatternInv.getSizeInventory()) {
-                            MMMod.LOG.warn(
-                                "SmartCopy: source P2P pattern inventory full at {},{},{} side {} - returning remaining patterns to player",
-                                srcX,
-                                srcY,
-                                srcZ,
-                                srcSide
-                            );
-                            givePlayerItems(pattern);
-                            continue;
-                        }
-                        srcPatternInv.setInventorySlotContents(slot, pattern);
-                        slot++;
-                    }
-                } else {
-                    MMMod.LOG.warn(
-                        "SmartCopy: no pattern inventory on source P2P at {},{},{} side {} - returning patterns to player",
-                        srcX,
-                        srcY,
-                        srcZ,
-                        srcSide
-                    );
-                    for (ItemStack pattern : extractedPatterns) {
-                        givePlayerItems(pattern);
-                    }
-                }
-            } else {
-                MMMod.LOG.warn(
-                    "SmartCopy: source P2P at {},{},{} side {} is not a segmented inventory - returning patterns to player",
-                    srcX,
-                    srcY,
-                    srcZ,
-                    srcSide
-                );
-                for (ItemStack pattern : extractedPatterns) {
-                    givePlayerItems(pattern);
-                }
+        playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
+
+        return true;
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static boolean isSamePart(IPart part, PortableItemStack expected) {
+        return ItemId.createWithoutNBT(part.getItemStack(PartItemStack.Break))
+            .equals(ItemId.createWithoutNBT(expected.toStack()));
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static List<ItemStack> takeInventory(IPart part, String name) {
+        List<ItemStack> taken = new ArrayList<>();
+
+        IInventory inv = part instanceof ISegmentedInventory segmented ? segmented.getInventoryByName(name) : null;
+
+        if (inv == null) return taken;
+
+        for (int slot = 0; slot < inv.getSizeInventory(); slot++) {
+            ItemStack stack = inv.getStackInSlot(slot);
+
+            if (stack != null) {
+                taken.add(stack);
+                inv.setInventorySlotContents(slot, null);
             }
         }
+
+        return taken;
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void putInventory(IPart part, String name, List<ItemStack> stacks) {
+        IInventory inv = part instanceof ISegmentedInventory segmented ? segmented.getInventoryByName(name) : null;
+
+        for (ItemStack stack : stacks) {
+            int slot = inv == null ? -1 : findFreeSlot(inv, stack);
+
+            if (slot == -1) {
+                givePlayerItems(stack);
+            } else {
+                inv.setInventorySlotContents(slot, stack);
+            }
+        }
+    }
+
+    private static int findFreeSlot(IInventory inv, ItemStack stack) {
+        for (int slot = 0; slot < inv.getSizeInventory(); slot++) {
+            if (inv.getStackInSlot(slot) == null && inv.isItemValidForSlot(slot, stack)) return slot;
+        }
+
+        return -1;
+    }
+
+    private void sendSourceWarning(int x, int y, int z, IChatComponent message) {
+        sendWarningToPlayer(player, "mm.info.warning.only_message", x, y, z, message);
     }
 
     @Override

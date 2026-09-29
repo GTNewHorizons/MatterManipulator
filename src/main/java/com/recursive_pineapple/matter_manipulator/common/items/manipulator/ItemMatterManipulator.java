@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -104,6 +105,8 @@ import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockRemoveMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockSelectMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.InterfaceCopyMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.P2PInterfaceCopyMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
@@ -597,8 +600,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
                 }
 
-                addInfoLine(desc, "mm.tooltip.copying.auto_p2p_interfaces", state.config.replaceInterfacesWithP2P,
-                    on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
+                addInfoLine(desc, "mm.tooltip.copying.interface_mode", state.config.interfaceCopyMode,
+                    ItemMatterManipulator::getInterfaceCopyModeName);
+
+                addInfoLine(desc, "mm.tooltip.copying.p2p_interface_mode", state.config.p2pInterfaceCopyMode,
+                    ItemMatterManipulator::getP2PInterfaceCopyModeName);
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {
@@ -642,6 +648,14 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 + EnumChatFormatting.GRAY);
 
         // spotless:on
+    }
+
+    private static String getInterfaceCopyModeName(InterfaceCopyMode mode) {
+        return StatCollector.translateToLocal("mm.gui.smart_copy.interface_mode." + mode.name().toLowerCase(Locale.ROOT));
+    }
+
+    private static String getP2PInterfaceCopyModeName(P2PInterfaceCopyMode mode) {
+        return StatCollector.translateToLocal("mm.gui.smart_copy.p2p_interface_mode." + mode.name().toLowerCase(Locale.ROOT));
     }
 
     private <T> void addInfoLine(List<String> desc, String formatKey, T value) {
@@ -1505,10 +1519,18 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .done()
                 .option()
                     .label(() -> StatCollector.translateToLocalFormatted(
-                        "mm.gui.smart_copy.interfaces_to_p2p",
-                        StatCollector.translateToLocal(initialState.config.replaceInterfacesWithP2P ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                        "mm.gui.smart_copy.interface_mode",
+                        getInterfaceCopyModeName(initialState.config.interfaceCopyMode)))
                     .onClicked(() -> {
-                        Messages.SetReplaceInterfaces.sendToServer();
+                        Messages.SetInterfaceCopyMode.sendToServer();
+                    })
+                .done()
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.smart_copy.p2p_interface_mode",
+                        getP2PInterfaceCopyModeName(initialState.config.p2pInterfaceCopyMode)))
+                    .onClicked(() -> {
+                        Messages.SetP2PInterfaceCopyMode.sendToServer();
                     })
                 .done()
             .done();
