@@ -3,12 +3,15 @@ package com.recursive_pineapple.matter_manipulator.common.compat;
 import static net.minecraftforge.common.util.ForgeDirection.*;
 import static net.minecraftforge.oredict.OreDictionary.WILDCARD_VALUE;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -37,6 +40,8 @@ import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.CompressedStreamTools;
+import net.minecraft.nbt.NBTSizeTracker;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntitySign;
@@ -88,6 +93,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectArrayMap;
+import li.cil.oc.common.item.data.MicrocontrollerData;
 import li.cil.oc.common.item.data.TransposerData;
 import li.cil.oc.common.tileentity.Transposer;
 import li.cil.oc.common.tileentity.traits.Rotatable;
@@ -1256,6 +1262,7 @@ public class BlockPropertyRegistry {
     @Optional(Names.OPEN_COMPUTERS)
     private static void initOpenComputers() {
         registerIntrinsicProperty(InteropConstants.OC_TRANSPOSER.getBlock(), new OpenComputersTransposerFluidTransferRateProperty());
+        registerIntrinsicProperty(InteropConstants.OC_MICROCONTROLLER.getBlock(), new OpenComputersMicrocontrollerPartsProperty());
         registerTileEntityInterfaceProperty(
             Rotatable.class,
             new OrientationBlockProperty() {
@@ -1954,6 +1961,78 @@ public class BlockPropertyRegistry {
                 transposer.info().load(tag);
             } else {
                 throw new IllegalStateException("expected " + te + " to be a Transposer");
+            }
+        }
+    }
+
+    /// The tier and components of a microcontroller, which are stored in its item instead of an inventory
+    private static class OpenComputersMicrocontrollerPartsProperty implements IntrinsicProperty {
+
+        @Override
+        public String getName() {
+            return "microcontrollerParts";
+        }
+
+        @Override
+        public boolean hasValue(ItemStack stack) {
+            return InteropConstants.OC_MICROCONTROLLER.matches(stack);
+        }
+
+        @Override
+        public boolean hasValue(IBlockAccess world, int x, int y, int z) {
+            return InteropConstants.OC_MICROCONTROLLER.matches(world.getBlock(x, y, z), world.getBlockMetadata(x, y, z)) &&
+                world.getTileEntity(x, y, z) != null;
+        }
+
+        @Override
+        public JsonElement getValue(ItemStack stack) {
+            return encode(MicrocontrollerCompat.getParts(new MicrocontrollerData(stack)));
+        }
+
+        @Override
+        public JsonElement getValue(IBlockAccess world, int x, int y, int z) {
+            // The tile entity class can't be referenced here (its interfaces need optional mods), so read its NBT
+            NBTTagCompound tag = new NBTTagCompound();
+            world.getTileEntity(x, y, z)
+                .writeToNBT(tag);
+
+            MicrocontrollerData info = new MicrocontrollerData("microcontroller");
+            info.load(tag.getCompoundTag("oc:info"));
+
+            return encode(MicrocontrollerCompat.getParts(info));
+        }
+
+        @Override
+        public void setValue(ItemStack stack, JsonElement value) {
+            NBTTagCompound tag = stack.getTagCompound() != null ? stack.getTagCompound() : new NBTTagCompound();
+            NBTTagCompound parts = decode(value);
+
+            for (String key : parts.func_150296_c()) {
+                tag.setTag(key, parts.getTag(key));
+            }
+
+            stack.setTagCompound(tag);
+        }
+
+        @Override
+        public void setValue(IBlockAccess world, int x, int y, int z, JsonElement value) {
+            throw new UnsupportedOperationException("The parts of a placed microcontroller cannot be changed");
+        }
+
+        // Stored as binary NBT: the parts contain empty byte arrays (EEPROM data), which toJsonObjectExact can't store
+        private static JsonElement encode(NBTTagCompound parts) {
+            try {
+                return new JsonPrimitive(Base64.getEncoder().encodeToString(CompressedStreamTools.compress(parts)));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        private static NBTTagCompound decode(JsonElement value) {
+            try {
+                return CompressedStreamTools.func_152457_a(Base64.getDecoder().decode(value.getAsString()), NBTSizeTracker.field_152451_a);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
     }
