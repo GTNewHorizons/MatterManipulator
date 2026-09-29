@@ -555,7 +555,11 @@ public class PendingBlock extends Location {
                 this.cb = CarpentersBlocksAnalysisResult.analyze(te);
             }
 
-            if ((flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory) {
+            // Microcontroller parts are copied with the item (see MicrocontrollerCompat), not as an inventory
+            if (
+                (flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory &&
+                    !InteropConstants.OC_MICROCONTROLLER.matches(te.getBlockType(), te.getBlockMetadata())
+            ) {
                 this.inventory = InventoryAnalysis.fromInventory(inventory, false);
             }
         }
