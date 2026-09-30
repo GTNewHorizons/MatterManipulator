@@ -58,6 +58,10 @@ public class MMConfig {
      * tunnels auto-placed at the source.
      */
     public boolean replaceInterfacesWithP2P = false;
+    /**
+     * When true, AE patterns from the copied interfaces will be applied to the pasted interfaces
+     */
+    public boolean shouldCopyAEPatterns = false;
 
     public Location getCoordA(World world, Vector3i lookingAt) {
         if (coordAOffset == null) {

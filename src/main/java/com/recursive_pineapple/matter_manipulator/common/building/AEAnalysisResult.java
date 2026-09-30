@@ -40,6 +40,7 @@ import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.ItemId;
@@ -187,8 +188,11 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                 mAECells.apply(ctx, cells, true, false);
             }
 
+            ItemStack item = ctx.getRealPlayer().getHeldItem();
+            MMState state = MMState.load(item != null ? item.stackTagCompound : null);
+
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
-            if (mAEPatterns != null && patterns != null) {
+            if (state.config.shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
                 MMUtils.installPatterns(
                     segmentedInventory,
                     ctx,

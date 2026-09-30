@@ -1511,6 +1511,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         Messages.SetReplaceInterfaces.sendToServer();
                     })
                 .done()
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.smart_copy.copy_ae_patterns",
+                        StatCollector.translateToLocal(initialState.config.shouldCopyAEPatterns ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> Messages.SetCopyAEPatterns.sendToServer())
+                .done()
             .done();
     }
 
