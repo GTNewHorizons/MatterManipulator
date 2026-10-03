@@ -696,6 +696,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 state.config.coordB = null;
                 state.config.coordC = null;
                 state.config.coordBOffset = new Vector3i();
+                state.config.cableCorners = null;
                 state.config.action = PendingAction.MOVING_COORDS;
             }
 
@@ -813,6 +814,39 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         return false;
+    }
+
+    /**
+     * @return true when the player is picking the end of a cable path, which is when left clicking adds a corner.
+     */
+    public static boolean canAddCableCorner(MMState state) {
+        return state.config.placeMode == PlaceMode.CABLES && state.config.action == PendingAction.MOVING_COORDS &&
+            state.config.coordA != null &&
+            state.config.coordAOffset == null &&
+            state.config.coordBOffset != null &&
+            state.config.coordCOffset == null;
+    }
+
+    /**
+     * Adds a corner to the cable path, pinned to the axes of the previous point.
+     *
+     * @return True if the corner was added, false if it can't be added or wouldn't move from the previous point.
+     */
+    public static boolean addCableCorner(MMState state, Vector3i point) {
+        if (!canAddCableCorner(state)) return false;
+
+        List<Vector3i> points = MMState.getCablePoints(state.config.coordA.toVec(), state.config.cableCorners, null);
+        Vector3i last = points.get(points.size() - 1);
+
+        Vector3i corner = MMState.pinToAxes(last, point);
+
+        if (corner.equals(last)) return false;
+
+        if (state.config.cableCorners == null) state.config.cableCorners = new ArrayList<>();
+
+        state.config.cableCorners.add(corner);
+
+        return true;
     }
 
     public void onMMBPressed(EntityPlayer player, ItemStack stack, MMState state) {
@@ -1824,6 +1858,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
             component.set(loc, i);
 
+            // editing the coords turns a bent cable path back into a straight line, because i CBA
+            if (coord != Coord.Stack) currState.config.cableCorners = null;
+
             // Cylinder shape coords handling
             if (currState.config.placeMode == PlaceMode.GEOMETRY && currState.config.shape == Shape.CYLINDER) {
                 switch (coord) {
@@ -2430,7 +2467,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             ArrayList<Widget> widgets = new ArrayList<>();
             MMState state = getState(getStack());
 
-            if (state.config.coordA != null && state.config.coordB != null) {
+            if (state.config.coordA != null && state.config.coordB != null && state.config.cableCorners == null) {
                 CoordComponent component;
 
                 Location coordA = state.config.coordA;
@@ -2638,6 +2675,27 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 setState(heldItem, state);
 
                 Messages.MMBPressed.sendToServer();
+            }
+
+            if (
+                event.button == 0 /* LMB */ && event.buttonstate &&
+                    heldItem.getItem() == ItemMatterManipulator.this &&
+                    Minecraft.getMinecraft().currentScreen == null
+            ) {
+                MMState state = getState(heldItem);
+
+                if (!canAddCableCorner(state)) return;
+
+                // don't attack or break blocks, especially important in creative mode
+                event.setCanceled(true);
+
+                Vector3i corner = new Vector3i(MMUtils.getLookingAtLocation(player)).add(state.config.coordBOffset);
+
+                if (addCableCorner(state, corner)) {
+                    setState(heldItem, state);
+
+                    Messages.AddCableCorner.sendToServer(corner);
+                }
             }
         }
 

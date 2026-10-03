@@ -203,6 +203,8 @@ public class MMRenderer {
 
         boolean isValid = isAValid && isBValid;
 
+        List<Vector3i> cablePoints = null;
+
         // For cylinders, coord B must be pinned to one of the axis planes and coord C must be on the normal of that plane
         if (state.config.placeMode == PlaceMode.GEOMETRY && state.config.shape == Shape.CYLINDER) {
             isValid &= isCValid;
@@ -241,7 +243,9 @@ public class MMRenderer {
             Objects.requireNonNull(coordA);
             Objects.requireNonNull(coordB);
 
-            Vector3i b = MMState.pinToAxes(coordA.toVec(), coordB.toVec());
+            cablePoints = MMState.getCablePoints(coordA.toVec(), state.config.cableCorners, coordB.toVec());
+
+            Vector3i b = cablePoints.get(cablePoints.size() - 1);
 
             coordB.x = b.x;
             coordB.y = b.y;
@@ -290,7 +294,17 @@ public class MMRenderer {
 
             BoxRenderer.INSTANCE.start(event.partialTicks);
 
-            BoxRenderer.INSTANCE.drawAround(aabb.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+            if (cablePoints != null && cablePoints.size() > 2) {
+                for (int i = 1; i < cablePoints.size(); i++) {
+                    VoxelAABB segment = new VoxelAABB(cablePoints.get(i - 1), cablePoints.get(i));
+
+                    BoxRenderer.INSTANCE.drawAround(segment.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+
+                    aabb.union(segment);
+                }
+            } else {
+                BoxRenderer.INSTANCE.drawAround(aabb.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+            }
 
             BoxRenderer.INSTANCE.finish();
 

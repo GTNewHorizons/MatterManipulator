@@ -1,5 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
+import java.util.List;
+
 import javax.annotation.Nullable;
 
 import net.minecraft.util.AxisAlignedBB;
@@ -35,6 +37,8 @@ public class MMConfig {
     public WeightedSpecList faces = new WeightedSpecList(BlockSpec.air());
     public WeightedSpecList volumes = new WeightedSpecList(BlockSpec.air());
     public BlockSpec cables = BlockSpec.air();
+    /** The bends between coord A and coord B in cables mode, in placement order. Null when there are none. */
+    public List<Vector3i> cableCorners;
 
     /** These blocks are what gets removed when exchanging */
     public WeightedSpecList replaceWhitelist = new WeightedSpecList(BlockSpec.air());
@@ -271,6 +275,7 @@ public class MMConfig {
         result = prime * result + ((faces == null) ? 0 : faces.hashCode());
         result = prime * result + ((volumes == null) ? 0 : volumes.hashCode());
         result = prime * result + ((cables == null) ? 0 : cables.hashCode());
+        result = prime * result + ((cableCorners == null) ? 0 : cableCorners.hashCode());
         result = prime * result + ((replaceWhitelist == null) ? 0 : replaceWhitelist.hashCode());
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
@@ -326,6 +331,9 @@ public class MMConfig {
         if (cables == null) {
             if (other.cables != null) return false;
         } else if (!cables.equals(other.cables)) return false;
+        if (cableCorners == null) {
+            if (other.cableCorners != null) return false;
+        } else if (!cableCorners.equals(other.cableCorners)) return false;
         if (replaceWhitelist == null) {
             if (other.replaceWhitelist != null) return false;
         } else if (!replaceWhitelist.equals(other.replaceWhitelist)) return false;
