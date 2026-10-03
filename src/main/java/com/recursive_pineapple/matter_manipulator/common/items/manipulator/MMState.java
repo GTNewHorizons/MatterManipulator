@@ -26,6 +26,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
 
+import gregtech.api.GregTechAPI;
 import gregtech.api.enums.ItemList;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -85,6 +86,9 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import org.joml.Vector3i;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import tectech.thing.CustomItemList;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaserMirror;
 
 /**
  * The NBT state of a manipulator.
@@ -760,6 +764,8 @@ public class MMState {
                 connections.put(voxel, flags);
             }
 
+            ImmutableBlockSpec mirror = isBendableLaserPipe(cable) ? getLaserMirrorSpec() : null;
+
             for (Map.Entry<Vector3i, Integer> entry : connections.entrySet()) {
                 Vector3i voxel = entry.getKey();
 
@@ -769,13 +775,48 @@ public class MMState {
 
                 gt.mConnections |= entry.getValue();
 
-                PendingBlock pendingBlock = cable.instantiate(world, voxel.x, voxel.y, voxel.z);
+                ImmutableBlockSpec spec = mirror != null && isTurn(entry.getValue()) ? mirror : cable;
+
+                PendingBlock pendingBlock = spec.instantiate(world, voxel.x, voxel.y, voxel.z);
 
                 pendingBlock.gt = gt;
 
                 out.add(pendingBlock);
             }
         }
+    }
+
+    /**
+     * @return True if the cable is a laser pipe, which needs mirrors  to bend.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private static boolean isBendableLaserPipe(ImmutableBlockSpec cable) {
+        int id = cable.getItemMeta();
+
+        if (id < 0 || id >= GregTechAPI.METATILEENTITIES.length) return false;
+
+        IMetaTileEntity mte = GregTechAPI.METATILEENTITIES[id];
+
+        return mte instanceof MTEPipeLaser && !(mte instanceof MTEPipeLaserMirror);
+    }
+
+    @Optional(Names.GREG_TECH_NH)
+    private static ImmutableBlockSpec getLaserMirrorSpec() {
+        ItemStack stack = CustomItemList.LASERpipeSmart.get(1);
+
+        return new BlockSpec().setObject(stack.getItem(), stack.getItemDamage());
+    }
+
+    /**
+     * @return True if the connection flags are perpendicular.
+     */
+    private static boolean isTurn(int flags) {
+        if (Integer.bitCount(flags) != 2) return false;
+
+        // straight lines connect to opposite sides: down/up, north/south, west/east
+        return flags != (ForgeDirection.DOWN.flag | ForgeDirection.UP.flag) &&
+            flags != (ForgeDirection.NORTH.flag | ForgeDirection.SOUTH.flag) &&
+            flags != (ForgeDirection.WEST.flag | ForgeDirection.EAST.flag);
     }
 
     /**
