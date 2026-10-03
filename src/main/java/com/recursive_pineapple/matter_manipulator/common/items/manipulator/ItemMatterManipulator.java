@@ -984,9 +984,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     static private void onPickCable(World world, EntityPlayer player, ItemStack stack, MMState state, MovingObjectPosition hit, BlockSpec cable) {
         if (cable == null) cable = new BlockSpec();
 
+        byte colour = -1;
+
         if (hit != null) {
             if (Mods.GregTech.isModLoaded()) {
-                MMUtils.getGTCable(cable, world, hit.blockX, hit.blockY, hit.blockZ);
+                if (MMUtils.getGTCable(cable, world, hit.blockX, hit.blockY, hit.blockZ)) {
+                    colour = MMUtils.getGTCableColour(world, hit.blockX, hit.blockY, hit.blockZ);
+                }
             }
 
             if (cable.isAir() && Mods.AppliedEnergistics2.isModLoaded()) {
@@ -999,6 +1003,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         state.config.cables = cable.isAir() ? null : cable;
+        state.config.cableColour = colour;
 
         sendInfoToPlayer(
             player,
