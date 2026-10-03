@@ -296,7 +296,15 @@ public class MMRenderer {
 
             if (cablePoints != null && cablePoints.size() > 2) {
                 for (int i = 1; i < cablePoints.size(); i++) {
-                    VoxelAABB segment = new VoxelAABB(cablePoints.get(i - 1), cablePoints.get(i));
+                    Vector3i start = new Vector3i(cablePoints.get(i - 1));
+                    Vector3i end = cablePoints.get(i);
+
+                    // corner is already rendered, don't add it again
+                    if (i > 1) {
+                        start.add(Integer.signum(end.x - start.x), Integer.signum(end.y - start.y), Integer.signum(end.z - start.z));
+                    }
+
+                    VoxelAABB segment = new VoxelAABB(start, end);
 
                     BoxRenderer.INSTANCE.drawAround(segment.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
 
