@@ -273,7 +273,7 @@ public class MMConfig {
         result = prime * result + ((faces == null) ? 0 : faces.hashCode());
         result = prime * result + ((volumes == null) ? 0 : volumes.hashCode());
         result = prime * result + ((cables == null) ? 0 : cables.hashCode());
-        result = prime * result + cableColour;
+        result = prime * result + Byte.hashCode(cableColour);
         result = prime * result + ((replaceWhitelist == null) ? 0 : replaceWhitelist.hashCode());
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
