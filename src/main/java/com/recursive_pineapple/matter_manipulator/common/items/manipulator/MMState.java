@@ -787,7 +787,7 @@ public class MMState {
     }
 
     /**
-     * @return True if the cable is a laser pipe, which needs mirrors  to bend.
+     * @return True if the cable is a laser pipe, which needs mirrors to bend.
      */
     @Optional(Names.GREG_TECH_NH)
     private static boolean isBendableLaserPipe(ImmutableBlockSpec cable) {
