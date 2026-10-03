@@ -35,6 +35,8 @@ public class MMConfig {
     public WeightedSpecList faces = new WeightedSpecList(BlockSpec.air());
     public WeightedSpecList volumes = new WeightedSpecList(BlockSpec.air());
     public BlockSpec cables = BlockSpec.air();
+    // The GT colour (-1 = unpainted)
+    public byte cableColour = -1;
 
     /** These blocks are what gets removed when exchanging */
     public WeightedSpecList replaceWhitelist = new WeightedSpecList(BlockSpec.air());
@@ -271,6 +273,7 @@ public class MMConfig {
         result = prime * result + ((faces == null) ? 0 : faces.hashCode());
         result = prime * result + ((volumes == null) ? 0 : volumes.hashCode());
         result = prime * result + ((cables == null) ? 0 : cables.hashCode());
+        result = prime * result + cableColour;
         result = prime * result + ((replaceWhitelist == null) ? 0 : replaceWhitelist.hashCode());
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
@@ -326,6 +329,7 @@ public class MMConfig {
         if (cables == null) {
             if (other.cables != null) return false;
         } else if (!cables.equals(other.cables)) return false;
+        if (cableColour != other.cableColour) return false;
         if (replaceWhitelist == null) {
             if (other.replaceWhitelist != null) return false;
         } else if (!replaceWhitelist.equals(other.replaceWhitelist)) return false;

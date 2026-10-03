@@ -720,9 +720,15 @@ public class MMState {
             for (int i = 0; i < voxels.size(); i++) {
                 Vector3i voxel = voxels.get(i);
 
-                GTAnalysisResult gt = GTAnalysisResult.analyze(world.getTileEntity(voxel.x, voxel.y, voxel.z));
+                TileEntity te = world.getTileEntity(voxel.x, voxel.y, voxel.z);
+
+                GTAnalysisResult gt = GTAnalysisResult.analyze(te);
 
                 if (gt == null) gt = new GTAnalysisResult();
+
+                // paint newly placed cables with the picked cable's colour
+                // existing GT tiles keep their own colour, because thats how it already is
+                if (!(te instanceof IGregTechTileEntity)) gt.mGTColour = config.cableColour;
 
                 if (i > 0) gt.mConnections |= start;
                 if (i < voxels.size() - 1) gt.mConnections |= end;
