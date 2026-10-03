@@ -1,9 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.building.movers;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -25,9 +23,6 @@ public class GTBlockMover extends StandardBlockMover {
 
     public static final GTBlockMover INSTANCE = new GTBlockMover();
 
-    /** Proxies outside the moved area whose crafting input buffer was removed and still has to be placed again. */
-    private final Map<StandardBlock, List<MTEHatchCraftingInputSlave>> externalProxies = new IdentityHashMap<>();
-
     @Override
     public boolean canMove(World world, int x, int y, int z) {
         return world.getTileEntity(x, y, z) instanceof IGregTechTileEntity;
@@ -37,7 +32,7 @@ public class GTBlockMover extends StandardBlockMover {
     public StandardBlock remove(PendingMove pendingMove, World world, int x, int y, int z) {
         TileEntity te = world.getTileEntity(x, y, z);
         boolean isProxy = te instanceof IGregTechTileEntity igte && igte.getMetaTileEntity() instanceof MTEHatchCraftingInputSlave;
-        List<MTEHatchCraftingInputSlave> proxies = getExternalProxies(pendingMove, te);
+        List<MTEHatchCraftingInputSlave> proxies = getProxies(te);
 
         // Because GT uses this to call MTE.onRemoval() :doom:
         world.getBlock(x, y, z).getDrops(world, x, y, z, world.getBlockMetadata(x, y, z), 0);
@@ -48,8 +43,8 @@ public class GTBlockMover extends StandardBlockMover {
             adjustProxyMasterNbt(standardBlock, pendingMove);
         }
 
-        if (!proxies.isEmpty()) {
-            externalProxies.put(standardBlock, proxies);
+        if (!proxies.isEmpty() && pendingMove != null) {
+            pendingMove.getMoverState().put(standardBlock, proxies);
         }
 
         return standardBlock;
@@ -81,7 +76,10 @@ public class GTBlockMover extends StandardBlockMover {
             enet.doEnetUpdate();
         }
 
-        List<MTEHatchCraftingInputSlave> proxies = externalProxies.remove(standardBlock);
+        @SuppressWarnings("unchecked")
+        List<MTEHatchCraftingInputSlave> proxies = pendingMove == null ?
+            null :
+            (List<MTEHatchCraftingInputSlave>) pendingMove.getMoverState().remove(standardBlock);
 
         if (proxies != null) {
             for (MTEHatchCraftingInputSlave proxy : proxies) {
@@ -97,10 +95,11 @@ public class GTBlockMover extends StandardBlockMover {
     }
 
     /**
-     * Proxies inside the moved area are moved too and get their link fixed by {@link #adjustProxyMasterNbt}, so only
-     * the ones outside of it have to be relinked once the buffer has been placed.
+     * All proxies of a buffer get relinked once the buffer has been placed, also the ones inside the moved area: a
+     * proxy that was already moved has been removed from the buffer's list (and is dead), one that is moved later
+     * keeps the new position (it lies outside the source area), and one that can't be moved stays linked.
      */
-    private static List<MTEHatchCraftingInputSlave> getExternalProxies(PendingMove pendingMove, TileEntity te) {
+    private static List<MTEHatchCraftingInputSlave> getProxies(TileEntity te) {
         List<MTEHatchCraftingInputSlave> proxies = new ArrayList<>();
 
         if (!(te instanceof IGregTechTileEntity igte)) return proxies;
@@ -111,18 +110,13 @@ public class GTBlockMover extends StandardBlockMover {
 
             if (proxyTE == null) continue;
 
-            if (
-                pendingMove != null &&
-                    isInSourceRegion(pendingMove, proxyTE.getXCoord(), proxyTE.getYCoord(), proxyTE.getZCoord())
-            ) continue;
-
             proxies.add(proxy);
         }
 
         return proxies;
     }
 
-    /** A proxy that is moved together with its buffer has to point to the buffer's new position. */
+    /** A proxy that is moved before its buffer has to point to the buffer's new position. */
     private static void adjustProxyMasterNbt(StandardBlock standardBlock, PendingMove pendingMove) {
         NBTTagCompound tileData = standardBlock.tileData();
         if (tileData == null || !tileData.hasKey("master")) return;
@@ -132,18 +126,10 @@ public class GTBlockMover extends StandardBlockMover {
         int my = master.getInteger("y");
         int mz = master.getInteger("z");
 
-        if (isInSourceRegion(pendingMove, mx, my, mz)) {
+        if (pendingMove.isInSourceRegion(mx, my, mz)) {
             master.setInteger("x", mx + pendingMove.getMoveOffsetX());
             master.setInteger("y", my + pendingMove.getMoveOffsetY());
             master.setInteger("z", mz + pendingMove.getMoveOffsetZ());
         }
-    }
-
-    private static boolean isInSourceRegion(PendingMove pendingMove, int x, int y, int z) {
-        return x >= pendingMove.getSrcMinX() && x <= pendingMove.getSrcMaxX() &&
-            y >= pendingMove.getSrcMinY() &&
-            y <= pendingMove.getSrcMaxY() &&
-            z >= pendingMove.getSrcMinZ() &&
-            z <= pendingMove.getSrcMaxZ();
     }
 }
