@@ -95,15 +95,18 @@ public enum Messages {
     }))),
     SetA(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordA = new Location(player.worldObj, location);
+        state.config.cableCorners = null;
     }))),
     MoveA(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
         state.config.coordAOffset = new Vector3i();
         state.config.coordBOffset = null;
         state.config.coordCOffset = null;
+        state.config.cableCorners = null;
     }))),
     SetB(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordB = new Location(player.worldObj, location);
+        state.config.cableCorners = null;
     }))),
     MoveB(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
@@ -113,6 +116,7 @@ public enum Messages {
     }))),
     SetC(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordC = new Location(player.worldObj, location);
+        state.config.cableCorners = null;
     }))),
     MoveC(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
@@ -136,9 +140,11 @@ public enum Messages {
         state.config.coordA = coordC;
         state.config.coordB = new Location(player.worldObj, newCoordBVector);
         state.config.coordC = coordA;
+        state.config.cableCorners = null;
     }))),
     MoveAll(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
+        state.config.cableCorners = null;
 
         Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
 
@@ -165,6 +171,8 @@ public enum Messages {
 
     }))),
     MoveHere(server(simple((player, stack, manipulator, state) -> {
+        state.config.cableCorners = null;
+
         if (state.config.shape.requiresC()) {
             if (Location.areCompatible(state.config.coordA, state.config.coordB, state.config.coordC)) {
                 Vector3i offsetB = state.config.coordB.toVec()
@@ -201,6 +209,10 @@ public enum Messages {
         state.config.coordAOffset = null;
         state.config.coordBOffset = null;
         state.config.coordCOffset = null;
+        state.config.cableCorners = null;
+    }))),
+    AddCableCorner(server(locationPacket((player, stack, manipulator, state, location) -> {
+        ItemMatterManipulator.addCableCorner(state, location);
     }))),
     ClearTransform(server(simple((player, stack, manipulator, state) -> {
         state.config.transform = new Transform();

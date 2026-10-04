@@ -203,6 +203,8 @@ public class MMRenderer {
 
         boolean isValid = isAValid && isBValid;
 
+        List<Vector3i> cablePoints = null;
+
         // For cylinders, coord B must be pinned to one of the axis planes and coord C must be on the normal of that plane
         if (state.config.placeMode == PlaceMode.GEOMETRY && state.config.shape == Shape.CYLINDER) {
             isValid &= isCValid;
@@ -241,7 +243,9 @@ public class MMRenderer {
             Objects.requireNonNull(coordA);
             Objects.requireNonNull(coordB);
 
-            Vector3i b = MMState.pinToAxes(coordA.toVec(), coordB.toVec());
+            cablePoints = MMState.getCablePoints(coordA.toVec(), state.config.cableCorners, coordB.toVec());
+
+            Vector3i b = cablePoints.get(cablePoints.size() - 1);
 
             coordB.x = b.x;
             coordB.y = b.y;
@@ -290,7 +294,15 @@ public class MMRenderer {
 
             BoxRenderer.INSTANCE.start(event.partialTicks);
 
-            BoxRenderer.INSTANCE.drawAround(aabb.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+            if (cablePoints != null && cablePoints.size() > 2) {
+                drawCablePath(cablePoints, new Vector3f(0.15f, 0.6f, 0.75f));
+
+                for (Vector3i point : cablePoints) {
+                    aabb.union(point);
+                }
+            } else {
+                BoxRenderer.INSTANCE.drawAround(aabb.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+            }
 
             BoxRenderer.INSTANCE.finish();
 
@@ -619,6 +631,64 @@ public class MMRenderer {
     }
 
     private static final int RULER_LENGTH = 128;
+
+    /**
+     * Draws a bent cable path as one continuous shape. Each corner gets its own box, and each segment gets a box for
+     * the straight part between its corners. The sides where two boxes touch are left out, so there are no walls
+     * inside the shape.
+     */
+    private static void drawCablePath(List<Vector3i> points, Vector3f colour) {
+        int last = points.size() - 1;
+
+        for (int i = 0; i < last; i++) {
+            Vector3i point = points.get(i);
+            Vector3i next = points.get(i + 1);
+
+            ForgeDirection dir = getAxisDirection(point, next);
+
+            Vector3i start = new Vector3i(point);
+            Vector3i end = new Vector3i(next);
+            int openSides = 0;
+
+            // start after the corner before this segment
+            if (i > 0) {
+                start.add(dir.offsetX, dir.offsetY, dir.offsetZ);
+                openSides |= dir.getOpposite().flag;
+            }
+
+            // end before the corner after this segment, and draw that corner
+            if (i + 1 < last) {
+                end.sub(dir.offsetX, dir.offsetY, dir.offsetZ);
+                openSides |= dir.flag;
+
+                ForgeDirection nextDir = getAxisDirection(next, points.get(i + 2));
+
+                drawBox(next, next, dir.getOpposite().flag | nextDir.flag, colour);
+            }
+
+            // the segment is empty when two corners are next to each other
+            boolean isEmpty = (end.x - start.x) * dir.offsetX + (end.y - start.y) * dir.offsetY + (end.z - start.z) * dir.offsetZ < 0;
+
+            if (!isEmpty) drawBox(start, end, openSides, colour);
+        }
+    }
+
+    private static void drawBox(Vector3i a, Vector3i b, int openSides, Vector3f colour) {
+        BoxRenderer.INSTANCE.drawAround(new VoxelAABB(a, b).toBoundingBox(), colour, openSides);
+    }
+
+    /**
+     * @return The direction from one point to another point on one of its axes.
+     */
+    private static ForgeDirection getAxisDirection(Vector3i from, Vector3i to) {
+        int dx = Integer.signum(to.x - from.x), dy = Integer.signum(to.y - from.y), dz = Integer.signum(to.z - from.z);
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (dir.offsetX == dx && dir.offsetY == dy && dir.offsetZ == dz) return dir;
+        }
+
+        return ForgeDirection.UNKNOWN;
+    }
 
     private static void drawRulers(EntityPlayer player, Location l, boolean fromSurface, float partialTickTime) {
         GL11.glEnable(GL11.GL_BLEND);

@@ -7,8 +7,13 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregT
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.Nullable;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -21,6 +26,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
 
+import gregtech.api.GregTechAPI;
 import gregtech.api.enums.ItemList;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -80,6 +86,9 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import org.joml.Vector3i;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import tectech.thing.CustomItemList;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaserMirror;
 
 /**
  * The NBT state of a manipulator.
@@ -632,15 +641,15 @@ public class MMState {
 
         if (!Location.areCompatible(coordA, coordB) || !coordA.isInWorld(world)) { return new ArrayList<>(); }
 
-        Vector3i a = coordA.toVec();
-        Vector3i b = pinToAxes(a, coordB.toVec());
+        List<Vector3i> path = getCablePath(getCablePoints(coordA.toVec(), config.cableCorners, coordB.toVec()));
+        Set<Vector3i> voxels = new LinkedHashSet<>(path);
 
         ArrayList<PendingBlock> out = new ArrayList<>();
 
         if (config.cables == null) {
             BlockSpec pooled = new BlockSpec();
 
-            for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+            for (Vector3i voxel : voxels) {
                 if (AppliedEnergistics2.isModLoaded()) {
                     if (MMUtils.getAECable(pooled, world, voxel.x, voxel.y, voxel.z)) {
                         PendingBlock pendingBlock = InteropConstants.AE_BLOCK_CABLE.toSpec().instantiate(world, voxel.x, voxel.y, voxel.z);
@@ -661,73 +670,114 @@ public class MMState {
             Block block = Block.getBlockFromItem(config.cables.getItem());
 
             if (GregTech.isModLoaded()) {
-                getGTCables(a, b, out, block, world, config.cables);
+                getGTCables(path, out, block, world, config.cables);
             }
 
             if (AppliedEnergistics2.isModLoaded()) {
-                getAECables(a, b, out, block, world, config.cables);
+                getAECables(voxels, out, block, world, config.cables);
             }
 
             if (Mods.OpenComputers.isModLoaded()) {
-                getOCCables(a, b, out, block, world, config.cables);
+                getOCCables(voxels, out, block, world, config.cables);
             }
         }
 
         return out;
     }
 
+    /**
+     * Gets the points of a cable path: A, every corner inbetween A and B, then B.
+     * Each point is pinned to the axes of the point before it, so that every segment is axis-aligned.
+     */
+    public static List<Vector3i> getCablePoints(Vector3i a, @Nullable List<Vector3i> corners, @Nullable Vector3i b) {
+        List<Vector3i> points = new ArrayList<>();
+
+        points.add(new Vector3i(a));
+
+        if (corners != null) {
+            for (Vector3i corner : corners) {
+                addCablePoint(points, corner);
+            }
+        }
+
+        if (b != null) addCablePoint(points, b);
+
+        return points;
+    }
+
+    private static void addCablePoint(List<Vector3i> points, Vector3i point) {
+        Vector3i last = points.get(points.size() - 1);
+        Vector3i pinned = pinToAxes(last, point);
+
+        if (!pinned.equals(last)) points.add(pinned);
+    }
+
+    /**
+     * Gets every voxel along a cable path, in order. Each voxel is adjacent to the one before it. A voxel may appear
+     * more than once if the path crosses itself.
+     */
+    private static List<Vector3i> getCablePath(List<Vector3i> points) {
+        List<Vector3i> path = new ArrayList<>();
+
+        path.add(points.get(0));
+
+        for (int i = 1; i < points.size(); i++) {
+            Vector3i start = points.get(i - 1), end = points.get(i);
+
+            List<Vector3i> segment = getLineVoxels(start.x, start.y, start.z, end.x, end.y, end.z);
+
+            // the first voxel is the previous segment's last voxel
+            path.addAll(segment.subList(1, segment.size()));
+        }
+
+        return path;
+    }
+
     private void getOCCables(
-        Vector3i a,
-        Vector3i b,
+        Set<Vector3i> voxels,
         List<PendingBlock> out,
         Block block,
         World world,
         ImmutableBlockSpec cable
     ) {
         if (InteropConstants.OC_CABLE.matches(block, 0)) {
-            for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+            for (Vector3i voxel : voxels) {
                 out.add(cable.instantiate(world, voxel.x, voxel.y, voxel.z));
             }
         }
     }
 
     @Optional(Names.GREG_TECH_NH)
-    private void getGTCables(Vector3i a, Vector3i b, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
+    private void getGTCables(List<Vector3i> path, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
         if (block instanceof BlockMachines) {
-            int end = 0, start = 0;
+            // connect each voxel to the voxels before and after it in the path, so that corners connect both ways
+            Map<Vector3i, Integer> connections = new LinkedHashMap<>();
 
-            // calculate the start & end mConnections flags
-            switch (new Vector3i(b).sub(a).maxComponent()) {
-                case 0: {
-                    start = b.x < a.x ? ForgeDirection.EAST.flag : ForgeDirection.WEST.flag;
-                    end = b.x > a.x ? ForgeDirection.EAST.flag : ForgeDirection.WEST.flag;
-                    break;
-                }
-                case 1: {
-                    start = b.y < a.y ? ForgeDirection.UP.flag : ForgeDirection.DOWN.flag;
-                    end = b.y > a.y ? ForgeDirection.UP.flag : ForgeDirection.DOWN.flag;
-                    break;
-                }
-                case 2: {
-                    start = b.z < a.z ? ForgeDirection.SOUTH.flag : ForgeDirection.NORTH.flag;
-                    end = b.z > a.z ? ForgeDirection.SOUTH.flag : ForgeDirection.NORTH.flag;
-                    break;
-                }
+            for (int i = 0; i < path.size(); i++) {
+                Vector3i voxel = path.get(i);
+
+                int flags = connections.getOrDefault(voxel, 0);
+
+                if (i > 0) flags |= getDirectionFlag(voxel, path.get(i - 1));
+                if (i < path.size() - 1) flags |= getDirectionFlag(voxel, path.get(i + 1));
+
+                connections.put(voxel, flags);
             }
 
-            List<Vector3i> voxels = getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z);
+            ImmutableBlockSpec mirror = isBendableLaserPipe(cable) ? getLaserMirrorSpec() : null;
 
-            for (int i = 0; i < voxels.size(); i++) {
-                Vector3i voxel = voxels.get(i);
+            for (Map.Entry<Vector3i, Integer> entry : connections.entrySet()) {
+                Vector3i voxel = entry.getKey();
 
                 GTAnalysisResult gt = GTAnalysisResult.analyze(world.getTileEntity(voxel.x, voxel.y, voxel.z));
 
                 if (gt == null) gt = new GTAnalysisResult();
 
-                if (i > 0) gt.mConnections |= start;
-                if (i < voxels.size() - 1) gt.mConnections |= end;
+                gt.mConnections |= entry.getValue();
 
-                PendingBlock pendingBlock = cable.instantiate(world, voxel.x, voxel.y, voxel.z);
+                ImmutableBlockSpec spec = mirror != null && isTurn(entry.getValue()) ? mirror : cable;
+
+                PendingBlock pendingBlock = spec.instantiate(world, voxel.x, voxel.y, voxel.z);
 
                 pendingBlock.gt = gt;
 
@@ -736,11 +786,55 @@ public class MMState {
         }
     }
 
+    /**
+     * @return True if the cable is a laser pipe, which needs mirrors to bend.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private static boolean isBendableLaserPipe(ImmutableBlockSpec cable) {
+        int id = cable.getItemMeta();
+
+        if (id < 0 || id >= GregTechAPI.METATILEENTITIES.length) return false;
+
+        IMetaTileEntity mte = GregTechAPI.METATILEENTITIES[id];
+
+        return mte instanceof MTEPipeLaser && !(mte instanceof MTEPipeLaserMirror);
+    }
+
+    @Optional(Names.GREG_TECH_NH)
+    private static ImmutableBlockSpec getLaserMirrorSpec() {
+        ItemStack stack = CustomItemList.LASERpipeSmart.get(1);
+
+        return new BlockSpec().setObject(stack.getItem(), stack.getItemDamage());
+    }
+
+    /**
+     * @return True if the connection flags are perpendicular.
+     */
+    private static boolean isTurn(int flags) {
+        if (Integer.bitCount(flags) != 2) return false;
+
+        // straight lines connect to opposite sides: down/up, north/south, west/east
+        return flags != (ForgeDirection.DOWN.flag | ForgeDirection.UP.flag) &&
+            flags != (ForgeDirection.NORTH.flag | ForgeDirection.SOUTH.flag) &&
+            flags != (ForgeDirection.WEST.flag | ForgeDirection.EAST.flag);
+    }
+
+    /**
+     * @return The flag of the direction from one voxel to an adjacent voxel.
+     */
+    private static int getDirectionFlag(Vector3i from, Vector3i to) {
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (from.x + dir.offsetX == to.x && from.y + dir.offsetY == to.y && from.z + dir.offsetZ == to.z) { return dir.flag; }
+        }
+
+        return 0;
+    }
+
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private void getAECables(Vector3i a, Vector3i b, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
+    private void getAECables(Set<Vector3i> voxels, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
         if (cableSpec.getItem() instanceof IPartItem partItem) {
             if (partItem.createPartFromItemStack(cableSpec.toStack(1)) instanceof IPartCable cable) {
-                for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+                for (Vector3i voxel : voxels) {
                     int x = voxel.x, y = voxel.y, z = voxel.z;
 
                     AEAnalysisResult ae;
