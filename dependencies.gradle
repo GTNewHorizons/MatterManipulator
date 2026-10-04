@@ -99,6 +99,7 @@ dependencies {
     addCompat(ae2, "com.github.GTNewHorizons:WanionLib:1.10.1:dev")
     addCompat(ae2, "com.github.GTNewHorizons:AE2FluidCraft-Rework:1.5.106-gtnh:dev")
     addCompat(ae2, "com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-1049-GTNH:dev")
+    testImplementation("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-1049-GTNH:dev")
 
     addCompat(arch, "com.github.GTNewHorizons:ArchitectureCraft:1.12.17")
     addCompat(carpenters, "com.github.GTNewHorizons:CarpentersBlocks:3.7.3-GTNH")
@@ -107,10 +108,15 @@ dependencies {
     addCompat(avaritia, "com.github.GTNewHorizons:Avaritiaddons:1.9.6-GTNH:dev")
 
     compileOnly("curse.maven:mekanism-268560:2475797") { transitive = false }
+    testRuntimeOnly("curse.maven:mekanism-268560:2475797") { transitive = false }
     addCompat(eio, "curse.maven:cofh-lib-220333:2388748")
     def enderIO = "com.github.GTNewHorizons:EnderIO:2.10.44:dev"
     addCompat(eio, enderIO)
     testImplementation(enderIO)
+    // Standalone tests do not run Forge's optional-interface stripping for IConduitBundle.
+    testRuntimeOnly("maven.modrinth:immibis-microblocks:59.1.2")
+    testRuntimeOnly("maven.modrinth:immibis-core:59.1.4")
+    testRuntimeOnly("com.github.GTNewHorizons:OpenComputers:1.12.61-GTNH:dev")
     addCompat(eio, "com.github.GTNewHorizons:EnderStorage:1.8.7:dev")
 
     addCompat(xu, rfg.deobf("curse.maven:extra-utilities-225561:2264384"))

@@ -38,6 +38,7 @@ import crazypants.enderio.conduit.item.ItemExtractSpeedUpgrade;
 import crazypants.enderio.conduit.item.filter.IItemFilter;
 import crazypants.enderio.conduit.liquid.AbstractEnderLiquidConduit;
 import crazypants.enderio.conduit.liquid.AbstractTankConduit;
+import crazypants.enderio.conduit.me.IMEConduit;
 import crazypants.enderio.machine.RedstoneControlMode;
 import crazypants.enderio.machine.painter.PainterUtil;
 
@@ -237,9 +238,15 @@ public class EnderIOAnalysisResult implements ITileAnalysisIntegration {
             }
             if (!simulate) {
                 if (switchOn != null && target instanceof SwitchExt sw) sw.mm$setOn(switchOn);
-                // Rebuild connections after all faces are configured, including conduit-to-conduit connections.
-                target.onRemovedFromBundle();
-                target.onAddedToBundle();
+                if (target instanceof IMEConduit) {
+                    // ME nodes are created on the next tile tick. Removal would destroy a node that may
+                    // not exist yet; re-adding also resets neighbouring ME connection modes to IN_OUT.
+                    target.connectionsChanged();
+                } else {
+                    // Rebuild connections after all faces are configured, including conduit-to-conduit connections.
+                    target.onRemovedFromBundle();
+                    target.onAddedToBundle();
+                }
             }
             for (ItemStack stack : available) {
                 if (stack.stackSize > 0) ctx.givePlayerItems(stack);

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.BitSet;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,6 +32,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import cpw.mods.fml.common.registry.FMLControlledNamespacedRegistry;
 import crazypants.enderio.conduit.item.ItemExtractSpeedUpgrade;
+import crazypants.enderio.conduit.IConduit;
+import crazypants.enderio.conduit.me.IMEConduit;
+import com.recursive_pineapple.matter_manipulator.mixin.interfaces.ConduitExt;
 
 class EnderIOAnalysisResultTest {
 
@@ -43,6 +47,44 @@ class EnderIOAnalysisResultTest {
         add.invoke(Item.itemRegistry, 288, "minecraft:feather", new Item(), new BitSet());
     }
 
+
+    @Test
+    void freshlyPastedMEConduitDoesNotRequireAnInitializedGridNode() {
+        List<String> calls = new ArrayList<>();
+        Item item = (Item) Item.itemRegistry.getObject("minecraft:feather");
+        IConduit conduit = (IConduit) Proxy.newProxyInstance(
+            getClass().getClassLoader(), new Class<?>[] { IMEConduit.class, ConduitExt.class },
+            (proxy, method, args) -> {
+                switch (method.getName()) {
+                    case "createItem": return new ItemStack(item);
+                    case "getDrops": return Arrays.asList(new ItemStack(item));
+                    case "getConnectionMode": return null;
+                    case "mm$getSettings":
+                        NBTTagCompound settings = new NBTTagCompound();
+                        settings.setBoolean("previousSettings", true);
+                        return settings;
+                    case "onRemovedFromBundle":
+                        throw new NullPointerException("ME grid node has not been created yet");
+                    case "onAddedToBundle":
+                        fail("Refreshing ME settings must not reset neighbouring connection modes");
+                        return null;
+                    case "mm$setSettings", "setConnectionMode", "connectionsChanged":
+                        calls.add(method.getName());
+                        return null;
+                    default:
+                        throw new AssertionError("Unexpected conduit call: " + method.getName());
+                }
+            }
+        );
+        ConduitData data = data();
+        data.item = stack(item, 1);
+        Context ctx = new Context(true);
+        // The conduit has just been attached to its bundle, but has not received its first tile tick.
+        assertTrue(data.apply(ctx, null, conduit, false));
+        assertEquals(6, calls.stream().filter("mm$setSettings"::equals).count());
+        assertEquals("connectionsChanged", calls.get(calls.size() - 1));
+        assertTrue(ctx.returned.isEmpty());
+    }
 
     @Test
     void installedItemsAreReusedOnlyOnceAndMustMatchTier() {
