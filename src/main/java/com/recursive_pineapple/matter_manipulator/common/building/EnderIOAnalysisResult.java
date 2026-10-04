@@ -46,6 +46,14 @@ public class EnderIOAnalysisResult implements ITileAnalysisIntegration {
 
     public List<ConduitData> conduits = new ArrayList<>();
     public PortableItemStack facade;
+    /** Cable mode places one conduit using EnderIO's normal defaults. */
+    public PortableItemStack cablePlacement;
+
+    public static EnderIOAnalysisResult forCablePlacement(ItemStack stack) {
+        EnderIOAnalysisResult result = new EnderIOAnalysisResult();
+        result.cablePlacement = new PortableItemStack(stack);
+        return result;
+    }
 
     public static EnderIOAnalysisResult analyze(TileEntity te) {
         if (!(te instanceof IConduitBundle bundle)) return null;
@@ -78,6 +86,7 @@ public class EnderIOAnalysisResult implements ITileAnalysisIntegration {
     }
 
     private boolean update(IBlockApplyContext ctx, IConduitBundle bundle, boolean simulate) {
+        if (cablePlacement != null) return placeCable(ctx, bundle, simulate);
         List<IConduit> remaining = bundle == null ? new ArrayList<>() : new ArrayList<>(bundle.getConduits());
         boolean success = true;
         for (ConduitData data : conduits) {
@@ -111,6 +120,31 @@ public class EnderIOAnalysisResult implements ITileAnalysisIntegration {
             }
         }
         return success;
+    }
+
+    boolean placeCable(IBlockApplyContext ctx, IConduitBundle bundle, boolean simulate) {
+        ItemStack stack = cablePlacement.toStack();
+        if (stack == null || !(stack.getItem() instanceof IConduitItem item)) return false;
+        IConduit actual = bundle == null ? null : bundle.getConduit(item.getBaseConduitType());
+        if (actual != null && actual.createItem().isItemEqual(stack)) return true;
+        if (!ctx.tryConsumeItems(stack)) {
+            warn(ctx, stack);
+            return false;
+        }
+        if (!simulate) {
+            IConduit target = item.createConduit(stack, ctx.getRealPlayer());
+            if (actual == null) {
+                bundle.addConduit(target);
+            } else {
+                // This is the same replacement path as AbstractItemConduit.onItemUseFirst.
+                List<ItemStack> drops = getDrops(actual);
+                bundle.replaceConduit(actual, target);
+                ctx.givePlayerItems(drops.toArray(new ItemStack[0]));
+            }
+        } else if (actual != null) {
+            ctx.givePlayerItems(getDrops(actual).toArray(new ItemStack[0]));
+        }
+        return true;
     }
 
     private static void removeConduit(IBlockApplyContext ctx, IConduitBundle bundle, IConduit conduit, boolean simulate) {
@@ -373,17 +407,20 @@ public class EnderIOAnalysisResult implements ITileAnalysisIntegration {
         EnderIOAnalysisResult copy = new EnderIOAnalysisResult();
         copy.conduits = MMUtils.mapToList(conduits, ConduitData::clone);
         copy.facade = facade == null ? null : facade.clone();
+        copy.cablePlacement = cablePlacement == null ? null : cablePlacement.clone();
         return copy;
     }
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof EnderIOAnalysisResult other && conduits.equals(other.conduits) && Objects.equals(facade, other.facade);
+        return obj instanceof EnderIOAnalysisResult other && conduits.equals(other.conduits) &&
+            Objects.equals(facade, other.facade) &&
+            Objects.equals(cablePlacement, other.cablePlacement);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(conduits, facade);
+        return Objects.hash(conduits, facade, cablePlacement);
     }
 
     @Override

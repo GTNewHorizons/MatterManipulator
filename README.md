@@ -47,6 +47,8 @@ The final mode (although this is more of a global setting), is the remove mode. 
 
 ### Ender IO conduits
 
+Cable mode can place a line of the selected conduit using Ender IO's normal placement defaults. Select a conduit from inventory or target it in a bundle. Existing matching conduits are left unchanged, and adding or replacing a conduit preserves the other conduits and facade in the bundle. Tier replacement uses Ender IO's normal replacement behavior.
+
 Copy/paste supports conduit bundles, including GTNH's additional conduit tiers. It copies each conduit's connection settings, item filters and upgrades, and the bundle's painted facade. Directional settings and upgrades follow rotations and flips.
 
 Each conduit requires its conduit item and all copied filter/function upgrades (including Remote Awareness). If any are unavailable, that conduit is skipped with a warning; other conduits in the same block can still be placed. Existing matching items are reused. Speed upgrades and facades are optional: available items are installed, and shortages produce warnings. Fluid filter entries are configuration and do not consume fluid. Stored energy, fluid and live network state are not copied.

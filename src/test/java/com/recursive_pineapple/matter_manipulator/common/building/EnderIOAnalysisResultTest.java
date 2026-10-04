@@ -33,10 +33,120 @@ import org.junit.jupiter.api.BeforeAll;
 import cpw.mods.fml.common.registry.FMLControlledNamespacedRegistry;
 import crazypants.enderio.conduit.item.ItemExtractSpeedUpgrade;
 import crazypants.enderio.conduit.IConduit;
+import crazypants.enderio.conduit.IConduitBundle;
+import crazypants.enderio.conduit.IConduitItem;
 import crazypants.enderio.conduit.me.IMEConduit;
 import com.recursive_pineapple.matter_manipulator.mixin.interfaces.ConduitExt;
 
 class EnderIOAnalysisResultTest {
+
+    @Test
+    void cablePlacementUsesTheItemFactoryAndNormalBundleAddition() {
+        CableItem item = new CableItem();
+        EnderIOAnalysisResult data = cableData(item);
+        List<String> calls = new ArrayList<>();
+        assertTrue(data.placeCable(cableContext(true), cableBundle(null, calls), false));
+        assertEquals(Arrays.asList("addConduit"), calls);
+        assertEquals(1, item.created);
+    }
+
+    @Test
+    void cablePlacementLeavesAnExistingMatchingConduitUntouched() {
+        CableItem item = new CableItem();
+        List<String> calls = new ArrayList<>();
+        Context ctx = cableContext(false);
+        assertTrue(cableData(item).placeCable(ctx, cableBundle(cableConduit(item, 0), calls), false));
+        assertTrue(calls.isEmpty());
+        assertTrue(ctx.requests.isEmpty());
+        assertEquals(0, item.created);
+    }
+
+    @Test
+    void cableReplacementUsesEnderIOReplacementAndRefundsTheOldTier() {
+        CableItem item = new CableItem();
+        List<String> calls = new ArrayList<>();
+        Context ctx = cableContext(true);
+        assertTrue(cableData(item).placeCable(ctx, cableBundle(cableConduit(item, 1), calls), false));
+        assertEquals(Arrays.asList("replaceConduit"), calls);
+        assertEquals(1, ctx.returned.size());
+        assertEquals(1, ctx.returned.get(0).getItemDamage());
+    }
+
+    @Test
+    void missingCableItemsLeaveTheBundleUntouched() {
+        CableItem item = new CableItem();
+        List<String> calls = new ArrayList<>();
+        assertFalse(cableData(item).placeCable(cableContext(false), cableBundle(cableConduit(item, 1), calls), false));
+        assertTrue(calls.isEmpty());
+        assertEquals(0, item.created);
+    }
+
+    @Test
+    void cableMaterialPreviewDoesNotCreateOrAttachAConduit() {
+        CableItem item = new CableItem();
+        Context ctx = cableContext(true);
+        assertTrue(cableData(item).placeCable(ctx, null, true));
+        assertEquals(1, ctx.requests.size());
+        assertEquals(0, item.created);
+    }
+
+    private static EnderIOAnalysisResult cableData(CableItem item) {
+        EnderIOAnalysisResult data = new EnderIOAnalysisResult();
+        data.cablePlacement = stack(item, 1);
+        return data;
+    }
+
+    private static Context cableContext(boolean available) {
+        return new Context(available) {
+            @Override
+            public BooleanObjectImmutablePair<List<BigItemStack>> tryConsumeItems(List<BigItemStack> items, int flags) {
+                assertEquals(0, flags);
+                requests.add(items);
+                return BooleanObjectImmutablePair.of(available, available ? items : null);
+            }
+            @Override
+            public EntityPlayer getRealPlayer() { return null; }
+        };
+    }
+
+    private static IConduit cableConduit(Item item, int metadata) {
+        return (IConduit) Proxy.newProxyInstance(
+            EnderIOAnalysisResultTest.class.getClassLoader(), new Class<?>[] { IConduit.class },
+            (proxy, method, args) -> switch (method.getName()) {
+                case "createItem" -> new ItemStack(item, 1, metadata);
+                case "getDrops" -> Arrays.asList(new ItemStack(item, 1, metadata));
+                default -> throw new AssertionError("Cable placement changed conduit settings: " + method.getName());
+            }
+        );
+    }
+
+    private static IConduitBundle cableBundle(IConduit existing, List<String> calls) {
+        return (IConduitBundle) Proxy.newProxyInstance(
+            EnderIOAnalysisResultTest.class.getClassLoader(), new Class<?>[] { IConduitBundle.class },
+            (proxy, method, args) -> {
+                if (method.getName().equals("getConduit")) return existing;
+                if (method.getName().equals("addConduit") || method.getName().equals("replaceConduit")) {
+                    calls.add(method.getName());
+                    return null;
+                }
+                throw new AssertionError("Cable placement changed other bundle contents: " + method.getName());
+            }
+        );
+    }
+
+    private static class CableItem extends Item implements IConduitItem {
+        int created;
+        CableItem() { setHasSubtypes(true); }
+        @Override
+        public Class<? extends IConduit> getBaseConduitType() { return IConduit.class; }
+        @Override
+        public IConduit createConduit(ItemStack stack, EntityPlayer player) {
+            created++;
+            return cableConduit(this, stack.getItemDamage());
+        }
+        @Override
+        public boolean shouldHideFacades(ItemStack stack, EntityPlayer player) { return true; }
+    }
 
     @BeforeAll
     static void bootstrap() throws Exception {

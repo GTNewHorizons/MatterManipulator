@@ -832,7 +832,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     static public void onMMBPressedInGUI(EntityPlayer player, ItemStack stack, MMState state, final boolean isSneaking, ItemStack hoveredStack) {
-        BlockSpec block = BlockSpec.fromStack(null, hoveredStack);
+        BlockSpec block = state.config.placeMode == PlaceMode.CABLES && hoveredStack != null &&
+            Mods.EnderIO.isModLoaded() &&
+            MMUtils.isEnderIOConduit(hoveredStack.getItem()) ?
+                new BlockSpec().setObject(hoveredStack) :
+                BlockSpec.fromStack(null, hoveredStack);
 
         if (state.config.placeMode == PlaceMode.GEOMETRY) {
             onPickBlock(player.getEntityWorld(), player, stack, state, null, isSneaking, block);
@@ -996,9 +1000,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (cable.isAir() && Mods.OpenComputers.isModLoaded()) {
                 MMUtils.getOCCable(cable, world, hit.blockX, hit.blockY, hit.blockZ);
             }
+            if (cable.isAir() && Mods.EnderIO.isModLoaded()) {
+                MMUtils.getEnderIOConduit(cable, world, hit);
+            }
         }
 
-        state.config.cables = cable.isAir() ? null : cable;
+        boolean enderIOConduit = Mods.EnderIO.isModLoaded() && MMUtils.isEnderIOConduit(cable.getItem());
+        state.config.cables = cable.isAir() && !enderIOConduit ? null : cable;
 
         sendInfoToPlayer(
             player,
