@@ -30,18 +30,12 @@ public class GTBlockMover extends StandardBlockMover {
 
     @Override
     public StandardBlock remove(PendingMove pendingMove, World world, int x, int y, int z) {
-        TileEntity te = world.getTileEntity(x, y, z);
-        boolean isProxy = te instanceof IGregTechTileEntity igte && igte.getMetaTileEntity() instanceof MTEHatchCraftingInputSlave;
-        List<MTEHatchCraftingInputSlave> proxies = getProxies(te);
+        List<MTEHatchCraftingInputSlave> proxies = getProxies(world.getTileEntity(x, y, z));
 
         // Because GT uses this to call MTE.onRemoval() :doom:
         world.getBlock(x, y, z).getDrops(world, x, y, z, world.getBlockMetadata(x, y, z), 0);
 
         StandardBlock standardBlock = super.remove(pendingMove, world, x, y, z);
-
-        if (isProxy && pendingMove != null) {
-            adjustProxyMasterNbt(standardBlock, pendingMove);
-        }
 
         if (!proxies.isEmpty() && pendingMove != null) {
             pendingMove.getMoverState().put(standardBlock, proxies);
@@ -70,6 +64,10 @@ public class GTBlockMover extends StandardBlockMover {
             if (imte instanceof MTEPipeData dataPipe) {
                 dataPipe.updateNeighboringNetworks();
             }
+
+            if (imte instanceof MTEHatchCraftingInputSlave proxy) {
+                linkToSavedMaster(proxy, standardBlock);
+            }
         }
 
         if (te instanceof IIC2Enet enet) {
@@ -95,41 +93,28 @@ public class GTBlockMover extends StandardBlockMover {
     }
 
     /**
-     * All proxies of a buffer get relinked once the buffer has been placed, also the ones inside the moved area: a
-     * proxy that was already moved has been removed from the buffer's list (and is dead), one that is moved later
-     * keeps the new position (it lies outside the source area), and one that can't be moved stays linked.
+     * The proxies that are linked to a buffer. They are relinked once the buffer has been placed, which also covers
+     * proxies inside the moved area: one that was moved before the buffer has linked itself again from its new spot
+     * (see linkToSavedMaster), one that is moved after it takes the new position along, and one that can't be moved
+     * stays linked.
      */
     private static List<MTEHatchCraftingInputSlave> getProxies(TileEntity te) {
-        List<MTEHatchCraftingInputSlave> proxies = new ArrayList<>();
+        if (!(te instanceof IGregTechTileEntity igte)) return new ArrayList<>();
+        if (!(igte.getMetaTileEntity() instanceof MTEHatchCraftingInputME buffer)) return new ArrayList<>();
 
-        if (!(te instanceof IGregTechTileEntity igte)) return proxies;
-        if (!(igte.getMetaTileEntity() instanceof MTEHatchCraftingInputME buffer)) return proxies;
-
-        for (MTEHatchCraftingInputSlave proxy : buffer.getProxyHatches()) {
-            IGregTechTileEntity proxyTE = proxy.getBaseMetaTileEntity();
-
-            if (proxyTE == null) continue;
-
-            proxies.add(proxy);
-        }
-
-        return proxies;
+        // copy: relinking a proxy removes it from the old buffer's list
+        return new ArrayList<>(buffer.getProxyHatches());
     }
 
-    /** A proxy that is moved before its buffer has to point to the buffer's new position. */
-    private static void adjustProxyMasterNbt(StandardBlock standardBlock, PendingMove pendingMove) {
+    /**
+     * A moved proxy links to its buffer at its saved position right away instead of on its next 100 tick retry, so a
+     * buffer that is moved later in this move still takes it along. If the buffer doesn't get moved, it stays linked.
+     */
+    private static void linkToSavedMaster(MTEHatchCraftingInputSlave proxy, StandardBlock standardBlock) {
         NBTTagCompound tileData = standardBlock.tileData();
         if (tileData == null || !tileData.hasKey("master")) return;
 
         NBTTagCompound master = tileData.getCompoundTag("master");
-        int mx = master.getInteger("x");
-        int my = master.getInteger("y");
-        int mz = master.getInteger("z");
-
-        if (pendingMove.isInSourceRegion(mx, my, mz)) {
-            master.setInteger("x", mx + pendingMove.getMoveOffsetX());
-            master.setInteger("y", my + pendingMove.getMoveOffsetY());
-            master.setInteger("z", mz + pendingMove.getMoveOffsetZ());
-        }
+        proxy.trySetMasterFromCoord(master.getInteger("x"), master.getInteger("y"), master.getInteger("z"));
     }
 }
