@@ -39,13 +39,7 @@ public class WirelessBlockMover extends StandardBlockMover {
             int ly = coord.getInteger("y");
             int lz = coord.getInteger("z");
 
-            if (
-                lx >= pendingMove.getSrcMinX() && lx <= pendingMove.getSrcMaxX() &&
-                    ly >= pendingMove.getSrcMinY() &&
-                    ly <= pendingMove.getSrcMaxY() &&
-                    lz >= pendingMove.getSrcMinZ() &&
-                    lz <= pendingMove.getSrcMaxZ()
-            ) {
+            if (pendingMove.isInSourceRegion(lx, ly, lz)) {
                 coord.setInteger("x", lx + pendingMove.getMoveOffsetX());
                 coord.setInteger("y", ly + pendingMove.getMoveOffsetY());
                 coord.setInteger("z", lz + pendingMove.getMoveOffsetZ());
