@@ -282,6 +282,7 @@ public class MMConfig {
         result = prime * result + Boolean.hashCode(linkExternalHubs);
         result = prime * result + Boolean.hashCode(replaceCribsWithProxies);
         result = prime * result + Boolean.hashCode(replaceInterfacesWithP2P);
+        result = prime * result + Boolean.hashCode(shouldCopyAEPatterns);
         return result;
     }
 
