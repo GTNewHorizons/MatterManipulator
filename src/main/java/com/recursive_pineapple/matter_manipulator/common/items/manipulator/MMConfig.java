@@ -346,6 +346,7 @@ public class MMConfig {
         if (linkExternalHubs != other.linkExternalHubs) return false;
         if (replaceCribsWithProxies != other.replaceCribsWithProxies) return false;
         if (replaceInterfacesWithP2P != other.replaceInterfacesWithP2P) return false;
+        if (shouldCopyAEPatterns != other.shouldCopyAEPatterns) return false;
         return true;
     }
 }

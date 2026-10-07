@@ -599,6 +599,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
                 addInfoLine(desc, "mm.tooltip.copying.auto_p2p_interfaces", state.config.replaceInterfacesWithP2P,
                     on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
+
+                addInfoLine(desc, "mm.tooltip.copying.copy_ae_patterns", state.config.shouldCopyAEPatterns,
+                    on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {

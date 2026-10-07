@@ -303,6 +303,7 @@ mm.tooltip.copying.stack=Stack: %s
 mm.tooltip.copying.wireless_link=Wireless Links: %s
 mm.tooltip.copying.auto_proxy_cribs=Auto-Proxy CRIBs: %s
 mm.tooltip.copying.auto_p2p_interfaces=Auto-P2P Interfaces: %s
+mm.tooltip.copying.copy_ae_patterns=Copy-AE2 Patterns: %s
 mm.tooltip.paste=Paste Coordinate: %s
 mm.tooltip.moving.cut_a=Cut Coordinate A: %s
 mm.tooltip.moving.cut_b=Cut Coordinate B: %s
