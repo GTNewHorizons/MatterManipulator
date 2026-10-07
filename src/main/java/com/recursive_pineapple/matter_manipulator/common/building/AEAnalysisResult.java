@@ -40,7 +40,7 @@ import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
-import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.ItemId;
@@ -188,11 +188,11 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                 mAECells.apply(ctx, cells, true, false);
             }
 
-            ItemStack item = ctx.getRealPlayer().getHeldItem();
-            MMState state = MMState.load(item != null ? item.stackTagCompound : null);
+            ItemStack item = (ctx instanceof PendingBuild.PendingBuildApplyContext applyCtx) ? applyCtx.manipulatorItemStack : null;
+            boolean shouldCopyAEPatterns = item != null && ItemMatterManipulator.getState(item).config.shouldCopyAEPatterns;
 
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
-            if (state.config.shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
+            if (shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
                 MMUtils.installPatterns(
                     segmentedInventory,
                     ctx,
