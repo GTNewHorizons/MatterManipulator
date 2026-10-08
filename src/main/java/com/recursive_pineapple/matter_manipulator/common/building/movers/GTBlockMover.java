@@ -7,6 +7,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
+import gregtech.GTMod;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.IIC2Enet;
@@ -31,6 +32,9 @@ public class GTBlockMover extends StandardBlockMover {
     @Override
     public StandardBlock remove(PendingMove pendingMove, World world, int x, int y, int z) {
         List<MTEHatchCraftingInputSlave> proxies = getProxies(world.getTileEntity(x, y, z));
+        if (!world.isRemote && world.getTileEntity(x, y, z) instanceof IGregTechTileEntity igte) {
+            GTMod.proxy.powerfailTracker.removePowerfailEvents(igte);
+        }
 
         // Because GT uses this to call MTE.onRemoval() :doom:
         world.getBlock(x, y, z).getDrops(world, x, y, z, world.getBlockMetadata(x, y, z), 0);
