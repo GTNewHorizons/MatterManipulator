@@ -25,7 +25,6 @@ import appeng.util.SettingsFrom;
 
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
-import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 
 /**
@@ -160,10 +159,8 @@ public class AEPartData {
         }
 
         if (part instanceof ISegmentedInventory segmentedInventory) {
-            ItemStack item = (context instanceof PendingBuild.PendingBuildApplyContext applyCtx) ? applyCtx.manipulatorItemStack : null;;
-            boolean shouldCopyAEPatterns = item != null && ItemMatterManipulator.getState(item).config.shouldCopyAEPatterns;
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
-            if (shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
+            if (context.getConfig().shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
                 if (
                     !MMUtils.installPatterns(
                         segmentedInventory,

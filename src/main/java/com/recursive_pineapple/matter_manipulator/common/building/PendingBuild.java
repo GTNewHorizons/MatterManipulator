@@ -36,6 +36,7 @@ import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
@@ -600,10 +601,12 @@ public class PendingBuild extends AbstractBuildable {
         public static final double EU_PER_ACTION = 8192;
 
         public ItemStack manipulatorItemStack;
+        public MMState manipulatorState;
         public PendingBlock pendingBlock;
 
         public PendingBuildApplyContext(ItemStack manipulatorItemStack) {
             this.manipulatorItemStack = manipulatorItemStack;
+            this.manipulatorState = ItemMatterManipulator.getState(manipulatorItemStack);
         }
 
         @Override
@@ -638,6 +641,11 @@ public class PendingBuild extends AbstractBuildable {
         @Override
         public EntityPlayer getRealPlayer() {
             return player;
+        }
+
+        @Override
+        public MMConfig getConfig() {
+            return manipulatorState.config;
         }
 
         @Override
