@@ -58,6 +58,10 @@ public class MMConfig {
      * tunnels auto-placed at the source.
      */
     public boolean replaceInterfacesWithP2P = false;
+    /**
+     * When true, AE patterns from the copied interfaces will be applied to the pasted interfaces
+     */
+    public boolean shouldCopyAEPatterns = false;
 
     public Location getCoordA(World world, Vector3i lookingAt) {
         if (coordAOffset == null) {
@@ -278,6 +282,7 @@ public class MMConfig {
         result = prime * result + Boolean.hashCode(linkExternalHubs);
         result = prime * result + Boolean.hashCode(replaceCribsWithProxies);
         result = prime * result + Boolean.hashCode(replaceInterfacesWithP2P);
+        result = prime * result + Boolean.hashCode(shouldCopyAEPatterns);
         return result;
     }
 
@@ -341,6 +346,7 @@ public class MMConfig {
         if (linkExternalHubs != other.linkExternalHubs) return false;
         if (replaceCribsWithProxies != other.replaceCribsWithProxies) return false;
         if (replaceInterfacesWithP2P != other.replaceInterfacesWithP2P) return false;
+        if (shouldCopyAEPatterns != other.shouldCopyAEPatterns) return false;
         return true;
     }
 }

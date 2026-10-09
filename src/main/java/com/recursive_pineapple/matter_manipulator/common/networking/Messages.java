@@ -336,6 +336,9 @@ public enum Messages {
     SetReplaceInterfaces(server(simple((player, stack, manipulator, state) -> {
         state.config.replaceInterfacesWithP2P = !state.config.replaceInterfacesWithP2P;
     }))),
+    SetCopyAEPatterns(server(simple((player, stack, manipulator, state) -> {
+        state.config.shouldCopyAEPatterns = !state.config.shouldCopyAEPatterns;
+    }))),
     SetArray(server(locationPacket((player, stack, manipulator, state, span) -> {
         state.config.arraySpan = span;
     }))),
