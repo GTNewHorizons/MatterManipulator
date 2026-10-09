@@ -416,7 +416,7 @@ public class MMRenderer {
             if (isPasteValid) {
                 Objects.requireNonNull(paste);
 
-                pasteDeltas = state.config.getPasteVisualDeltas(player.worldObj, state.config.placeMode == PlaceMode.COPYING);
+                pasteDeltas = state.config.getPasteVisualDeltas(player.worldObj, true);
 
                 if (pasteDeltas == null) {
                     pasteDeltas = new VoxelAABB(paste.toVec(), paste.toVec());
