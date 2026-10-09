@@ -17,6 +17,8 @@ import net.minecraft.world.World;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigFluidStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.FluidId;
@@ -109,6 +111,8 @@ public class BlockAnalyzer {
 
         public EntityPlayer getRealPlayer();
 
+        public MMConfig getConfig();
+
         public boolean tryApplyAction(double complexity);
 
         public void warn(IChatComponent message);
@@ -124,6 +128,7 @@ public class BlockAnalyzer {
         public World world;
         public int x, y, z;
         public EntityPlayer player;
+        public MMConfig config;
 
         public Object2LongOpenHashMap<ItemId> requiredItems = new Object2LongOpenHashMap<>();
 
@@ -158,6 +163,11 @@ public class BlockAnalyzer {
         @Override
         public EntityPlayer getRealPlayer() {
             return player;
+        }
+
+        @Override
+        public MMConfig getConfig() {
+            return config;
         }
 
         @Override
@@ -300,12 +310,14 @@ public class BlockAnalyzer {
      */
     public static RequiredItemAnalysis getRequiredItemsForBuild(
         EntityPlayer player,
+        MMState state,
         List<PendingBlock> blocks,
         boolean fromScratch
     ) {
         BlockItemCheckContext context = new BlockItemCheckContext();
         context.player = player;
         context.world = player.getEntityWorld();
+        context.config = state.config;
 
         BlockSpec pooled = new BlockSpec();
 

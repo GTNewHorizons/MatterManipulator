@@ -188,7 +188,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
             }
 
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
-            if (mAEPatterns != null && patterns != null) {
+            if (ctx.getConfig().shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
                 MMUtils.installPatterns(
                     segmentedInventory,
                     ctx,

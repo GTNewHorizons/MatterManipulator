@@ -160,7 +160,7 @@ public class AEPartData {
 
         if (part instanceof ISegmentedInventory segmentedInventory) {
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
-            if (mAEPatterns != null && patterns != null) {
+            if (context.getConfig().shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
                 if (
                     !MMUtils.installPatterns(
                         segmentedInventory,
