@@ -80,6 +80,11 @@ public class MMRenderer {
     /** Just loads the class */
     public static void init() {}
 
+    private static void showHudText(String text) {
+        AboveHotbarHUD
+            .renderTextAboveHotbar(EnumChatFormatting.WHITE + text, (int) (ANALYSIS_INTERVAL_MS * 20 / 1000), true, false);
+    }
+
     public static void markNeedsRedraw() {
         needsHintDraw = true;
     }
@@ -320,7 +325,7 @@ public class MMRenderer {
                 analysisCache.sort(Comparator.comparingInt((PendingBlock b) -> b.renderOrder));
                 needsAnalysis = false;
 
-                AboveHotbarHUD.renderTextAboveHotbar(aabb.describe(), (int) (ANALYSIS_INTERVAL_MS * 20 / 1000), false, false);
+                showHudText(aabb.describe());
             }
 
             if (needsHintDraw) {
@@ -473,19 +478,9 @@ public class MMRenderer {
                     );
                 }
 
-                AboveHotbarHUD.renderTextAboveHotbar(
-                    pasteDeltas.describe() + array,
-                    (int) (ANALYSIS_INTERVAL_MS * 20 / 1000),
-                    false,
-                    false
-                );
+                showHudText(pasteDeltas.describe() + array);
             } else if (copyDeltas != null) {
-                AboveHotbarHUD.renderTextAboveHotbar(
-                    copyDeltas.describe(),
-                    (int) (ANALYSIS_INTERVAL_MS * 20 / 1000),
-                    false,
-                    false
-                );
+                showHudText(copyDeltas.describe());
             }
         } finally {
             BoxRenderer.INSTANCE.finish();
