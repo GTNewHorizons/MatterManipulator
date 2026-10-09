@@ -238,13 +238,7 @@ public class BlockAnalyzer {
                     }
                 }
 
-                ItemId id;
-
-                if (fuzzy && !req.getItem().getHasSubtypes()) {
-                    id = ItemId.createAsWildcard(req.getItemStack());
-                } else {
-                    id = ItemId.create(req.getItemStack());
-                }
+                ItemId id = ItemId.create(req.getItemStack());
 
                 requiredItems.addTo(id, req.getStackSize());
             }
