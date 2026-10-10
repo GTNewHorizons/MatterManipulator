@@ -102,7 +102,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
         return result;
     }
 
-    private static PartData capturePart(TMultiPart part) {
+    public static PartData capturePart(TMultiPart part) {
         PartData data = new PartData();
 
         data.typeId = part.getType();
@@ -175,7 +175,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
         return sorted;
     }
 
-    private static boolean hasSupportBlock(World world, PartData data, int x, int y, int z) {
+    public static boolean hasSupportBlock(World world, PartData data, int x, int y, int z) {
         if (data.typeId == null || data.typeId.startsWith("mcr_")) return true;
         if (data.nbt == null) return true;
 
@@ -272,7 +272,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
     }
 
     // Don't use sendDescPacket here, it causes null-bounds crashes from redundant tile reconstruction.
-    private static void syncTileToClient(World world, int x, int y, int z) {
+    public static void syncTileToClient(World world, int x, int y, int z) {
         TileEntity te = world.getTileEntity(x, y, z);
         if (te instanceof TileMultipart tile) {
             tile.markDirty();
@@ -390,7 +390,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
         }
     }
 
-    private static int getPartOrder(PartData data) {
+    public static int getPartOrder(PartData data) {
         if (data == null || data.typeId == null) return 1;
 
         return switch (data.typeId) {

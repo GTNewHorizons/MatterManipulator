@@ -2,16 +2,17 @@ package com.recursive_pineapple.matter_manipulator.common.building;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
+import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendWarningToPlayer;
 
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.MinecraftForge;
@@ -23,21 +24,29 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemM
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.networking.SoundResource;
-import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
+import com.recursive_pineapple.matter_manipulator.common.utils.BigFluidStack;
+import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
+import com.recursive_pineapple.matter_manipulator.common.utils.SortedArrayList;
 import com.recursive_pineapple.matter_manipulator.mixin.BlockCaptureDrops;
+
+import org.joml.Vector3i;
 
 import WayofTime.alchemicalWizardry.api.event.TeleposeEvent;
 import it.unimi.dsi.fastutil.Pair;
+import it.unimi.dsi.fastutil.booleans.BooleanObjectImmutablePair;
+import it.unimi.dsi.fastutil.ints.IntObjectImmutablePair;
 
 /**
  * Handles all moving logic.
  */
 public class PendingMove extends AbstractBuildable {
 
-    private List<Pair<Location, Location>> moves = null;
+    private SortedArrayList<IntObjectImmutablePair<Pair<MoveSnapshot, MoveSnapshot>>> moves = null;
+    private PendingMoveApplyContext context = null;
 
     private int moveOffsetX, moveOffsetY, moveOffsetZ;
     private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
@@ -98,26 +107,32 @@ public class PendingMove extends AbstractBuildable {
         resetWarnings();
         refillPower(stack);
 
-        if (moves == null) {
-            initMoves();
+        Transform transform = state.getTransform();
+        if (transform.equals(Transform.DEFAULT_TRANSFORM)) transform = null;
+
+        if (moves == null || context == null) {
+            initMoves(transform);
         }
 
         World world = player.worldObj;
 
-        BlockSpec source = new BlockSpec();
-        BlockSpec target = new BlockSpec();
+        BlockSpec sourceSpec = new BlockSpec();
+        BlockSpec targetSpec = new BlockSpec();
 
         int ops = 0;
         var iter = moves.listIterator(moves.size());
 
-        ArrayList<Pair<Location, Location>> shuffled = new ArrayList<>();
+        SortedArrayList<IntObjectImmutablePair<Pair<MoveSnapshot, MoveSnapshot>>> shuffled = new SortedArrayList<>(
+            Comparator.comparingInt(IntObjectImmutablePair::leftInt)
+        );
 
         // try to move `placeSpeed` blocks from here to there
         while (ops < tier.placeSpeed && iter.hasPrevious()) {
-            Pair<Location, Location> move = iter.previous();
+            IntObjectImmutablePair<Pair<MoveSnapshot, MoveSnapshot>> intPair = iter.previous();
+            Pair<MoveSnapshot, MoveSnapshot> move = intPair.right();
 
-            Location s = move.left();
-            Location d = move.right();
+            Location s = move.left().loc;
+            Location d = move.right().loc;
 
             // if either block is protected, ignore them completely and print a warning
             if (!isEditable(world, s.x, s.y, s.z, false) || !isEditable(world, d.x, d.y, d.z, true)) {
@@ -127,13 +142,17 @@ public class PendingMove extends AbstractBuildable {
                     s.x,
                     s.y,
                     s.z,
-                    source.getChatComponent()
+                    sourceSpec.getChatComponent()
                 );
                 iter.remove();
                 continue;
             }
 
-            BlockSpec.fromBlock(source, world, s.x, s.y, s.z);
+            BlockSpec source = move.left().spec;
+            if (source == null || source == sourceSpec) {
+                source = BlockSpec.fromBlock(sourceSpec, world, s.x, s.y, s.z);
+                move.left().spec = source;
+            }
 
             if (source.isAir()) {
                 iter.remove();
@@ -153,7 +172,11 @@ public class PendingMove extends AbstractBuildable {
                 continue;
             }
 
-            BlockSpec.fromBlock(target, world, d.x, d.y, d.z);
+            BlockSpec target = move.right().spec;
+            if (target == null || target == targetSpec) {
+                target = BlockSpec.fromBlock(targetSpec, world, d.x, d.y, d.z);
+                move.right().spec = target;
+            }
 
             // check if we can remove the existing target block
             boolean canPlace = switch (state.config.removeMode) {
@@ -189,7 +212,7 @@ public class PendingMove extends AbstractBuildable {
 
             // if we can't move the source block then skip it for now
             if (!source.getBlock().canPlaceBlockAt(world, d.x, d.y, d.z)) {
-                shuffled.add(move);
+                shuffled.add(intPair);
                 iter.remove();
                 continue;
             }
@@ -200,7 +223,7 @@ public class PendingMove extends AbstractBuildable {
             }
 
             // try to move the source block into the (now empty) target block
-            if (!moveBlock(this, world, s, source, d, target)) {
+            if (!moveBlock(this, world, move.left(), move.right(), transform)) {
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.could_not_move_block.new",
@@ -217,6 +240,9 @@ public class PendingMove extends AbstractBuildable {
             iter.remove();
             ops++;
         }
+
+        context.loc = null;
+        context.spec = null;
 
         moves.addAll(shuffled);
 
@@ -243,8 +269,12 @@ public class PendingMove extends AbstractBuildable {
 
     }
 
-    private void initMoves() {
-        moves = new ArrayList<>();
+    private void initMoves(Transform transform) {
+        moves = new SortedArrayList<>(
+            Comparator.comparingInt(IntObjectImmutablePair::leftInt)
+        );
+
+        context = new PendingMoveApplyContext(this, null, null);
 
         Location startA = state.config.coordA;
         Location startB = state.config.coordB;
@@ -253,8 +283,12 @@ public class PendingMove extends AbstractBuildable {
         MMConfig.VoxelAABB cut = new MMConfig.VoxelAABB(startA.toVec(), startB.toVec());
         MMConfig.VoxelAABB paste = cut.clone().moveOrigin(dest.toVec());
 
+        if (transform != null) {
+            paste = transform.apply(paste);
+        }
+
         if (cut.toBoundingBox().intersectsWith(paste.toBoundingBox())) {
-            MMUtils.sendErrorToPlayer(player, "mm.info.error.move_overlapping");
+            sendErrorToPlayer(player, "mm.info.error.move_overlapping");
             return;
         }
 
@@ -291,15 +325,64 @@ public class PendingMove extends AbstractBuildable {
                     int dY = y - y1;
                     int dZ = z - z1;
 
-                    moves.add(
-                        Pair.of(
-                            new Location(worldId, x, y, z),
-                            new Location(worldId, dest.x + dX, dest.y + dY, dest.z + dZ)
-                        )
+                    Vector3i vec = new Vector3i(dX, dY, dZ);
+                    if (transform != null) vec = transform.apply(vec);
+
+                    Location locSrc = new Location(worldId, x, y, z);
+                    Location locDst = new Location(worldId, dest.x + vec.x, dest.y + vec.y, dest.z + vec.z);
+
+                    World world = startA.getWorld();
+
+                    BlockMover<?> srcMover = BlockMovers.getBlockMover(world, locSrc.x, locSrc.y, locSrc.z);
+                    BlockMover<?> dstMover = BlockMovers.getBlockMover(world, locDst.x, locDst.y, locDst.z);
+
+                    Object srcState = null;
+                    Object dstState = null;
+                    BlockSpec srcSpec = null;
+                    BlockSpec dstSpec = null;
+
+                    if (srcMover.snapshotEarly()) {
+                        context.loc = locSrc;
+
+                        srcSpec = BlockSpec.fromBlock(null, world, locSrc.x, locSrc.y, locSrc.z);
+                        context.spec = srcSpec;
+
+                        srcState = srcMover.snapshot(context, world, locSrc.x, locSrc.y, locSrc.z);
+                    }
+
+                    if (dstMover.snapshotEarly()) {
+                        context.loc = locDst;
+
+                        dstSpec = BlockSpec.fromBlock(null, world, locDst.x, locDst.y, locDst.z);
+                        context.spec = dstSpec;
+
+                        dstState = dstMover.snapshot(context, world, locDst.x, locDst.y, locDst.z);
+                    }
+
+                    Pair<MoveSnapshot, MoveSnapshot> pair = Pair.of(
+                        new MoveSnapshot(locSrc, srcState, srcSpec, (BlockMover<Object>) srcMover),
+                        new MoveSnapshot(locDst, dstState, dstSpec, (BlockMover<Object>) dstMover)
                     );
+
+                    int priority = srcMover.snapshotEarly() || dstMover.snapshotEarly() ? Integer.MIN_VALUE : 0;
+
+                    // FMP needs support blocks so we move them last
+                    moves.add(new IntObjectImmutablePair<>(priority, pair));
                 }
             }
         }
+    }
+
+    private static void remove(World world, int x, int y, int z) {
+        world.removeTileEntity(x, y, z);
+        world.setBlockToAir(x, y, z);
+    }
+
+    private static PendingMoveApplyContext ctx(PendingMove pendingMove, MoveSnapshot snapshot, BlockSpec spec) {
+        pendingMove.context.loc = snapshot.loc;
+        pendingMove.context.spec = spec == null ? snapshot.spec : spec;
+
+        return pendingMove.context;
     }
 
     // 'borrowed' from
@@ -308,42 +391,58 @@ public class PendingMove extends AbstractBuildable {
     public static boolean moveBlock(
         PendingMove pendingMove,
         World world,
-        Location s,
-        BlockSpec spec1,
-        Location d,
-        BlockSpec spec2
+        MoveSnapshot s,
+        MoveSnapshot d,
+        Transform transform
     ) {
+        World worldS = world.provider.dimensionId == s.loc.worldId ? world : s.loc.getWorld();
+        int sx = s.loc.x;
+        int sy = s.loc.y;
+        int sz = s.loc.z;
+        World worldD = world.provider.dimensionId == d.loc.worldId ? world : d.loc.getWorld();
+        int dx = d.loc.x;
+        int dy = d.loc.y;
+        int dz = d.loc.z;
 
-        World worldS = world.provider.dimensionId == s.worldId ? world : s.getWorld();
-        int sx = s.x;
-        int sy = s.y;
-        int sz = s.z;
-        World worldD = world.provider.dimensionId == d.worldId ? world : d.getWorld();
-        int dx = d.x;
-        int dy = d.y;
-        int dz = d.z;
-
-        Block blockS = worldS.getBlock(sx, sy, sz);
-        Block blockD = worldD.getBlock(dx, dy, dz);
-
-        if (blockS.equals(Blocks.air) && blockD.equals(Blocks.air)) return false;
+        if (s.spec.isAir() && d.spec.isAir()) return false;
 
         if (Mods.BloodMagic.isModLoaded()) {
-            if (!allowTelepose(worldS, worldD, s, spec1, d, spec2)) return false;
+            if (!allowTelepose(worldS, worldD, s.loc, s.spec, d.loc, d.spec)) return false;
         }
-
-        BlockMover<Object> source = (BlockMover<Object>) BlockMovers.getBlockMover(worldS, sx, sy, sz);
-        BlockMover<Object> dest = (BlockMover<Object>) BlockMovers.getBlockMover(worldD, dx, dy, dz);
 
         try {
             BlockCaptureDrops.captureDrops(worldS);
             if (worldS != worldD) BlockCaptureDrops.captureDrops(worldD);
 
-            Object sourceState = source.remove(pendingMove, worldS, sx, sy, sz);
-            Object destState = dest.remove(pendingMove, worldD, dx, dy, dz);
+            PendingBlock pendingBlockSource = null;
+            PendingBlock pendingBlockDest = null;
 
-            source.place(pendingMove, worldD, dx, dy, dz, sourceState);
-            dest.place(pendingMove, worldS, sx, sy, sz, destState);
+            if (transform != null) {
+                pendingBlockSource = s.spec.instantiate(worldS, sx, sy, sz);
+                pendingBlockDest = d.spec.instantiate(worldD, dx, dy, dz);
+            }
+
+            if (s.state == null) s.state = s.mover.snapshot(ctx(pendingMove, s, s.spec), worldS, sx, sy, sz);
+            if (d.state == null) d.state = d.mover.snapshot(ctx(pendingMove, d, d.spec), worldD, dx, dy, dz);
+
+            if (transform != null) {
+                s.mover.transform(ctx(pendingMove, d, s.spec), transform, s.state);
+                d.mover.transform(ctx(pendingMove, s, d.spec), transform, d.state);
+
+                pendingBlockSource.transform(transform);
+                pendingBlockDest.transform(transform);
+            }
+
+            PendingMove.remove(worldS, sx, sy, sz);
+            PendingMove.remove(worldD, dx, dy, dz);
+
+            s.mover.place(ctx(pendingMove, d, s.spec), worldD, dx, dy, dz, s.state);
+            d.mover.place(ctx(pendingMove, s, d.spec), worldS, sx, sy, sz, d.state);
+
+            if (transform != null) {
+                pendingBlockSource.apply(ctx(pendingMove, d, s.spec), worldD);
+                pendingBlockDest.apply(ctx(pendingMove, s, d.spec), worldS);
+            }
         } finally {
             // delete any items that were dropped
             BlockCaptureDrops.stopCapturingDrops(worldS);
@@ -370,5 +469,140 @@ public class PendingMove extends AbstractBuildable {
             spec2.getBlockMeta()
         );
         return !MinecraftForge.EVENT_BUS.post(evt);
+    }
+
+    public static class MoveSnapshot {
+
+        public Location loc;
+        public Object state;
+        public BlockSpec spec;
+        public BlockMover<Object> mover;
+
+        public MoveSnapshot(Location loc, Object state, BlockSpec spec, BlockMover<Object> mover) {
+            this.loc = loc;
+            this.state = state;
+            this.spec = spec;
+            this.mover = mover;
+        }
+    }
+
+    public static class PendingMoveApplyContext implements BlockAnalyzer.IBlockApplyContext {
+
+        public PendingMove pendingMove;
+        public Location loc;
+        public BlockSpec spec;
+
+        public PendingMoveApplyContext(PendingMove pendingMove, Location loc, BlockSpec spec) {
+            this.pendingMove = pendingMove;
+            this.loc = loc;
+            this.spec = spec;
+        }
+
+        @Override
+        public World getWorld() {
+            return loc.getWorld();
+        }
+
+        @Override
+        public int getX() {
+            return loc.x;
+        }
+
+        @Override
+        public int getY() {
+            return loc.y;
+        }
+
+        @Override
+        public int getZ() {
+            return loc.z;
+        }
+
+        @Override
+        public TileEntity getTileEntity() {
+            return getWorld().getTileEntity(getX(), getY(), getZ());
+        }
+
+        @Override
+        public EntityPlayer getRealPlayer() {
+            return pendingMove.player;
+        }
+
+        @Override
+        public MMConfig getConfig() {
+            return pendingMove.state.config;
+        }
+
+        @Override
+        public boolean tryApplyAction(double complexity) {
+            return false;
+        }
+
+        @Override
+        public void warn(IChatComponent message) {
+            if (loc == null) return;
+            if (spec != null) {
+                IChatComponent blockNameComponent = spec.getChatComponent();
+                sendWarningToPlayer(
+                    getRealPlayer(),
+                    "mm.info.warning.with_block",
+                    getX(),
+                    getY(),
+                    getZ(),
+                    blockNameComponent,
+                    message
+                );
+            } else {
+                sendWarningToPlayer(
+                    getRealPlayer(),
+                    "mm.info.warning.with_block",
+                    getX(),
+                    getY(),
+                    getZ(),
+                    message
+                );
+            }
+        }
+
+        @Override
+        public void error(IChatComponent message) {
+            if (loc == null) return;
+            if (spec != null) {
+                IChatComponent blockNameComponent = spec.getChatComponent();
+                sendErrorToPlayer(
+                    getRealPlayer(),
+                    "mm.info.error.with_block",
+                    getX(),
+                    getY(),
+                    getZ(),
+                    blockNameComponent,
+                    message
+                );
+            } else {
+                sendErrorToPlayer(
+                    getRealPlayer(),
+                    "mm.info.error.with_block",
+                    getX(),
+                    getY(),
+                    getZ(),
+                    message
+                );
+            }
+        }
+
+        @Override
+        public BooleanObjectImmutablePair<List<BigItemStack>> tryConsumeItems(List<BigItemStack> items, int flags) {
+            return pendingMove.tryConsumeItems(items, flags);
+        }
+
+        @Override
+        public void givePlayerItems(List<BigItemStack> items) {
+            pendingMove.givePlayerItems(items);
+        }
+
+        @Override
+        public void givePlayerFluids(List<BigFluidStack> fluids) {
+            pendingMove.givePlayerFluids(fluids);
+        }
     }
 }

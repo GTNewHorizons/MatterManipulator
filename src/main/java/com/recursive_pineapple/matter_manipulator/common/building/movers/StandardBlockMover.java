@@ -6,6 +6,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 
 public class StandardBlockMover implements BlockMover<StandardBlock> {
 
@@ -17,7 +18,7 @@ public class StandardBlockMover implements BlockMover<StandardBlock> {
     }
 
     @Override
-    public StandardBlock remove(PendingMove pendingMove, World world, int x, int y, int z) {
+    public StandardBlock snapshot(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z) {
         Block block = world.getBlock(x, y, z);
         int meta = world.getBlockMetadata(x, y, z);
         NBTTagCompound tag = null;
@@ -29,14 +30,11 @@ public class StandardBlockMover implements BlockMover<StandardBlock> {
             te.writeToNBT(tag);
         }
 
-        world.removeTileEntity(x, y, z);
-        world.setBlockToAir(x, y, z);
-
         return new StandardBlock(block, meta, tag);
     }
 
     @Override
-    public void place(PendingMove pendingMove, World world, int x, int y, int z, StandardBlock standardBlock) {
+    public void place(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z, StandardBlock standardBlock) {
         world.setBlock(x, y, z, standardBlock.block(), standardBlock.meta(), 3);
 
         if (standardBlock.tileData() != null) {
@@ -48,5 +46,10 @@ public class StandardBlockMover implements BlockMover<StandardBlock> {
 
             world.setTileEntity(x, y, z, te);
         }
+    }
+
+    @Override
+    public void transform(PendingMove.PendingMoveApplyContext ctx, Transform transform, StandardBlock standardBlock) {
+
     }
 }

@@ -10,8 +10,13 @@ import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 
+import net.minecraftforge.common.util.ForgeDirection;
+
 import com.google.gson.annotations.SerializedName;
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
+import com.gtnewhorizon.structurelib.alignment.enumerable.ExtendedFacing;
+import com.gtnewhorizon.structurelib.alignment.enumerable.Flip;
+import com.gtnewhorizon.structurelib.alignment.enumerable.Rotation;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 
@@ -26,6 +31,10 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
 
     @SerializedName("s")
     public int shape;
+    @SerializedName("d")
+    public byte side;
+    @SerializedName("t")
+    public byte turn;
     @SerializedName("m")
     public PortableItemStack material;
     @SerializedName("c")
@@ -37,6 +46,8 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         ArchitectureCraftAnalysisResult result = new ArchitectureCraftAnalysisResult();
 
         result.shape = tileShape.shape.id;
+        result.side = tileShape.side;
+        result.turn = tileShape.turn;
 
         result.material = new PortableItemStack(
             new ItemStack(tileShape.baseBlockState.getBlock(), 0, BlockCompatUtils.getMetaFromBlockState(tileShape.baseBlockState))
@@ -63,6 +74,9 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
             if (cladding != null) {
                 if (!addCladding(ctx, tileShape, false)) { return false; }
             }
+
+            tileShape.setSide(side);
+            tileShape.setTurn(turn);
 
             tileShape.markChanged();
 
@@ -158,12 +172,60 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
 
     @Override
     public void transform(Transform transform) {
+        ForgeDirection dSide = ForgeDirection.getOrientation(side);
+        Rotation rTurn = Rotation.byIndex(turn);
 
+        boolean clockRotated = rTurn.isClockwise() || rTurn.isCounterClockwise();
+
+        ExtendedFacing facing = ExtendedFacing.of(dSide, rTurn, Flip.NONE);
+        facing = transform.apply(facing);
+
+        ForgeDirection oldDSide = dSide;
+
+        dSide = facing.getDirection();
+        rTurn = facing.getRotation();
+
+        boolean verySpecialFlip = !facing.getFlip().isNotFlipped() && (rTurn.isClockwise() || rTurn.isCounterClockwise());
+
+        if (specialFlip(oldDSide) * specialFlip(dSide) < 0) {
+            rTurn = rTurn.getOpposite();
+
+            if (verySpecialFlip && !clockRotated) {
+                rTurn = rTurn.getOpposite();
+            }
+        }
+
+        if (
+            verySpecialFlip && clockRotated
+        ) {
+            rTurn = rTurn.getOpposite();
+        }
+
+        side = (byte) dSide.ordinal();
+        turn = (byte) rTurn.ordinal();
+    }
+
+    private byte specialFlip(ForgeDirection dir) {
+        return switch (dir) {
+            case DOWN, NORTH, SOUTH, WEST, EAST -> 1;
+            case UP -> -1;
+            default -> 1;
+        };
     }
 
     @Override
     public void migrate() {
 
+    }
+
+    @Override
+    public Block getPreviewBlock() {
+        return material != null ? material.getBlock() : null;
+    }
+
+    @Override
+    public int getPreviewMeta() {
+        return material != null ? material.getMeta() : 0;
     }
 
     @Override
@@ -173,6 +235,8 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         dup.shape = shape;
         dup.material = material == null ? null : material.clone();
         dup.cladding = cladding == null ? null : cladding.clone();
+        dup.side = side;
+        dup.turn = turn;
 
         return dup;
     }
@@ -184,6 +248,8 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         result = prime * result + shape;
         result = prime * result + ((material == null) ? 0 : material.hashCode());
         result = prime * result + ((cladding == null) ? 0 : cladding.hashCode());
+        result = prime * result + side;
+        result = prime * result + turn;
         return result;
     }
 
@@ -200,6 +266,8 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         if (cladding == null) {
             if (other.cladding != null) return false;
         } else if (!cladding.equals(other.cladding)) return false;
+        if (side != other.side) return false;
+        if (turn != other.turn) return false;
         return true;
     }
 

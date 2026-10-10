@@ -18,15 +18,15 @@ public class WirelessBlockMover extends StandardBlockMover {
     }
 
     @Override
-    public void place(PendingMove pendingMove, World world, int x, int y, int z, StandardBlock standardBlock) {
-        if (pendingMove != null) {
-            adjustWirelessLinkNbt(standardBlock, pendingMove);
+    public void place(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z, StandardBlock standardBlock) {
+        if (ctx != null) {
+            adjustWirelessLinkNbt(standardBlock, ctx);
         }
 
-        super.place(pendingMove, world, x, y, z, standardBlock);
+        super.place(ctx, world, x, y, z, standardBlock);
     }
 
-    private void adjustWirelessLinkNbt(StandardBlock standardBlock, PendingMove pendingMove) {
+    private void adjustWirelessLinkNbt(StandardBlock standardBlock, PendingMove.PendingMoveApplyContext ctx) {
         NBTTagCompound tileData = standardBlock.tileData();
         if (tileData == null || !tileData.hasKey("connectedTargets")) return;
 
@@ -39,10 +39,10 @@ public class WirelessBlockMover extends StandardBlockMover {
             int ly = coord.getInteger("y");
             int lz = coord.getInteger("z");
 
-            if (pendingMove.isInSourceRegion(lx, ly, lz)) {
-                coord.setInteger("x", lx + pendingMove.getMoveOffsetX());
-                coord.setInteger("y", ly + pendingMove.getMoveOffsetY());
-                coord.setInteger("z", lz + pendingMove.getMoveOffsetZ());
+            if (ctx.pendingMove.isInSourceRegion(lx, ly, lz)) {
+                coord.setInteger("x", lx + ctx.pendingMove.getMoveOffsetX());
+                coord.setInteger("y", ly + ctx.pendingMove.getMoveOffsetY());
+                coord.setInteger("z", lz + ctx.pendingMove.getMoveOffsetZ());
             }
 
             i++;

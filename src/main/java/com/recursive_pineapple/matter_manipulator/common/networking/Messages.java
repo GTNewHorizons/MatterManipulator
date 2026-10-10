@@ -32,6 +32,7 @@ import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMRenderer;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockRemoveMode;
@@ -127,14 +128,17 @@ public enum Messages {
 
         if (coordA == null || coordB == null || coordC == null) return;
 
-        Vector3i newCoordBVector = new Vector3i(
-            coordC.x + coordB.x - coordA.x,
-            coordC.y + coordB.y - coordA.y,
-            coordC.z + coordB.z - coordA.z
-        );
+        Transform transform = state.getTransform();
 
-        state.config.coordA = coordC;
-        state.config.coordB = new Location(player.worldObj, newCoordBVector);
+        MMConfig.VoxelAABB voxel = new MMConfig.VoxelAABB();
+        voxel.b = coordB.toVec().sub(coordA.toVec());
+        voxel.moveOrigin(coordC.toVec());
+        voxel = transform.apply(voxel);
+
+        transform.invert();
+
+        state.config.coordA = new Location(player.worldObj, voxel.a);
+        state.config.coordB = new Location(player.worldObj, voxel.b);
         state.config.coordC = coordA;
     }))),
     MoveAll(server(simple((player, stack, manipulator, state) -> {
