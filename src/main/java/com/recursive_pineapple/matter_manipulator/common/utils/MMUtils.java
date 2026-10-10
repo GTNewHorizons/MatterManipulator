@@ -1662,6 +1662,21 @@ public class MMUtils {
         return InteropConstants.OC_CABLE.matches(spec.getBlock(), 0);
     }
 
+    @Optional(Names.ENDER_I_O)
+    public static boolean isEnderIOConduit(Item item) {
+        return item instanceof crazypants.enderio.conduit.IConduitItem;
+    }
+
+    @Optional(Names.ENDER_I_O)
+    public static boolean getEnderIOConduit(BlockSpec spec, World world, MovingObjectPosition hit) {
+        if (!(world.getTileEntity(hit.blockX, hit.blockY, hit.blockZ) instanceof crazypants.enderio.conduit.IConduitBundle bundle)) return false;
+        if (!(hit.hitInfo instanceof crazypants.enderio.conduit.geom.CollidableComponent component) || component.conduitType == null) return false;
+        var conduit = bundle.getConduit(component.conduitType);
+        if (conduit == null) return false;
+        spec.setObject(conduit.createItem());
+        return true;
+    }
+
     public static boolean getOCCable(BlockSpec spec, World world, int x, int y, int z) {
         if (InteropConstants.OC_CABLE.matches(world.getBlock(x, y, z), 0)) {
             spec.setObject(Item.getItemFromBlock(world.getBlock(x, y, z)), 0);
