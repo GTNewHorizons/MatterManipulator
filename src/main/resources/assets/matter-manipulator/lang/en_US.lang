@@ -105,6 +105,7 @@ mm.gui.smart_copy.interface_mode.convert_to_p2p=Make P2P
 mm.gui.smart_copy.p2p_interface_mode=Pasted P2P Interfaces: %s
 mm.gui.smart_copy.p2p_interface_mode.link_to_original=Link to Original
 mm.gui.smart_copy.p2p_interface_mode.copy_patterns=Copy Patterns
+mm.gui.smart_copy.copy_ae_patterns=Copy-AE2 Patterns: %s
 mm.gui.smart_copy.on=ON
 mm.gui.smart_copy.off=OFF
 
@@ -310,6 +311,7 @@ mm.tooltip.copying.wireless_link=Wireless Links: %s
 mm.tooltip.copying.auto_proxy_cribs=Auto-Proxy CRIBs: %s
 mm.tooltip.copying.interface_mode=Existing Interfaces: %s
 mm.tooltip.copying.p2p_interface_mode=Pasted P2P Interfaces: %s
+mm.tooltip.copying.copy_ae_patterns=Copy-AE2 Patterns: %s
 mm.tooltip.paste=Paste Coordinate: %s
 mm.tooltip.moving.cut_a=Cut Coordinate A: %s
 mm.tooltip.moving.cut_b=Cut Coordinate B: %s

@@ -4,7 +4,9 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.se
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -39,6 +41,9 @@ public class PendingMove extends AbstractBuildable {
 
     private int moveOffsetX, moveOffsetY, moveOffsetZ;
     private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
+
+    /** State that block movers carry from remove() to place(), keyed by the removed block's state object. */
+    private final Map<Object, Object> moverState = new IdentityHashMap<>();
 
     public PendingMove(EntityPlayer player, MMState state, ManipulatorTier tier) {
         super(player, state, tier);
@@ -78,6 +83,14 @@ public class PendingMove extends AbstractBuildable {
 
     public int getSrcMaxZ() {
         return srcMaxZ;
+    }
+
+    public boolean isInSourceRegion(int x, int y, int z) {
+        return x >= srcMinX && x <= srcMaxX && y >= srcMinY && y <= srcMaxY && z >= srcMinZ && z <= srcMaxZ;
+    }
+
+    public Map<Object, Object> getMoverState() {
+        return moverState;
     }
 
     @Override

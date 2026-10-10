@@ -605,6 +605,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
                 addInfoLine(desc, "mm.tooltip.copying.p2p_interface_mode", state.config.p2pInterfaceCopyMode,
                     ItemMatterManipulator::getP2PInterfaceCopyModeName);
+
+                addInfoLine(desc, "mm.tooltip.copying.copy_ae_patterns", state.config.shouldCopyAEPatterns,
+                    on -> StatCollector.translateToLocal(on ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off"));
             }
 
             if (state.config.placeMode == PlaceMode.MOVING) {
@@ -1532,6 +1535,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     .onClicked(() -> {
                         Messages.SetP2PInterfaceCopyMode.sendToServer();
                     })
+                .done()
+                .option()
+                    .label(() -> StatCollector.translateToLocalFormatted(
+                        "mm.gui.smart_copy.copy_ae_patterns",
+                        StatCollector.translateToLocal(initialState.config.shouldCopyAEPatterns ? "mm.gui.smart_copy.on" : "mm.gui.smart_copy.off")))
+                    .onClicked(() -> Messages.SetCopyAEPatterns.sendToServer())
                 .done()
             .done();
     }

@@ -345,6 +345,9 @@ public enum Messages {
             P2PInterfaceCopyMode.COPY_PATTERNS :
             P2PInterfaceCopyMode.LINK_TO_ORIGINAL;
     }))),
+    SetCopyAEPatterns(server(simple((player, stack, manipulator, state) -> {
+        state.config.shouldCopyAEPatterns = !state.config.shouldCopyAEPatterns;
+    }))),
     SetArray(server(locationPacket((player, stack, manipulator, state, span) -> {
         state.config.arraySpan = span;
     }))),

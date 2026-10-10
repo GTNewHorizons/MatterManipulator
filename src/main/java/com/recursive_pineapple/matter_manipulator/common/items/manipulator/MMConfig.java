@@ -57,6 +57,10 @@ public class MMConfig {
     public boolean replaceCribsWithProxies = false;
     public InterfaceCopyMode interfaceCopyMode = InterfaceCopyMode.COPY;
     public P2PInterfaceCopyMode p2pInterfaceCopyMode = P2PInterfaceCopyMode.COPY_PATTERNS;
+    /**
+     * When true, AE patterns from the copied interfaces will be applied to the pasted interfaces
+     */
+    public boolean shouldCopyAEPatterns = false;
 
     public Location getCoordA(World world, Vector3i lookingAt) {
         if (coordAOffset == null) {
@@ -278,6 +282,7 @@ public class MMConfig {
         result = prime * result + Boolean.hashCode(replaceCribsWithProxies);
         result = prime * result + ((interfaceCopyMode == null) ? 0 : interfaceCopyMode.hashCode());
         result = prime * result + ((p2pInterfaceCopyMode == null) ? 0 : p2pInterfaceCopyMode.hashCode());
+        result = prime * result + Boolean.hashCode(shouldCopyAEPatterns);
         return result;
     }
 
@@ -342,6 +347,7 @@ public class MMConfig {
         if (replaceCribsWithProxies != other.replaceCribsWithProxies) return false;
         if (interfaceCopyMode != other.interfaceCopyMode) return false;
         if (p2pInterfaceCopyMode != other.p2pInterfaceCopyMode) return false;
+        if (shouldCopyAEPatterns != other.shouldCopyAEPatterns) return false;
         return true;
     }
 }
