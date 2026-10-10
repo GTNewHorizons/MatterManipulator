@@ -42,14 +42,11 @@ public class AECableItemConsumer implements IItemConsumer {
             definition = AE_DENSE_COVERED_CABLE;
         }
 
-        boolean isPlanning = (flags & CONSUME_SIMULATED) == 1 && (flags & CONSUME_IGNORE_CREATIVE) == 1;
-
         // Start searching from fluix cables
         for (int color = AEColor.Transparent.ordinal(); color >= 0; color--) {
-            // We're in planning, since colored cables are crafted using fluix, we skip them
-            if (isPlanning && color == AEColor.Transparent.ordinal()) continue;
-
             ItemStack cableStack = definition.stack(AEColor.fromOrdinal(color), 1);
+            if (cableStack.getItemDamage() == in.getItemDamage()) continue;
+
             BigItemStack cableBigStack = BigItemStack.create(cableStack).setStackSize(in.getStackSize());
 
             List<BigItemStack> extractedStacks = inv.tryConsumeItems(Collections.singletonList(cableBigStack), CONSUME_PARTIAL | flags).right();
