@@ -25,22 +25,14 @@ public class AECableItemConsumer implements IItemConsumer {
     public static final AEColoredItemDefinition AE_DENSE_SMART_CABLE = AEApi.instance().definitions().parts().cableDense();
     public static final AEColoredItemDefinition AE_DENSE_COVERED_CABLE = AEApi.instance().definitions().parts().cableDenseCovered();
 
+    private static final AEColoredItemDefinition[] AE_CABLES = {
+        AE_GLASS_CABLE, AE_COVERED_CABLE, AE_SMART_CABLE, AE_DENSE_SMART_CABLE, AE_DENSE_COVERED_CABLE
+    };
+
     @Override
     public void consume(IPseudoInventory inv, BigItemStack in, BigItemStack out, int flags) {
-        if (in.getItem() != AE_GLASS_CABLE.item(AEColor.Transparent)) return;
-
-        AEColoredItemDefinition definition;
-        if (in.getItemDamage() <= AE_GLASS_CABLE.stack(AEColor.Transparent, 1).getItemDamage()) {
-            definition = AE_GLASS_CABLE;
-        } else if (in.getItemDamage() <= AE_COVERED_CABLE.stack(AEColor.Transparent, 1).getItemDamage()) {
-            definition = AE_COVERED_CABLE;
-        } else if (in.getItemDamage() <= AE_SMART_CABLE.stack(AEColor.Transparent, 1).getItemDamage()) {
-            definition = AE_SMART_CABLE;
-        } else if (in.getItemDamage() <= AE_DENSE_SMART_CABLE.stack(AEColor.Transparent, 1).getItemDamage()) {
-            definition = AE_DENSE_SMART_CABLE;
-        } else {
-            definition = AE_DENSE_COVERED_CABLE;
-        }
+        AEColoredItemDefinition definition = getCableDefinition(in.getItemStack());
+        if (definition == null) return;
 
         boolean isPlanning = (flags & CONSUME_SIMULATED) == 1 && (flags & CONSUME_IGNORE_CREATIVE) == 1;
 
@@ -62,5 +54,16 @@ public class AECableItemConsumer implements IItemConsumer {
 
             if (in.getStackSize() <= 0) return;
         }
+    }
+
+    /** Every AE part is the same item, so a part is only a cable if it matches one of the cable variants. */
+    private static AEColoredItemDefinition getCableDefinition(ItemStack stack) {
+        for (AEColoredItemDefinition definition : AE_CABLES) {
+            for (AEColor color : AEColor.values()) {
+                if (definition.sameAs(color, stack)) return definition;
+            }
+        }
+
+        return null;
     }
 }
