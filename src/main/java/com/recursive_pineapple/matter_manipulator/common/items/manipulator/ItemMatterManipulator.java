@@ -2039,9 +2039,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             builder.bindPlayerInventory(buildContext.getPlayer(), 0, -9001);
         }
 
-        public void buildCopyMode() {
-            if (!isClient()) return;
-
+        public void buildRotationWindow() {
             DynamicTextWidget rotationInfo = DynamicTextWidget.dynamicText(() -> {
                 MMState currState = getState(
                     buildContext.getPlayer()
@@ -2144,6 +2142,17 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         .setSize(40, 36 + 30))
             };
 
+            builder.widget(
+                new Row().widgets(
+                    padding(10, 10),
+                    new Column()
+                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
+                        .widgets(left)).fillParent());
+        }
+
+        public void buildCopyMode() {
+            if (!isClient()) return;
+
             Widget[] right, lessRight;
 
             if (Minecraft.getMinecraft().gameSettings.guiScale <= 2) {
@@ -2244,12 +2253,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 };
             }
 
-            builder.widget(
-                new Row().widgets(
-                    padding(10, 10),
-                    new Column()
-                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
-                        .widgets(left)).fillParent());
+            buildRotationWindow();
 
             Column columnRight, columnLessRight;
 
@@ -2272,108 +2276,6 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         public void buildMoveMode() {
             if (!isClient()) return;
-
-            DynamicTextWidget rotationInfo = DynamicTextWidget.dynamicString(() -> {
-                MMState currState = getState(
-                    buildContext.getPlayer()
-                        .getHeldItem());
-
-                Transform t = currState.getTransform();
-
-                ArrayList<String> flips = new ArrayList<>();
-
-                if (t.flipX) flips.add("X");
-                if (t.flipY) flips.add("Y");
-                if (t.flipZ) flips.add("Z");
-
-                return StatCollector.translateToLocalFormatted("mm.transform.info",
-                    flips.isEmpty() ? "None" : String.join(", ", flips),
-                    MMUtils.getDirectionDisplayName(t.up),
-                    MMUtils.getDirectionDisplayName(t.forward)).replace("\\n", "\n");
-            });
-
-            Widget[] left = {
-                new Row().widgets(
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.rotate_x-"))
-                        .setOnClick((t, u) -> { Transform.sendRotate(EAST, false); })
-                        .setSynced(false, false)
-                        .setSize(62, 18),
-                    padding(6, 6),
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.rotate_x+"))
-                        .setOnClick((t, u) -> { Transform.sendRotate(EAST, true); })
-                        .setSynced(false, false)
-                        .setSize(62, 18)),
-                padding(10, 10),
-                new Row().widgets(
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.rotate_y-"))
-                        .setOnClick((t, u) -> { Transform.sendRotate(UP, false); })
-                        .setSynced(false, false)
-                        .setSize(62, 18),
-                    padding(6, 6),
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.rotate_y+"))
-                        .setOnClick((t, u) -> { Transform.sendRotate(UP, true); })
-                        .setSynced(false, false)
-                        .setSize(62, 18)),
-                padding(10, 10),
-                new Row().widgets(
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.rotate_z-"))
-                        .setOnClick((t, u) -> { Transform.sendRotate(SOUTH, false); })
-                        .setSynced(false, false)
-                        .setSize(62, 18),
-                    padding(6, 6),
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.rotate_z+"))
-                        .setOnClick((t, u) -> { Transform.sendRotate(SOUTH, true); })
-                        .setSynced(false, false)
-                        .setSize(62, 18)),
-                padding(10, 10),
-                new Row().widgets(
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.flip_x"))
-                        .setOnClick(
-                            (t, u) -> { Messages.ToggleTransformFlip.sendToServer(Transform.FLIP_X); })
-                        .setSynced(false, false)
-                        .setSize(40, 18),
-                    padding(5, 5),
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.flip_y"))
-                        .setOnClick(
-                            (t, u) -> { Messages.ToggleTransformFlip.sendToServer(Transform.FLIP_Y); })
-                        .setSynced(false, false)
-                        .setSize(40, 18),
-                    padding(5, 5),
-                    new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.flip_z"))
-                        .setOnClick(
-                            (t, u) -> { Messages.ToggleTransformFlip.sendToServer(Transform.FLIP_Z); })
-                        .setSynced(false, false)
-                        .setSize(40, 18)),
-                padding(10, 10),
-                new Row().widgets(
-                    new MultiChildWidget()
-                        .addChild(
-                            rotationInfo
-                                .setSynced(false)
-                                .setTextAlignment(Alignment.CenterLeft)
-                                .setDefaultColor(Color.WHITE.dark(1))
-                                .setSize(80, 36)
-                                .setPos(3, 0))
-                        .addChild(
-                            new DirectionDrawable()
-                                .asWidget()
-                                .setSize(30, 30)
-                                .setPos(3, 36))
-                        .addChild(
-                            new TextWidget(RED + "X+ " + GREEN + "Y+ " + BLUE + "Z+")
-                                .setSize(50, 20)
-                                .setPos(34, 39))
-                        .setBackground(BACKGROUND)
-                        .setSize(88, 36 + 30),
-                    padding(2, 2),
-                    new Column()
-                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.END)
-                        .widget(new VanillaButtonWidget().setDisplayString(StatCollector.translateToLocal("mm.transform.button.reset"))
-                            .setOnClick((t, u) -> { Messages.ResetTransform.sendToServer(); })
-                            .setSynced(false, false)
-                            .setSize(40, 18))
-                        .setSize(40, 36 + 30))
-            };
 
             Widget[] right, lessRight;
 
@@ -2470,12 +2372,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 };
             }
 
-            builder.widget(
-                new Row().widgets(
-                    padding(10, 10),
-                    new Column()
-                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
-                        .widgets(left)).fillParent());
+            buildRotationWindow();
 
             Column columnRight, columnLessRight;
 
