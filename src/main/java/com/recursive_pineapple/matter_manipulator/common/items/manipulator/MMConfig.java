@@ -9,6 +9,8 @@ import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockRemoveMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockSelectMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.InterfaceCopyMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.P2PInterfaceCopyMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
@@ -53,11 +55,8 @@ public class MMConfig {
      * source CRIB.
      */
     public boolean replaceCribsWithProxies = false;
-    /**
-     * When true, ME Interface parts with patterns in the copy region are replaced with P2P ME tunnels, with matching
-     * tunnels auto-placed at the source.
-     */
-    public boolean replaceInterfacesWithP2P = false;
+    public InterfaceCopyMode interfaceCopyMode = InterfaceCopyMode.COPY;
+    public P2PInterfaceCopyMode p2pInterfaceCopyMode = P2PInterfaceCopyMode.COPY_PATTERNS;
     /**
      * When true, AE patterns from the copied interfaces will be applied to the pasted interfaces
      */
@@ -281,7 +280,8 @@ public class MMConfig {
         result = prime * result + ((arraySpan == null) ? 0 : arraySpan.hashCode());
         result = prime * result + Boolean.hashCode(linkExternalHubs);
         result = prime * result + Boolean.hashCode(replaceCribsWithProxies);
-        result = prime * result + Boolean.hashCode(replaceInterfacesWithP2P);
+        result = prime * result + ((interfaceCopyMode == null) ? 0 : interfaceCopyMode.hashCode());
+        result = prime * result + ((p2pInterfaceCopyMode == null) ? 0 : p2pInterfaceCopyMode.hashCode());
         result = prime * result + Boolean.hashCode(shouldCopyAEPatterns);
         return result;
     }
@@ -345,7 +345,8 @@ public class MMConfig {
         } else if (!arraySpan.equals(other.arraySpan)) return false;
         if (linkExternalHubs != other.linkExternalHubs) return false;
         if (replaceCribsWithProxies != other.replaceCribsWithProxies) return false;
-        if (replaceInterfacesWithP2P != other.replaceInterfacesWithP2P) return false;
+        if (interfaceCopyMode != other.interfaceCopyMode) return false;
+        if (p2pInterfaceCopyMode != other.p2pInterfaceCopyMode) return false;
         if (shouldCopyAEPatterns != other.shouldCopyAEPatterns) return false;
         return true;
     }
