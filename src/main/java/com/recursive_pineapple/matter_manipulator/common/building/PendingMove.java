@@ -418,8 +418,8 @@ public class PendingMove extends AbstractBuildable {
             PendingBlock pendingBlockDest = null;
 
             if (transform != null) {
-                pendingBlockSource = s.spec.instantiate(worldS, sx, sy, sz);
-                pendingBlockDest = d.spec.instantiate(worldD, dx, dy, dz);
+                pendingBlockSource = s.spec.instantiate(worldD, dx, dy, dz);
+                pendingBlockDest = d.spec.instantiate(worldS, sx, sy, sz);
             }
 
             if (s.state == null) s.state = s.mover.snapshot(ctx(pendingMove, s, s.spec), worldS, sx, sy, sz);

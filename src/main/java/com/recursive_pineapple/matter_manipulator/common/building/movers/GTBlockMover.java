@@ -5,7 +5,6 @@ import java.util.List;
 
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.world.World;
@@ -51,14 +50,14 @@ public class GTBlockMover implements BlockMover<GTBlock> {
     public GTBlock snapshot(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z) {
         List<MTEHatchCraftingInputSlave> proxies = getProxies(world.getTileEntity(x, y, z));
 
-        // Because GT uses this to call MTE.onRemoval() :doom:
-        world.getBlock(x, y, z).getDrops(world, x, y, z, world.getBlockMetadata(x, y, z), 0);
-
         Block block = world.getBlock(x, y, z);
         int meta = world.getBlockMetadata(x, y, z);
         IGregTechTileEntity te = (IGregTechTileEntity) world.getTileEntity(x, y, z);
 
         GTBlock gtBlock = new GTBlock(block, meta, te, te.getMetaTileEntity());
+
+        // Because GT uses this to call MTE.onRemoval() :doom:
+        world.getBlock(x, y, z).getDrops(world, x, y, z, world.getBlockMetadata(x, y, z), 0);
 
         if (gtBlock.mte() instanceof MTEMultiBlockBase mb) {
             // Avoid premature shutdown
@@ -77,19 +76,20 @@ public class GTBlockMover implements BlockMover<GTBlock> {
     public void place(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z, GTBlock gtBlock) {
         world.setBlock(x, y, z, gtBlock.block(), gtBlock.meta(), 3);
 
-        NBTTagCompound tag = new NBTTagCompound();
-        gtBlock.igte().writeToNBT(tag);
-
-        TileEntity te = TileEntity.createAndLoadEntity(tag);
-        te.xCoord = x;
-        te.yCoord = y;
-        te.zCoord = z;
-        world.setTileEntity(x, y, z, te);
-
-        if (!(te instanceof IGregTechTileEntity igte)) return;
-
+        IGregTechTileEntity igte = gtBlock.igte();
         IMetaTileEntity imte = gtBlock.mte();
+
+        if (imte == null) return;
+
         imte.setBaseMetaTileEntity(igte);
+
+        if (igte instanceof TileEntity te) {
+            te.xCoord = x;
+            te.yCoord = y;
+            te.zCoord = z;
+            te.validate();
+            world.setTileEntity(x, y, z, te);
+        }
 
         if (igte instanceof BaseMetaTileEntity bmte) {
             bmte.setCableUpdateDelay(100);
