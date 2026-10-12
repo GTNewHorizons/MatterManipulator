@@ -22,6 +22,8 @@ public enum BlockMovers {
     @Optional(Names.CARPENTERS_BLOCKS)
     Carpenter(CarpenterBlockMover.INSTANCE),
 
+    Dependent(DependentBlockMover.INSTANCE),
+
     Standard(StandardBlockMover.INSTANCE);
 
     public final BlockMover<?> blockMover;

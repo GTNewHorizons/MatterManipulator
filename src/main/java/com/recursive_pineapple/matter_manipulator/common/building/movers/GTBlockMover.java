@@ -197,15 +197,20 @@ public class GTBlockMover implements BlockMover<GTBlock> {
 
         CoverData[] covers = new CoverData[6];
         boolean[] coverExists = new boolean[6];
+        ForgeDirection[] coversDir = new ForgeDirection[6];
         byte strongRedstone = 0;
 
         // check each side for covers
         for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            ForgeDirection newDir = transform.apply(dir);
+
+            coversDir[dir.ordinal()] = newDir;
+
             if (igte.hasCoverAtSide(dir)) {
                 CoverData cover = CoverData.fromMachine(igte, dir);
 
                 coverExists[dir.ordinal()] = true;
-                covers[transform.apply(dir).ordinal()] = cover;
+                covers[newDir.ordinal()] = cover;
 
                 if (igte.getRedstoneOutputStrength(dir)) {
                     strongRedstone |= (byte) dir.flag;
@@ -216,6 +221,8 @@ public class GTBlockMover implements BlockMover<GTBlock> {
         strongRedstone = transform.applyBits(strongRedstone);
 
         for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (coversDir[dir.ordinal()] == dir) continue;
+
             boolean coverExist = coverExists[dir.ordinal()];
             CoverData cover = covers[dir.ordinal()];
 

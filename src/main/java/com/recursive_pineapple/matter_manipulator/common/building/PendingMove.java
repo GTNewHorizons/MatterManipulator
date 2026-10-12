@@ -20,6 +20,7 @@ import net.minecraftforge.common.MinecraftForge;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMover;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMovers;
+import com.recursive_pineapple.matter_manipulator.common.building.movers.StandardBlockMover;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
@@ -151,7 +152,7 @@ public class PendingMove extends AbstractBuildable {
             BlockSpec source = move.left().spec;
             if (source == null || source == sourceSpec) {
                 source = BlockSpec.fromBlock(sourceSpec, world, s.x, s.y, s.z);
-                move.left().spec = source;
+                move.left().spec = source.clone();
             }
 
             if (source.isAir()) {
@@ -172,11 +173,15 @@ public class PendingMove extends AbstractBuildable {
                 continue;
             }
 
-            BlockSpec target = move.right().spec;
-            if (target == null || target == targetSpec) {
-                target = BlockSpec.fromBlock(targetSpec, world, d.x, d.y, d.z);
-                move.right().spec = target;
-            }
+            BlockSpec target = BlockSpec.fromBlock(targetSpec, world, d.x, d.y, d.z);
+
+            /*
+             * BlockSpec target = move.right().spec;
+             * if (target == null || target == targetSpec) {
+             * target = BlockSpec.fromBlock(targetSpec, world, d.x, d.y, d.z);
+             * move.right().spec = target.clone();
+             * }
+             */
 
             // check if we can remove the existing target block
             boolean canPlace = switch (state.config.removeMode) {
@@ -311,6 +316,17 @@ public class PendingMove extends AbstractBuildable {
         moveOffsetX = dest.x - startA.x;
         moveOffsetY = dest.y - startA.y;
         moveOffsetZ = dest.z - startA.z;
+
+        Vector3i moveOffsetVec = new Vector3i(moveOffsetX, moveOffsetY, moveOffsetZ);
+
+        if (transform != null) {
+            moveOffsetVec = transform.apply(moveOffsetVec);
+
+            moveOffsetX = moveOffsetVec.x;
+            moveOffsetY = moveOffsetVec.y;
+            moveOffsetZ = moveOffsetVec.z;
+        }
+
         srcMinX = minX;
         srcMinY = minY;
         srcMinZ = minZ;
@@ -334,12 +350,13 @@ public class PendingMove extends AbstractBuildable {
                     World world = startA.getWorld();
 
                     BlockMover<?> srcMover = BlockMovers.getBlockMover(world, locSrc.x, locSrc.y, locSrc.z);
-                    BlockMover<?> dstMover = BlockMovers.getBlockMover(world, locDst.x, locDst.y, locDst.z);
+                    // BlockMover<?> dstMover = BlockMovers.getBlockMover(world, locDst.x, locDst.y, locDst.z);
+                    BlockMover<?> dstMover = StandardBlockMover.INSTANCE;
 
                     Object srcState = null;
-                    Object dstState = null;
                     BlockSpec srcSpec = null;
-                    BlockSpec dstSpec = null;
+                    Object dstState = null;
+                    BlockSpec dstSpec = BlockSpec.air();
 
                     if (srcMover.snapshotEarly()) {
                         context.loc = locSrc;
@@ -350,14 +367,15 @@ public class PendingMove extends AbstractBuildable {
                         srcState = srcMover.snapshot(context, world, locSrc.x, locSrc.y, locSrc.z);
                     }
 
-                    if (dstMover.snapshotEarly()) {
-                        context.loc = locDst;
-
-                        dstSpec = BlockSpec.fromBlock(null, world, locDst.x, locDst.y, locDst.z);
-                        context.spec = dstSpec;
-
-                        dstState = dstMover.snapshot(context, world, locDst.x, locDst.y, locDst.z);
-                    }
+                    // Destination will always get removed, skip snapshot
+                    /*
+                     * if (dstMover.snapshotEarly()) {
+                     * context.loc = locDst;
+                     * dstSpec = BlockSpec.fromBlock(null, world, locDst.x, locDst.y, locDst.z);
+                     * context.spec = dstSpec;
+                     * dstState = dstMover.snapshot(context, world, locDst.x, locDst.y, locDst.z);
+                     * }
+                     */
 
                     Pair<MoveSnapshot, MoveSnapshot> pair = Pair.of(
                         new MoveSnapshot(locSrc, srcState, srcSpec, (BlockMover<Object>) srcMover),

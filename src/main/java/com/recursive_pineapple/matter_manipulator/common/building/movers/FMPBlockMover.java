@@ -59,10 +59,14 @@ public class FMPBlockMover implements BlockMover<FMPBlock> {
             if (!hasSupportBlock(world, data, x, y, z)) {
                 refundParts(ctx, data);
                 ctx.warn(new ChatComponentText("Could not place " + data.typeId + ": no support block"));
+                continue;
             }
 
             TMultiPart part = MultiPartRegistry.loadPart(data.typeId, data.nbt);
-            if (part == null) continue;
+            if (part == null) {
+                refundParts(ctx, data);
+                continue;
+            } ;
 
             part.load(data.nbt);
 
@@ -75,7 +79,7 @@ public class FMPBlockMover implements BlockMover<FMPBlock> {
             } catch (Exception e) {
                 refundParts(ctx, data);
                 ctx.error(new ChatComponentText("Failed to add multipart: " + data.typeId));
-                return;
+                continue;
             }
         }
 

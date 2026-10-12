@@ -1,24 +1,27 @@
 package com.recursive_pineapple.matter_manipulator.common.building.movers;
 
 import net.minecraft.block.Block;
+import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.world.World;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import appeng.api.implementations.tiles.ISegmentedInventory;
 import appeng.api.parts.IFacadeContainer;
 import appeng.api.parts.IFacadePart;
 import appeng.api.parts.IPart;
 import appeng.api.parts.IPartHost;
-import appeng.api.parts.PartItemStack;
 import appeng.items.parts.ItemFacade;
 import appeng.tile.AEBaseTile;
 
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.common.building.AEPartData;
+import com.recursive_pineapple.matter_manipulator.common.building.InventoryAnalysis;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
+import com.recursive_pineapple.matter_manipulator.common.building.providers.IItemProvider;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 
@@ -74,13 +77,22 @@ public class AEBlockMover implements BlockMover<AEBlock> {
             IFacadeContainer facadeContainer = partHost.getFacadeContainer();
 
             AEPartData[] aeParts = new AEPartData[ForgeDirection.VALID_DIRECTIONS.length];
+            ForgeDirection[] aePartsDir = new ForgeDirection[ForgeDirection.VALID_DIRECTIONS.length];
             PortableItemStack[] aeFacades = new PortableItemStack[ForgeDirection.VALID_DIRECTIONS.length];
+            ForgeDirection[] aeFacadesDir = new ForgeDirection[ForgeDirection.VALID_DIRECTIONS.length];
 
             for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
                 IPart part = partHost.getPart(dir);
 
                 if (part != null) {
-                    aeParts[transform.apply(dir).ordinal()] = new AEPartData(part);
+                    ForgeDirection newDir = transform.apply(dir);
+
+                    aePartsDir[dir.ordinal()] = newDir;
+                    aeParts[newDir.ordinal()] = new AEPartData(part);
+
+                    if (dir != newDir) {
+                        partHost.removePart(dir, true);
+                    }
                 }
             }
 
@@ -88,27 +100,28 @@ public class AEBlockMover implements BlockMover<AEBlock> {
                 IFacadePart facadePart = facadeContainer.getFacade(dir);
 
                 if (facadePart != null) {
-                    aeFacades[transform.apply(dir).ordinal()] = PortableItemStack.withNBT(facadePart.getItemStack());
+                    ForgeDirection newDir = transform.apply(dir);
+
+                    aeFacadesDir[dir.ordinal()] = newDir;
+                    aeFacades[newDir.ordinal()] = PortableItemStack.withNBT(facadePart.getItemStack());
+
+                    if (dir != newDir) {
+                        facadeContainer.removeFacade(partHost, dir);
+                    }
                 }
             }
 
-            // Bypass copy ae-patterns option
-            boolean prevShouldCopyAEPatterns = ctx.getConfig().shouldCopyAEPatterns;
-            ctx.getConfig().shouldCopyAEPatterns = true;
-
             for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
-                IPart part = partHost.getPart(dir);
+                if (aePartsDir[dir.ordinal()] == dir) continue;
 
                 AEPartData data = aeParts[dir.ordinal()];
                 ItemStack partStack = data != null ? data.mPart.toStack() : null;
 
-                if (part != null && !part.getItemStack(PartItemStack.Wrench).equals(partStack)) {
-                    partHost.removePart(dir, true);
-                }
-
                 if (partStack == null) continue;
 
                 if (!partHost.canAddPart(partStack, dir)) {
+                    refundUpgrades(ctx, data.mAEUpgrades);
+                    refundPatterns(ctx, data.mAEPatterns);
                     ctx.givePlayerItems(partStack);
                     ctx.error(
                         new ChatComponentTranslation(
@@ -121,16 +134,69 @@ public class AEBlockMover implements BlockMover<AEBlock> {
                 }
 
                 if (partHost.addPart(partStack, dir, ctx.getRealPlayer()) == null) {
+                    refundUpgrades(ctx, data.mAEUpgrades);
+                    refundPatterns(ctx, data.mAEPatterns);
                     ctx.givePlayerItems(partStack);
                     continue;
+                }
+
+                IPart part = partHost.getPart(dir);
+
+                if (part instanceof ISegmentedInventory inv) {
+                    // Apply upgrades and patterns
+
+                    if (data.mAEUpgrades != null) {
+                        IInventory upgrades = inv.getInventoryByName("upgrades");
+
+                        if (upgrades != null) {
+                            for (int i = 0; i < upgrades.getSizeInventory(); i++) {
+                                upgrades.setInventorySlotContents(i, null);
+                            }
+
+                            for (int i = 0; i < data.mAEUpgrades.length; i++) {
+                                if (i >= upgrades.getSizeInventory()) break;
+
+                                PortableItemStack ps = data.mAEUpgrades[i];
+                                upgrades.setInventorySlotContents(i, ps.toStack());
+                            }
+                        } else {
+                            refundUpgrades(ctx, data.mAEUpgrades);
+                        }
+
+                        data.mAEUpgrades = null;
+                    }
+
+                    if (data.mAEPatterns != null) {
+                        IInventory patterns = inv.getInventoryByName("patterns");
+
+                        if (patterns != null) {
+                            for (int i = 0; i < patterns.getSizeInventory(); i++) {
+                                patterns.setInventorySlotContents(i, null);
+                            }
+
+                            for (int i = 0; i < data.mAEPatterns.mItems.length; i++) {
+                                if (i >= patterns.getSizeInventory()) break;
+
+                                IItemProvider provider = data.mAEPatterns.mItems[i];
+                                if (provider == null) continue;
+
+                                ItemStack stack = provider.getStack(ctx, false);
+                                patterns.setInventorySlotContents(i, stack);
+                            }
+                        } else {
+                            refundPatterns(ctx, data.mAEPatterns);
+                        }
+
+                        data.mAEPatterns = null;
+                    }
                 }
 
                 data.updatePart(ctx, partHost, dir);
             }
 
-            ctx.getConfig().shouldCopyAEPatterns = prevShouldCopyAEPatterns;
-
             for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+                if (aeFacadesDir[dir.ordinal()] == dir) continue;
+
                 facadeContainer.removeFacade(partHost, dir);
 
                 PortableItemStack facade = aeFacades[dir.ordinal()];
@@ -147,6 +213,25 @@ public class AEBlockMover implements BlockMover<AEBlock> {
                     ctx.givePlayerItems(facade.toStack());
                 }
             }
+        }
+    }
+
+    private void refundUpgrades(PendingMove.PendingMoveApplyContext ctx, PortableItemStack[] upgrades) {
+        if (upgrades == null) return;
+
+        for (PortableItemStack ps : upgrades) {
+            ctx.givePlayerItems(ps.toStack());
+        }
+    }
+
+    private void refundPatterns(PendingMove.PendingMoveApplyContext ctx, InventoryAnalysis patterns) {
+        if (patterns == null) return;
+
+        for (IItemProvider provider : patterns.mItems) {
+            if (provider == null) continue;
+
+            ItemStack stack = provider.getStack(ctx, false);
+            ctx.givePlayerItems(stack);
         }
     }
 }
