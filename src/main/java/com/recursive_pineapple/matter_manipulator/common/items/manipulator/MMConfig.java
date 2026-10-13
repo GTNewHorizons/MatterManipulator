@@ -11,6 +11,8 @@ import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockRemoveMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.BlockSelectMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.InterfaceCopyMode;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.P2PInterfaceCopyMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
@@ -37,8 +39,12 @@ public class MMConfig {
     public WeightedSpecList faces = new WeightedSpecList(BlockSpec.air());
     public WeightedSpecList volumes = new WeightedSpecList(BlockSpec.air());
     public BlockSpec cables = BlockSpec.air();
+  
     /** The bends between coord A and coord B in cables mode, in placement order. Null when there are none. */
     public List<Vector3i> cableCorners;
+  
+    // The GT colour (-1 = unpainted)
+    public byte cableColour = -1;
 
     /** These blocks are what gets removed when exchanging */
     public WeightedSpecList replaceWhitelist = new WeightedSpecList(BlockSpec.air());
@@ -57,11 +63,12 @@ public class MMConfig {
      * source CRIB.
      */
     public boolean replaceCribsWithProxies = false;
+    public InterfaceCopyMode interfaceCopyMode = InterfaceCopyMode.COPY;
+    public P2PInterfaceCopyMode p2pInterfaceCopyMode = P2PInterfaceCopyMode.COPY_PATTERNS;
     /**
-     * When true, ME Interface parts with patterns in the copy region are replaced with P2P ME tunnels, with matching
-     * tunnels auto-placed at the source.
+     * When true, AE patterns from the copied interfaces will be applied to the pasted interfaces
      */
-    public boolean replaceInterfacesWithP2P = false;
+    public boolean shouldCopyAEPatterns = false;
 
     public Location getCoordA(World world, Vector3i lookingAt) {
         if (coordAOffset == null) {
@@ -276,13 +283,16 @@ public class MMConfig {
         result = prime * result + ((volumes == null) ? 0 : volumes.hashCode());
         result = prime * result + ((cables == null) ? 0 : cables.hashCode());
         result = prime * result + ((cableCorners == null) ? 0 : cableCorners.hashCode());
+        result = prime * result + Byte.hashCode(cableColour);
         result = prime * result + ((replaceWhitelist == null) ? 0 : replaceWhitelist.hashCode());
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
         result = prime * result + ((arraySpan == null) ? 0 : arraySpan.hashCode());
         result = prime * result + Boolean.hashCode(linkExternalHubs);
         result = prime * result + Boolean.hashCode(replaceCribsWithProxies);
-        result = prime * result + Boolean.hashCode(replaceInterfacesWithP2P);
+        result = prime * result + ((interfaceCopyMode == null) ? 0 : interfaceCopyMode.hashCode());
+        result = prime * result + ((p2pInterfaceCopyMode == null) ? 0 : p2pInterfaceCopyMode.hashCode());
+        result = prime * result + Boolean.hashCode(shouldCopyAEPatterns);
         return result;
     }
 
@@ -334,6 +344,7 @@ public class MMConfig {
         if (cableCorners == null) {
             if (other.cableCorners != null) return false;
         } else if (!cableCorners.equals(other.cableCorners)) return false;
+        if (cableColour != other.cableColour) return false;
         if (replaceWhitelist == null) {
             if (other.replaceWhitelist != null) return false;
         } else if (!replaceWhitelist.equals(other.replaceWhitelist)) return false;
@@ -348,7 +359,9 @@ public class MMConfig {
         } else if (!arraySpan.equals(other.arraySpan)) return false;
         if (linkExternalHubs != other.linkExternalHubs) return false;
         if (replaceCribsWithProxies != other.replaceCribsWithProxies) return false;
-        if (replaceInterfacesWithP2P != other.replaceInterfacesWithP2P) return false;
+        if (interfaceCopyMode != other.interfaceCopyMode) return false;
+        if (p2pInterfaceCopyMode != other.p2pInterfaceCopyMode) return false;
+        if (shouldCopyAEPatterns != other.shouldCopyAEPatterns) return false;
         return true;
     }
 }
