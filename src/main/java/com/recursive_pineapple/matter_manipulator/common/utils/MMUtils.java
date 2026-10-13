@@ -1681,6 +1681,18 @@ public class MMUtils {
         return false;
     }
 
+    /**
+     * @return The colour of the GT cable at the given position, or -1 if it's unpainted or not a GT cable.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    public static byte getGTCableColour(World world, int x, int y, int z) {
+        if (world.getTileEntity(x, y, z) instanceof IGregTechTileEntity igte && igte.getMetaTileEntity() instanceof IConnectable) {
+            return igte.getColorization();
+        }
+
+        return -1;
+    }
+
     public static String getDirectionDisplayName(ForgeDirection dir) {
         return getDirectionDisplayName(dir, false);
     }
