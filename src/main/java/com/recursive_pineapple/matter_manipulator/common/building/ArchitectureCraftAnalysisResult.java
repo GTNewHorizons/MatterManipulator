@@ -172,45 +172,35 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
 
     @Override
     public void transform(Transform transform) {
-        ForgeDirection dSide = ForgeDirection.getOrientation(side);
-        Rotation rTurn = Rotation.byIndex(turn);
+        ForgeDirection oldSide = ForgeDirection.getOrientation(side);
+        Rotation oldRot = Rotation.byIndex(turn);
 
-        boolean clockRotated = rTurn.isClockwise() || rTurn.isCounterClockwise();
+        boolean wasOrthogonal = oldRot.isClockwise() || oldRot.isCounterClockwise();
 
-        ExtendedFacing facing = ExtendedFacing.of(dSide, rTurn, Flip.NONE);
+        ExtendedFacing facing = ExtendedFacing.of(oldSide, oldRot, Flip.NONE);
         facing = transform.apply(facing);
 
-        ForgeDirection oldDSide = dSide;
+        ForgeDirection newSide = facing.getDirection();
+        Rotation newRot = facing.getRotation();
 
-        dSide = facing.getDirection();
-        rTurn = facing.getRotation();
+        boolean isFlipped = !facing.getFlip().isNotFlipped();
+        boolean isUpTransition = (oldSide == ForgeDirection.UP) != (newSide == ForgeDirection.UP);
+        boolean isFlippedAndOrthogonal = isFlipped && (newRot.isClockwise() || newRot.isCounterClockwise());
 
-        boolean verySpecialFlip = !facing.getFlip().isNotFlipped() && (rTurn.isClockwise() || rTurn.isCounterClockwise());
+        if (isUpTransition) {
+            newRot = newRot.getOpposite();
+        }
 
-        if (specialFlip(oldDSide) * specialFlip(dSide) < 0) {
-            rTurn = rTurn.getOpposite();
-
-            if (verySpecialFlip && !clockRotated) {
-                rTurn = rTurn.getOpposite();
+        if (isFlippedAndOrthogonal) {
+            if (!wasOrthogonal && isUpTransition) {
+                newRot = newRot.getOpposite();
+            } else if (wasOrthogonal) {
+                newRot = newRot.getOpposite();
             }
         }
 
-        if (
-            verySpecialFlip && clockRotated
-        ) {
-            rTurn = rTurn.getOpposite();
-        }
-
-        side = (byte) dSide.ordinal();
-        turn = (byte) rTurn.ordinal();
-    }
-
-    private byte specialFlip(ForgeDirection dir) {
-        return switch (dir) {
-            case DOWN, NORTH, SOUTH, WEST, EAST -> 1;
-            case UP -> -1;
-            default -> 1;
-        };
+        side = (byte) newSide.ordinal();
+        turn = (byte) newRot.ordinal();
     }
 
     @Override
