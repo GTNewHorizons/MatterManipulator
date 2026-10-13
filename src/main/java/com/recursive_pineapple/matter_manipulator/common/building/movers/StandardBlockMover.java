@@ -52,4 +52,12 @@ public class StandardBlockMover implements BlockMover<StandardBlock> {
     public void transform(PendingMove.PendingMoveApplyContext ctx, Transform transform, StandardBlock standardBlock) {
 
     }
+
+    @Override
+    public boolean snapshotEarly(World world, int x, int y, int z) {
+        Block block = world.getBlock(x, y, z);
+
+        // Is there a better way to check if a block can stand alone?
+        return block != null && !block.canPlaceBlockAt(world, x, -256, z);
+    }
 }

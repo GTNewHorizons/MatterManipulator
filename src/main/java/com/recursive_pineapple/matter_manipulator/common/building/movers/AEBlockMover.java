@@ -1,8 +1,12 @@
 package com.recursive_pineapple.matter_manipulator.common.building.movers;
 
+import java.util.Iterator;
+import java.util.Map;
+
 import net.minecraft.block.Block;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.world.World;
 
@@ -15,6 +19,7 @@ import appeng.api.parts.IPart;
 import appeng.api.parts.IPartHost;
 import appeng.items.parts.ItemFacade;
 import appeng.tile.AEBaseTile;
+import appeng.tile.crafting.TileCraftingTile;
 
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.recursive_pineapple.matter_manipulator.common.building.AEPartData;
@@ -39,6 +44,17 @@ public class AEBlockMover implements BlockMover<AEBlock> {
         Block block = world.getBlock(x, y, z);
         int meta = world.getBlockMetadata(x, y, z);
         AEBaseTile tile = (AEBaseTile) world.getTileEntity(x, y, z);
+
+        if (tile instanceof TileCraftingTile tileCrafting) {
+            if (tileCrafting.isCoreBlock() && tileCrafting.getCluster() != null) {
+                // Preserve the crafting cluster
+
+                NBTTagCompound tag = new NBTTagCompound();
+                tileCrafting.writeToNBT_TileCraftingTile(tag);
+
+                ctx.pendingMove.getMoverState().put(tile, tag);
+            }
+        }
 
         return new AEBlock(block, meta, tile);
     }
@@ -216,6 +232,12 @@ public class AEBlockMover implements BlockMover<AEBlock> {
         }
     }
 
+    @Override
+    public boolean snapshotEarly(World world, int x, int y, int z) {
+        if (!(world.getTileEntity(x, y, z) instanceof TileCraftingTile tile)) return false;
+        return tile.isCoreBlock() && tile.getCluster() != null;
+    }
+
     private void refundUpgrades(PendingMove.PendingMoveApplyContext ctx, PortableItemStack[] upgrades) {
         if (upgrades == null) return;
 
@@ -232,6 +254,21 @@ public class AEBlockMover implements BlockMover<AEBlock> {
 
             ItemStack stack = provider.getStack(ctx, false);
             ctx.givePlayerItems(stack);
+        }
+    }
+
+    public static void updateCraftingClusters(PendingMove pendingMove) {
+        Map<Object, Object> states = pendingMove.getMoverState();
+        Iterator<Object> iterator = states.keySet().iterator();
+
+        while (iterator.hasNext()) {
+            Object key = iterator.next();
+            if (!(key instanceof TileCraftingTile tileCrafting)) continue;
+
+            NBTTagCompound state = (NBTTagCompound) states.get(key);
+            tileCrafting.readFromNBT_TileCraftingTile(state);
+
+            iterator.remove();
         }
     }
 }

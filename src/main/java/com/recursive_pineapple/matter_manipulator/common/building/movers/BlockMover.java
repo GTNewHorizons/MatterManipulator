@@ -15,7 +15,7 @@ public interface BlockMover<State> {
 
     void transform(PendingMove.PendingMoveApplyContext ctx, Transform transform, State state);
 
-    default boolean snapshotEarly() {
+    default boolean snapshotEarly(World world, int x, int y, int z) {
         return false;
     }
 }

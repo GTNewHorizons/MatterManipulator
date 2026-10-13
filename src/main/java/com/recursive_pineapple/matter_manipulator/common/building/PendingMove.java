@@ -20,6 +20,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
 
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.common.building.movers.AEBlockMover;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMover;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMovers;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.StandardBlockMover;
@@ -275,6 +276,10 @@ public class PendingMove extends AbstractBuildable {
                 moves.size()
             );
         } else {
+            if (Mods.AppliedEnergistics2.isModLoaded()) {
+                AEBlockMover.updateCraftingClusters(this);
+            }
+
             sendInfoToPlayer(
                 player,
                 "mm.info.finished_move"
@@ -284,7 +289,9 @@ public class PendingMove extends AbstractBuildable {
 
     @Override
     public void onStopped() {
-
+        if (Mods.AppliedEnergistics2.isModLoaded()) {
+            AEBlockMover.updateCraftingClusters(this);
+        }
     }
 
     private void initMoves(Transform transform) {
@@ -374,7 +381,10 @@ public class PendingMove extends AbstractBuildable {
                     Object dstState = null;
                     BlockSpec dstSpec = BlockSpec.air();
 
-                    if (srcMover.snapshotEarly()) {
+                    boolean snapshotSrc = srcMover.snapshotEarly(world, locSrc.x, locSrc.y, locSrc.z);
+                    boolean snapshotDst = dstMover.snapshotEarly(world, locSrc.x, locSrc.y, locSrc.z);
+
+                    if (snapshotSrc) {
                         context.loc = locSrc;
 
                         srcSpec = BlockSpec.fromBlock(null, world, locSrc.x, locSrc.y, locSrc.z);
@@ -385,7 +395,7 @@ public class PendingMove extends AbstractBuildable {
 
                     // Destination will always get removed, skip snapshot
                     /*
-                     * if (dstMover.snapshotEarly()) {
+                     * if (snapshotDst) {
                      * context.loc = locDst;
                      * dstSpec = BlockSpec.fromBlock(null, world, locDst.x, locDst.y, locDst.z);
                      * context.spec = dstSpec;
@@ -398,7 +408,7 @@ public class PendingMove extends AbstractBuildable {
                         new MoveSnapshot(locDst, dstState, dstSpec, (BlockMover<Object>) dstMover)
                     );
 
-                    int priority = srcMover.snapshotEarly() || dstMover.snapshotEarly() ? Integer.MIN_VALUE : 0;
+                    int priority = snapshotSrc || snapshotDst ? Integer.MIN_VALUE : 0;
 
                     // FMP needs support blocks so we move them last
                     moves.add(new IntObjectImmutablePair<>(priority, pair));
@@ -490,7 +500,7 @@ public class PendingMove extends AbstractBuildable {
                 if (additionalDrops != null) drops.addAll(additionalDrops);
             }
 
-            pendingMove.givePlayerItems(drops.toArray(new ItemStack[0]));
+            if (!drops.isEmpty()) pendingMove.givePlayerItems(drops.toArray(new ItemStack[0]));
         }
 
         return true;

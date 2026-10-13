@@ -99,7 +99,7 @@ public class FMPBlockMover implements BlockMover<FMPBlock> {
     }
 
     @Override
-    public boolean snapshotEarly() {
+    public boolean snapshotEarly(World world, int x, int y, int z) {
         return true;
     }
 
