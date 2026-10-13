@@ -4,6 +4,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.se
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendWarningToPlayer;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Map;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.world.World;
 
@@ -51,6 +53,9 @@ public class PendingMove extends AbstractBuildable {
 
     private int moveOffsetX, moveOffsetY, moveOffsetZ;
     private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
+
+    private AxisAlignedBB srcBoundingBox;
+    private AxisAlignedBB dstBoundingBox;
 
     /** State that block movers carry from remove() to place(), keyed by the removed block's state object. */
     private final Map<Object, Object> moverState = new IdentityHashMap<>();
@@ -93,6 +98,14 @@ public class PendingMove extends AbstractBuildable {
 
     public int getSrcMaxZ() {
         return srcMaxZ;
+    }
+
+    public AxisAlignedBB getSrcBoundingBox() {
+        return srcBoundingBox;
+    }
+
+    public AxisAlignedBB getDstBoundingBox() {
+        return dstBoundingBox;
     }
 
     public boolean isInSourceRegion(int x, int y, int z) {
@@ -292,7 +305,10 @@ public class PendingMove extends AbstractBuildable {
             paste = transform.apply(paste);
         }
 
-        if (cut.toBoundingBox().intersectsWith(paste.toBoundingBox())) {
+        srcBoundingBox = cut.toBoundingBox();
+        dstBoundingBox = paste.toBoundingBox();
+
+        if (srcBoundingBox.intersectsWith(dstBoundingBox)) {
             sendErrorToPlayer(player, "mm.info.error.move_overlapping");
             return;
         }
@@ -432,6 +448,10 @@ public class PendingMove extends AbstractBuildable {
             BlockCaptureDrops.captureDrops(worldS);
             if (worldS != worldD) BlockCaptureDrops.captureDrops(worldD);
 
+            // Void any items that are dropped in the cut/paste area
+            BlockCaptureDrops.ignoreDropsInArea(worldS, pendingMove.srcBoundingBox);
+            BlockCaptureDrops.ignoreDropsInArea(worldD, pendingMove.dstBoundingBox);
+
             PendingBlock pendingBlockSource = null;
             PendingBlock pendingBlockDest = null;
 
@@ -462,9 +482,15 @@ public class PendingMove extends AbstractBuildable {
                 pendingBlockDest.apply(ctx(pendingMove, s, d.spec), worldS);
             }
         } finally {
-            // delete any items that were dropped
-            BlockCaptureDrops.stopCapturingDrops(worldS);
-            if (worldS != worldD) BlockCaptureDrops.stopCapturingDrops(worldD);
+            List<ItemStack> drops = BlockCaptureDrops.stopCapturingDrops(worldS);
+            if (drops == null) drops = new ArrayList<>();
+
+            if (worldS != worldD) {
+                List<ItemStack> additionalDrops = BlockCaptureDrops.stopCapturingDrops(worldD);
+                if (additionalDrops != null) drops.addAll(additionalDrops);
+            }
+
+            pendingMove.givePlayerItems(drops.toArray(new ItemStack[0]));
         }
 
         return true;
