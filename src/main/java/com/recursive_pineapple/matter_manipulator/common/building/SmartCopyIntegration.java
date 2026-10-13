@@ -26,6 +26,7 @@ public class SmartCopyIntegration implements ITileAnalysisIntegration {
         public ForgeDirection srcSide;
         public ForgeDirection destSide;
         public PortableItemStack p2pItem;
+        public PortableItemStack sourcePart;
 
         public P2PInfo clone() {
             P2PInfo dup = new P2PInfo();
@@ -36,6 +37,7 @@ public class SmartCopyIntegration implements ITileAnalysisIntegration {
             dup.srcSide = srcSide;
             dup.destSide = destSide;
             dup.p2pItem = p2pItem;
+            dup.sourcePart = sourcePart;
             return dup;
         }
     }

@@ -1442,7 +1442,7 @@ public class MMUtils {
 
         List<PendingBlock> blocks = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
         RequiredItemAnalysis itemAnalysis = BlockAnalyzer
-            .getRequiredItemsForBuild(player, blocks, (flags & PLAN_ALL) != 0);
+            .getRequiredItemsForBuild(player, state, blocks, (flags & PLAN_ALL) != 0);
 
         List<BigItemStack> requiredItems = mapToList(
             itemAnalysis.requiredItems.entrySet(),

@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
@@ -32,6 +33,7 @@ import com.google.common.collect.ImmutableList;
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentFluidName;
 import com.gtnewhorizon.gtnhlib.util.map.ItemStackMap;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.common.compat.MicrocontrollerCompat;
 import com.recursive_pineapple.matter_manipulator.common.entities.EntityItemLarge;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
@@ -502,7 +504,10 @@ public class MMInventory implements IPseudoInventory {
                         if (req.meta != Items.feather.getDamage(slot)) continue;
                     }
                 } else {
-                    if (!MMUtils.areStacksBasicallyEqual(reqStack, slot)) continue;
+                    if (
+                        !MMUtils.areStacksBasicallyEqual(reqStack, slot) &&
+                            !(Mods.OpenComputers.isModLoaded() && MicrocontrollerCompat.areEquivalent(reqStack, slot))
+                    ) continue;
                 }
 
                 if (slot.stackSize == 111) {
@@ -552,6 +557,18 @@ public class MMInventory implements IPseudoInventory {
                 ImmutableList.copyOf(state.itemStorage.getStorageList().findFuzzy(aeReq, FuzzyMode.IGNORE_ALL)) :
                 Arrays.asList(state.itemStorage.getStorageList().findPrecise(aeReq));
             // spotless:on
+
+            if (!fuzzy && Mods.OpenComputers.isModLoaded() && MicrocontrollerCompat.isMicrocontroller(req.getItemStack())) {
+                // Microcontrollers with the same parts have different NBT (addresses, energy), so the precise lookup
+                // rarely finds them
+                ItemStack reqStack = req.getItemStack();
+
+                matches = state.itemStorage.getStorageList()
+                    .findFuzzy(aeReq, FuzzyMode.IGNORE_ALL)
+                    .stream()
+                    .filter(match -> MicrocontrollerCompat.areEquivalent(reqStack, match.getItemStack()))
+                    .collect(Collectors.toList());
+            }
 
             for (IAEItemStack match : matches) {
                 if (req.getStackSize() == 0) break;
