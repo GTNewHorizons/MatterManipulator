@@ -39,10 +39,8 @@ public class MMConfig {
     public WeightedSpecList faces = new WeightedSpecList(BlockSpec.air());
     public WeightedSpecList volumes = new WeightedSpecList(BlockSpec.air());
     public BlockSpec cables = BlockSpec.air();
-  
     /** The bends between coord A and coord B in cables mode, in placement order. Null when there are none. */
     public List<Vector3i> cableCorners;
-  
     // The GT colour (-1 = unpainted)
     public byte cableColour = -1;
 

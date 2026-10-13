@@ -7,9 +7,9 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregT
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -882,13 +882,11 @@ public class MMState {
 
                 if (gt == null) gt = new GTAnalysisResult();
 
-                gt.mConnections |= entry.getValue();
                 // paint newly placed cables with the picked cable's colour
                 // existing GT tiles keep their own colour, because thats how it already is
                 if (!(te instanceof IGregTechTileEntity)) gt.mGTColour = config.cableColour;
 
-                if (i > 0) gt.mConnections |= start;
-                if (i < voxels.size() - 1) gt.mConnections |= end;
+                gt.mConnections |= entry.getValue();
 
                 ImmutableBlockSpec spec = mirror != null && isTurn(entry.getValue()) ? mirror : cable;
 
