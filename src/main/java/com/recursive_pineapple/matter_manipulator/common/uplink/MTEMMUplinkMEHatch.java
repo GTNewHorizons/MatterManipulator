@@ -21,6 +21,7 @@ import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
 
@@ -51,6 +52,8 @@ import appeng.api.networking.security.MachineSource;
 import appeng.api.networking.storage.IStorageGrid;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IAEStack;
+import appeng.api.storage.data.IItemList;
 import appeng.api.util.AECableType;
 import appeng.api.util.DimensionalCoord;
 import appeng.helpers.PatternHelper;
@@ -155,12 +158,8 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
             if (!request.poll()) {
                 EntityPlayer player = MMUtils.getPlayerById(request.requester);
                 if (player != null) {
-                    sendErrorToPlayer(
-                        player,
-                        "mm.info.error.craft_failed",
-                        // FIXME: localize it
-                        request.requestName
-                    );
+                    sendErrorToPlayer(player, "mm.info.error.craft_failed", request.requestName);
+                    request.reportFailure(player);
                 }
                 iter.remove();
                 onRequestsChanged();
@@ -605,6 +604,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
     private class ManipulatorRequest {
 
+
         public final UUID requester;
         public final String requestName;
         public final List<IAEItemStack> requiredItems;
@@ -612,6 +612,8 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
         public Future<ICraftingJob> job;
         public ICraftingLink link;
+        private ICraftingJob failedJob;
+        private String failureReason;
 
         private static int counter;
 
@@ -694,11 +696,53 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
         }
 
         /**
-         * Check the job future and crafting link.
-         * If the job future has finished, submit the plan.
-         * If the crafting link was cancelled, tell the hatch to remove this request.
-         * The crafting job will never actually get completed.
-         * It gets cancelled and this request is removed when the fake pattern is pushed.
+         * Shows AE2's unresolved inputs for a simulated crafting job. A cancelled or rejected job
+         * might not identify a specific item, in which case we show the available AE2 error instead.
+         */
+        void reportFailure(EntityPlayer player) {
+            if (failedJob != null && failedJob.isSimulation()
+                && (failedJob.getErrorMessage() == null || failedJob.getErrorMessage().isEmpty())) {
+                IItemList<IAEStack<?>> plan = AEApi.instance()
+                    .storage()
+                    .createAEStackList();
+                failedJob.populatePlan(plan);
+
+                int unresolvedCount = 0;
+                for (IAEStack<?> stack : plan) {
+                    // Requestable inputs are provided by crafting patterns, not missing recipe leaves.
+                    if (stack.getStackSize() <= 0 || stack.getCountRequestable() > 0) continue;
+
+                    IAEStack<?> available = failedJob.getStorageAtBeginning()
+                        .extractItems(stack.copy(), Actionable.SIMULATE, getRequestSource());
+                    long missing = stack.getStackSize() - (available == null ? 0 : available.getStackSize());
+                    if (missing <= 0) continue;
+
+                    if (unresolvedCount == 0) {
+                        sendCraftingError(player, EnumChatFormatting.GOLD, "Crafting errors:");
+                    }
+                    sendCraftingError(player, EnumChatFormatting.RED, missing + "x " + stack.getDisplayName());
+                    unresolvedCount++;
+                }
+
+                if (unresolvedCount > 0) return;
+            }
+
+            // AE2 cannot always attribute a cancellation or CPU failure to a particular item.
+            String reason = failureReason;
+            if (reason == null && failedJob != null) reason = failedJob.getErrorMessage();
+            if (reason == null || reason.trim().isEmpty()) {
+                reason = "AE2 did not identify a failing item (crafting cancelled or no CPU available)";
+            }
+            sendCraftingError(player, EnumChatFormatting.RED, "Auto craft failed: " + reason);
+        }
+
+        private void sendCraftingError(EntityPlayer player, EnumChatFormatting color, String message) {
+            player.addChatComponentMessage(new ChatComponentText(color + "[MM] " + message));
+        }
+
+        /**
+         * Check the job future and crafting link. The crafting job completes when the fake pattern
+         * is pushed; a cancelled link or failed submission removes this request.
          */
         boolean poll() {
             if (!isActive()) { return true; }
@@ -712,6 +756,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
             if (link != null) {
                 if (link.isCanceled()) {
+                    failureReason = "AE2 crafting link cancelled";
                     return false;
                 } else {
                     return true;
@@ -728,7 +773,10 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 );
             }
 
-            if (job == null) { return false; }
+            if (job == null) {
+                failureReason = "AE2 did not start crafting calculation";
+                return false;
+            }
 
             try {
                 ICraftingJob job = null;
@@ -737,9 +785,17 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 }
 
                 if (job != null) {
+                    if (job.isSimulation()) {
+                        failedJob = job;
+                        return false;
+                    }
                     link = cg.submitJob(job, MTEMMUplinkMEHatch.this, null, false, getRequestSource());
 
-                    if (link == null) { return false; }
+                    if (link == null) {
+                        failedJob = job;
+                        failureReason = "No available or sufficiently large AE2 crafting CPU";
+                        return false;
+                    }
 
                     EntityPlayer player = MMUtils.getPlayerById(requester);
 
@@ -753,7 +809,9 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                     }
                 }
             } catch (final InterruptedException | ExecutionException e) {
-                // :P
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+                failureReason = "AE2 calculation: " + (e.getCause() == null ? e.toString() : e.getCause().toString());
+                return false;
             }
 
             return true;
