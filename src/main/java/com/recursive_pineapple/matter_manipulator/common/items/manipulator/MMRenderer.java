@@ -1,8 +1,10 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
@@ -628,48 +630,78 @@ public class MMRenderer {
     private static final int RULER_LENGTH = 128;
 
     /**
-     * Draws a bent cable path as one continuous shape. Each corner gets its own box, and each segment gets a box for
-     * the straight part between its corners. The sides where two boxes touch are left out, so there are no walls
-     * inside the shape.
+     * Draws a bent cable path as one continuous shape.
+     * Straight runs of voxels whose sides match are merged into a single box.
      */
     private static void drawCablePath(List<Vector3i> points, Vector3f colour) {
-        int last = points.size() - 1;
+        List<Vector3i> path = MMState.getCablePath(points);
+        Set<Vector3i> voxels = new HashSet<>(path);
+        Set<Vector3i> drawn = new HashSet<>();
 
-        for (int i = 0; i < last; i++) {
-            Vector3i point = points.get(i);
-            Vector3i next = points.get(i + 1);
+        Vector3i start = null, end = null;
+        ForgeDirection dir = ForgeDirection.UNKNOWN;
+        int startSides = 0, endSides = 0;
 
-            ForgeDirection dir = getAxisDirection(point, next);
+        for (Vector3i voxel : path) {
+            // check if this is already part of the path, if yes then don't render it again
+            if (!drawn.add(voxel)) {
+                if (start != null) drawCableRun(start, end, dir, startSides, endSides, colour);
 
-            Vector3i start = new Vector3i(point);
-            Vector3i end = new Vector3i(next);
-            int openSides = 0;
-
-            // start after the corner before this segment
-            if (i > 0) {
-                start.add(dir.offsetX, dir.offsetY, dir.offsetZ);
-                openSides |= dir.getOpposite().flag;
+                start = null;
+                continue;
             }
 
-            // end before the corner after this segment, and draw that corner
-            if (i + 1 < last) {
-                end.sub(dir.offsetX, dir.offsetY, dir.offsetZ);
-                openSides |= dir.flag;
+            int sides = getCableNeighbours(voxels, voxel);
 
-                ForgeDirection nextDir = getAxisDirection(next, points.get(i + 2));
+            if (start != null) {
+                ForgeDirection step = getAxisDirection(end, voxel);
+                int axis = step.flag | step.getOpposite().flag;
 
-                drawBox(next, next, dir.getOpposite().flag | nextDir.flag, colour);
+                if ((dir == ForgeDirection.UNKNOWN || dir == step) && (startSides & ~axis) == (sides & ~axis)) {
+                    end = voxel;
+                    endSides = sides;
+                    dir = step;
+                    continue;
+                }
+
+                drawCableRun(start, end, dir, startSides, endSides, colour);
             }
 
-            // the segment is empty when two corners are next to each other
-            boolean isEmpty = (end.x - start.x) * dir.offsetX + (end.y - start.y) * dir.offsetY + (end.z - start.z) * dir.offsetZ < 0;
-
-            if (!isEmpty) drawBox(start, end, openSides, colour);
+            // this is the first voxel of a straight segment
+            start = end = voxel;
+            startSides = endSides = sides;
+            dir = ForgeDirection.UNKNOWN;
         }
+
+        if (start != null) drawCableRun(start, end, dir, startSides, endSides, colour);
     }
 
-    private static void drawBox(Vector3i a, Vector3i b, int openSides, Vector3f colour) {
-        BoxRenderer.INSTANCE.drawAround(new VoxelAABB(a, b).toBoundingBox(), colour, openSides);
+    /**
+     * Draws a straight run of cable voxels as one box. The sides along the run are shared by every voxel, the back
+     * side comes from the first voxel and the front side comes from the last voxel.
+     */
+    private static void drawCableRun(Vector3i start, Vector3i end, ForgeDirection dir, int startSides, int endSides, Vector3f colour) {
+        int openSides = (startSides & ~dir.flag) | (endSides & ~dir.getOpposite().flag);
+
+        BoxRenderer.INSTANCE.drawAround(new VoxelAABB(start, end).toBoundingBox(), colour, openSides);
+    }
+
+    /**
+     * @return The {@link ForgeDirection} flags of the sides of a voxel that touch another voxel of the cable.
+     */
+    private static int getCableNeighbours(Set<Vector3i> voxels, Vector3i voxel) {
+        int sides = 0;
+
+        Vector3i neighbour = new Vector3i();
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            neighbour.set(voxel)
+                .add(dir.offsetX, dir.offsetY, dir.offsetZ);
+
+            if (voxels.contains(neighbour)) sides |= dir.flag;
+        }
+
+        return sides;
     }
 
     /**

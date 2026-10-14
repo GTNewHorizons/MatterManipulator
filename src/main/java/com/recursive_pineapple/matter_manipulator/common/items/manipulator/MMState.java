@@ -823,7 +823,7 @@ public class MMState {
      * Gets every voxel along a cable path, in order. Each voxel is adjacent to the one before it. A voxel may appear
      * more than once if the path crosses itself.
      */
-    private static List<Vector3i> getCablePath(List<Vector3i> points) {
+    static List<Vector3i> getCablePath(List<Vector3i> points) {
         List<Vector3i> path = new ArrayList<>();
 
         path.add(points.get(0));
