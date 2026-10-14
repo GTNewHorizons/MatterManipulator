@@ -150,7 +150,6 @@ mm.info.crafting_error_unknown=AE2 did not identify a failing item (crafting can
 mm.info.crafting_error_cancelled=AE2 crafting link cancelled
 mm.info.crafting_error_calculation_not_started=AE2 did not start crafting calculation
 mm.info.crafting_error_cpu_unavailable=No available or sufficiently large AE2 crafting CPU
-mm.info.crafting_error_calculation_failed=AE2 crafting calculation failed: %s
 mm.info.craft_finished='%s' has finished.
 mm.info.cleared_all_plans_and_pending_jobs=Cleared all plans and cancelled pending craft jobs.
 mm.info.cleared_your_manual_plans=Cleared your manual plans.
