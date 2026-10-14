@@ -1320,6 +1320,10 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
                     TransformWindow transformWindow = new TransformWindow(buildContext2);
 
+                    if (state.config.placeMode != PlaceMode.COPYING) {
+                        transformWindow.buildDirectionWidget();
+                    }
+
                     switch (state.config.placeMode) {
                         case CABLES -> transformWindow.buildCableMode();
                         case EXCHANGING -> transformWindow.buildExchangeMode();
@@ -2042,6 +2046,28 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             buildContext.setShowNEI(false);
             builder = ModularWindow.builderFullScreen();
             builder.bindPlayerInventory(buildContext.getPlayer(), 0, -9001);
+        }
+
+        public void buildDirectionWidget() {
+            Widget widget = new MultiChildWidget()
+                .addChild(
+                    new DirectionDrawable()
+                        .asWidget()
+                        .setSize(30, 30)
+                        .setPos(3, 3))
+                .addChild(
+                    new TextWidget(new Text(RED + "X+ " + GREEN + "Y+ " + BLUE + "Z+").shadow())
+                        .setSize(50, 20)
+                        .setPos(34, 6))
+                .setBackground(LABEL_BACKGROUND)
+                .setSize(88, 30);
+
+            builder.widget(
+                new Row().widgets(
+                    padding(10, 10),
+                    new Column()
+                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
+                        .widgets(widget)).fillParent());
         }
 
         public void buildCopyMode() {
