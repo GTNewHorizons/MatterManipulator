@@ -24,6 +24,7 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.IChatComponent;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
@@ -614,6 +615,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
         public ICraftingLink link;
         private ICraftingJob failedJob;
         private String failureReason;
+        private String failureDetail;
 
         private static int counter;
 
@@ -717,27 +719,39 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                     long missing = stack.getStackSize() - (available == null ? 0 : available.getStackSize());
                     if (missing <= 0) continue;
 
-                    if (unresolvedCount == 0) {
-                        sendCraftingError(player, EnumChatFormatting.GOLD, "Crafting errors:");
+                    if (unresolvedCount++ == 0) {
+                        sendCraftingMessage(player, EnumChatFormatting.GOLD, "mm.info.crafting_errors");
                     }
-                    sendCraftingError(player, EnumChatFormatting.RED, missing + "x " + stack.getDisplayName());
-                    unresolvedCount++;
+                    sendCraftingMessage(
+                        player,
+                        EnumChatFormatting.RED,
+                        "mm.info.crafting_error_item",
+                        missing,
+                        stack.getDisplayName()
+                    );
                 }
 
                 if (unresolvedCount > 0) return;
             }
 
-            // AE2 cannot always attribute a cancellation or CPU failure to a particular item.
-            String reason = failureReason;
-            if (reason == null && failedJob != null) reason = failedJob.getErrorMessage();
-            if (reason == null || reason.trim().isEmpty()) {
-                reason = "AE2 did not identify a failing item (crafting cancelled or no CPU available)";
+            // Not every AE2 failure can be attributed to an individual item.
+            IChatComponent reason;
+            if (failureReason != null) {
+                reason = failureDetail == null ? new ChatComponentTranslation(failureReason)
+                    : new ChatComponentTranslation(failureReason, failureDetail);
+            } else if (failedJob != null && failedJob.getErrorMessage() != null
+                && !failedJob.getErrorMessage().trim().isEmpty()) {
+                reason = new ChatComponentText(failedJob.getErrorMessage());
+            } else {
+                reason = new ChatComponentTranslation("mm.info.crafting_error_unknown");
             }
-            sendCraftingError(player, EnumChatFormatting.RED, "Auto craft failed: " + reason);
+            sendCraftingMessage(player, EnumChatFormatting.RED, "mm.info.auto_craft_failed", reason);
         }
 
-        private void sendCraftingError(EntityPlayer player, EnumChatFormatting color, String message) {
-            player.addChatComponentMessage(new ChatComponentText(color + "[MM] " + message));
+        private void sendCraftingMessage(EntityPlayer player, EnumChatFormatting color, String key, Object... args) {
+            player.addChatComponentMessage(
+                new ChatComponentText(color + "[MM] ").appendSibling(new ChatComponentTranslation(key, args))
+            );
         }
 
         /**
@@ -756,7 +770,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
             if (link != null) {
                 if (link.isCanceled()) {
-                    failureReason = "AE2 crafting link cancelled";
+                    failureReason = "mm.info.crafting_error_cancelled";
                     return false;
                 } else {
                     return true;
@@ -774,7 +788,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
             }
 
             if (job == null) {
-                failureReason = "AE2 did not start crafting calculation";
+                failureReason = "mm.info.crafting_error_calculation_not_started";
                 return false;
             }
 
@@ -793,7 +807,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
                     if (link == null) {
                         failedJob = job;
-                        failureReason = "No available or sufficiently large AE2 crafting CPU";
+                        failureReason = "mm.info.crafting_error_cpu_unavailable";
                         return false;
                     }
 
@@ -810,7 +824,8 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                 }
             } catch (final InterruptedException | ExecutionException e) {
                 if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-                failureReason = "AE2 calculation: " + (e.getCause() == null ? e.toString() : e.getCause().toString());
+                failureReason = "mm.info.crafting_error_calculation_failed";
+                failureDetail = e.getCause() == null ? e.toString() : e.getCause().toString();
                 return false;
             }
 
