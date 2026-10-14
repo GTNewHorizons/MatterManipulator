@@ -159,7 +159,12 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
             if (!request.poll()) {
                 EntityPlayer player = MMUtils.getPlayerById(request.requester);
                 if (player != null) {
-                    sendErrorToPlayer(player, "mm.info.error.craft_failed", request.requestName);
+                    sendErrorToPlayer(
+                        player,
+                        "mm.info.error.craft_failed",
+                        // FIXME: localize it
+                        request.requestName
+                    );
                     request.reportFailure(player);
                 }
                 iter.remove();
@@ -615,7 +620,6 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
         public ICraftingLink link;
         private ICraftingJob failedJob;
         private String failureReason;
-        private String failureDetail;
 
         private static int counter;
 
@@ -737,8 +741,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
             // Not every AE2 failure can be attributed to an individual item.
             IChatComponent reason;
             if (failureReason != null) {
-                reason = failureDetail == null ? new ChatComponentTranslation(failureReason)
-                    : new ChatComponentTranslation(failureReason, failureDetail);
+                reason = new ChatComponentTranslation(failureReason);
             } else if (failedJob != null && failedJob.getErrorMessage() != null
                 && !failedJob.getErrorMessage().trim().isEmpty()) {
                 reason = new ChatComponentText(failedJob.getErrorMessage());
@@ -749,9 +752,9 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
         }
 
         private void sendCraftingMessage(EntityPlayer player, EnumChatFormatting color, String key, Object... args) {
-            player.addChatComponentMessage(
-                new ChatComponentText(color + "[MM] ").appendSibling(new ChatComponentTranslation(key, args))
-            );
+            IChatComponent message = new ChatComponentTranslation(key, args);
+            message.getChatStyle().setColor(color);
+            player.addChatComponentMessage(message);
         }
 
         /**
@@ -823,10 +826,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
                     }
                 }
             } catch (final InterruptedException | ExecutionException e) {
-                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-                failureReason = "mm.info.crafting_error_calculation_failed";
-                failureDetail = e.getCause() == null ? e.toString() : e.getCause().toString();
-                return false;
+                // AE2 declares these exceptions, but they are not expected during normal crafting.
             }
 
             return true;
