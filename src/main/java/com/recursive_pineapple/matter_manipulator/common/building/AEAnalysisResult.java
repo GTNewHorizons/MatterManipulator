@@ -409,6 +409,11 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
             if (mAECells != null && cells != null) {
                 mAECells.apply(context, cells, true, true);
             }
+
+            IInventory patterns = segmentedInventory.getInventoryByName("patterns");
+            if (context.getConfig().shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
+                mAEPatterns.apply(context, patterns, true, true);
+            }
         }
 
         if (mAEParts != null && te instanceof IPartHost partHost) {
@@ -456,6 +461,12 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                 if (cell != null) {
                     cell.getStack(context, true);
                 }
+            }
+        }
+
+        if (context.getConfig().shouldCopyAEPatterns && mAEPatterns != null) {
+            for (IItemProvider pattern : mAEPatterns.mItems) {
+                if (pattern != null) pattern.getStack(context, true);
             }
         }
 

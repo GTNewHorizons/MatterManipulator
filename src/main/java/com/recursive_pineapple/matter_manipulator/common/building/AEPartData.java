@@ -200,7 +200,7 @@ public class AEPartData {
             }
 
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
-            if (mAEPatterns != null && patterns != null) {
+            if (context.getConfig().shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
                 if (!mAEPatterns.apply(context, patterns, true, true)) success = false;
             }
         }
@@ -221,7 +221,7 @@ public class AEPartData {
             }
         }
 
-        if (mAEPatterns != null) {
+        if (context.getConfig().shouldCopyAEPatterns && mAEPatterns != null) {
             for (IItemProvider item : mAEPatterns.mItems) {
                 if (item != null) item.getStack(context, true);
             }

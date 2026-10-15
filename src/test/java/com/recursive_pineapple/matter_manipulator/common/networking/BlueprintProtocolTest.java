@@ -8,6 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
 
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintCodec;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintMaterialExport;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintMaterials;
+
 import org.junit.jupiter.api.Test;
 
 import io.netty.buffer.ByteBuf;
@@ -144,6 +148,103 @@ class BlueprintProtocolTest {
         assertTrue(rate.acceptPlan(now));
         assertFalse(rate.acceptPlan(now + 999));
         assertTrue(rate.acceptPlan(now + 1000));
+    }
+
+    @Test
+    void materialPaginationBoundsWorkWithoutOverflowOrLargeAllocations() {
+        assertEquals(0, BlueprintProtocol.materialOffset(0, 7, 0));
+        assertEquals(7, BlueprintProtocol.materialOffset(1, 7, 20));
+        assertEquals(20, BlueprintProtocol.materialOffset(3, 7, 20));
+        assertEquals(65535, BlueprintProtocol.materialOffset(65535, 1, 65536));
+        assertEquals(65536, BlueprintProtocol.materialOffset(65535, 16, 65536));
+        for (int page : new int[] { -1, 65536, Integer.MAX_VALUE }) {
+            assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.materialOffset(page, 16, 65536));
+        }
+        for (int size : new int[] { 0, -1, 17, Integer.MAX_VALUE }) {
+            assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.materialOffset(0, size, 1));
+        }
+        assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.materialOffset(0, 16, -1));
+        assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.materialOffset(0, 16, 65537));
+        assertTrue(BlueprintProtocol.MAX_MATERIAL_PACKET_BYTES < 32768);
+    }
+
+    @Test
+    void materialRowsRoundTripLongTotalsUnicodeAndConfiguredVariantsWithoutNbt() {
+        BlueprintMaterials.Entry source = new BlueprintMaterials.Entry("appliedenergistics2:item.ItemMultiPart", 32,
+            "ME \u5efa\u7bc9 \uD83C\uDFE0", Long.MAX_VALUE, true);
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            BlueprintProtocol.writeMaterial(buffer, source);
+            BlueprintMaterials.Entry result = BlueprintProtocol.readMaterial(buffer);
+            assertEquals(source.registryName, result.registryName);
+            assertEquals(source.metadata, result.metadata);
+            assertEquals(source.displayName, result.displayName);
+            assertEquals(Long.MAX_VALUE, result.amount);
+            assertTrue(result.configured);
+            assertEquals(0, buffer.readableBytes());
+        } finally {
+            buffer.release();
+        }
+    }
+
+    @Test
+    void materialRowsRejectInvalidIdsNonpositiveCountsAndOversizedStrings() {
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            for (String id : new String[] { "", "minecraft:", ":stone", "minecraft:stone:invalid", "stone" }) {
+                assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.writeMaterial(buffer,
+                    new BlueprintMaterials.Entry(id, 0, "Item", 1, false)));
+            }
+            for (long amount : new long[] { 0, -1, Long.MIN_VALUE }) {
+                assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.writeMaterial(buffer,
+                    new BlueprintMaterials.Entry("minecraft:stone", 0, "Item", amount, false)));
+            }
+            assertThrows(IllegalArgumentException.class, () -> new BlueprintMaterials.Entry(
+                new String(new char[257]).replace('\0', 'a'), 0, "Item", 1, false));
+            buffer.clear();
+            BlueprintProtocol.writeText(buffer, "minecraft:stone", 256);
+            buffer.writeInt(0);
+            BlueprintProtocol.writeText(buffer, "Item", 512);
+            buffer.writeLong(-1);
+            buffer.writeBoolean(false);
+            assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.readMaterial(buffer));
+        } finally {
+            buffer.release();
+        }
+    }
+
+    @Test
+    void materialsRateBudgetCannotStarveSelectionAndResetsEachSecond() {
+        BlueprintRate rate = new BlueprintRate();
+        assertTrue(rate.accept(Messages.BlueprintOperation.MATERIALS, 10000));
+        assertTrue(rate.accept(Messages.BlueprintOperation.MATERIALS, 10000));
+        assertFalse(rate.accept(Messages.BlueprintOperation.MATERIALS, 10000));
+        assertTrue(rate.accept(Messages.BlueprintOperation.SELECT, 10000));
+        assertTrue(rate.accept(Messages.BlueprintOperation.MATERIALS, 11000));
+    }
+
+    @Test
+    void bookmarkExportsHaveAnIndependentTwoSecondBudgetAndCannotStarveExplicitSelection() {
+        BlueprintRate rate = new BlueprintRate();
+        long now = 10000;
+        for (int i = 0; i < 8; i++) assertTrue(rate.accept(Messages.BlueprintOperation.RENAME, now));
+        assertFalse(rate.accept(Messages.BlueprintOperation.RENAME, now));
+        assertTrue(rate.accept(Messages.BlueprintOperation.BOOKMARKS, now));
+        for (int i = 0; i < 1000; i++) assertFalse(rate.accept(Messages.BlueprintOperation.BOOKMARKS, now));
+        assertTrue(rate.accept(Messages.BlueprintOperation.SELECT, now));
+        assertTrue(rate.accept(Messages.BlueprintOperation.SELECT, now));
+        assertFalse(rate.accept(Messages.BlueprintOperation.SELECT, now));
+        assertFalse(rate.accept(Messages.BlueprintOperation.BOOKMARKS, now + 1000));
+        assertFalse(rate.accept(Messages.BlueprintOperation.BOOKMARKS, now + 1999));
+        assertTrue(rate.accept(Messages.BlueprintOperation.BOOKMARKS, now + 2000));
+        for (int i = 0; i < 8; i++) assertTrue(rate.accept(Messages.BlueprintOperation.RENAME, now + 2000));
+        assertTrue(rate.accept(Messages.BlueprintOperation.SELECT, now + 2000));
+    }
+
+    @Test
+    void materialExportAndBlueprintChunksShareTheExactTwoMiBBound() {
+        assertEquals(BlueprintMaterialExport.MAX_BYTES, BlueprintCodec.MAX_BYTES);
+        assertEquals(128, BlueprintMaterialExport.MAX_BYTES / BlueprintProtocol.CHUNK_BYTES);
     }
 
     @Test

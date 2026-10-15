@@ -44,17 +44,26 @@ public class Network extends MessageToMessageCodec<FMLProxyPacket, MMPacket> {
 
     @Override
     protected void encode(ChannelHandlerContext aContext, MMPacket aPacket, List<Object> aOutput) {
-        final ByteBuf tBuf = Unpooled.buffer()
-            .writeByte(aPacket.getPacketID());
-        aPacket.encode(tBuf);
         aOutput.add(
             new FMLProxyPacket(
-                tBuf,
+                encodePayload(aPacket),
                 aContext.channel()
                     .attr(NetworkRegistry.FML_CHANNEL)
                     .get()
             )
         );
+    }
+
+    static ByteBuf encodePayload(MMPacket packet) {
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            buffer.writeByte(packet.getPacketID());
+            packet.encode(buffer);
+            // Forge 1.7.10 sends payload.array(), including spare capacity unless we copy the written bytes.
+            return buffer.copy();
+        } finally {
+            buffer.release();
+        }
     }
 
     @Override

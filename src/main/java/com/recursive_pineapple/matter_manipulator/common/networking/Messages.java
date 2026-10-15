@@ -49,6 +49,8 @@ import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.client.gui.BlueprintLibraryScreen;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintClientCache;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintCodec;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintMaterialExport;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintMaterials;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintStore;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.StructureBlueprint;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer;
@@ -536,6 +538,42 @@ public enum Messages {
             return value == null ? new BlueprintResultPacket(message) : (BlueprintResultPacket) value;
         }
     })),
+    BlueprintMaterialList(client(new ISimplePacketHandler<BlueprintMaterialListPacket>() {
+
+        @Override
+        @SideOnly(Side.CLIENT)
+        public void handle(EntityPlayer player, BlueprintMaterialListPacket packet) {
+            BlueprintTasks.enqueueClient(
+                () -> BlueprintLibraryScreen.onMaterials(
+                    packet.request,
+                    packet.id,
+                    packet.page,
+                    packet.totalTypes,
+                    packet.entries
+                )
+            );
+        }
+
+        @Override
+        public BlueprintMaterialListPacket getNewPacket(Messages message, Object value) {
+            return value == null ? new BlueprintMaterialListPacket(message) : (BlueprintMaterialListPacket) value;
+        }
+    })),
+    BlueprintMaterialExportData(client(new ISimplePacketHandler<BlueprintMaterialExportPacket>() {
+
+        @Override
+        @SideOnly(Side.CLIENT)
+        public void handle(EntityPlayer player, BlueprintMaterialExportPacket packet) {
+            BlueprintTasks.enqueueClient(
+                () -> BlueprintLibraryScreen.onMaterialExportData(packet.request, packet.id, packet.total, packet.offset, packet.data)
+            );
+        }
+
+        @Override
+        public BlueprintMaterialExportPacket getNewPacket(Messages message, Object value) {
+            return value == null ? new BlueprintMaterialExportPacket(message) : (BlueprintMaterialExportPacket) value;
+        }
+    })),
 
     ;
 
@@ -545,7 +583,9 @@ public enum Messages {
         SELECT,
         RENAME,
         DELETE,
-        FETCH
+        FETCH,
+        MATERIALS,
+        BOOKMARKS
     }
 
     public enum BlueprintStatus {
@@ -574,12 +614,19 @@ public enum Messages {
         public final BlueprintOperation operation;
         public final int request;
         public final String id, name;
+        public final int page, pageSize;
 
         public BlueprintRequestData(BlueprintOperation operation, int request, String id, String name) {
+            this(operation, request, id, name, 0, 8);
+        }
+
+        public BlueprintRequestData(BlueprintOperation operation, int request, String id, String name, int page, int pageSize) {
             this.operation = operation;
             this.request = request;
             this.id = id == null ? "" : id;
             this.name = name == null ? "" : name;
+            this.page = page;
+            this.pageSize = pageSize;
         }
     }
 
@@ -715,6 +762,38 @@ public enum Messages {
                         BlueprintData.sendToPlayer(player, response);
                     }
                 }
+                case MATERIALS -> {
+                    BlueprintProtocol.validateId(data.id);
+                    BlueprintProtocol.validateMaterialPage(data.page, data.pageSize);
+                    StructureBlueprint blueprint = BlueprintStore.load(world, owner, data.id);
+                    if (blueprint == null) throw new BlueprintFailure(BlueprintStatus.NOT_FOUND);
+                    List<BlueprintMaterials.Entry> materials = BlueprintMaterials.analyze(player, state, blueprint);
+                    int start = BlueprintProtocol.materialOffset(data.page, data.pageSize, materials.size());
+                    BlueprintMaterialListPacket response = new BlueprintMaterialListPacket(BlueprintMaterialList);
+                    response.request = data.request;
+                    response.id = blueprint.id;
+                    response.page = data.page;
+                    response.pageSize = data.pageSize;
+                    response.totalTypes = materials.size();
+                    response.entries.addAll(materials.subList(start, Math.min(materials.size(), start + data.pageSize)));
+                    BlueprintMaterialList.sendToPlayer(player, response);
+                }
+                case BOOKMARKS -> {
+                    BlueprintProtocol.validateId(data.id);
+                    StructureBlueprint blueprint = BlueprintStore.load(world, owner, data.id);
+                    if (blueprint == null) throw new BlueprintFailure(BlueprintStatus.NOT_FOUND);
+                    // Finish analysis and bounded encoding before sending the first chunk. Never export just a visible page.
+                    byte[] snapshot = BlueprintMaterialExport.encode(BlueprintMaterials.export(player, state, blueprint));
+                    for (int offset = 0; offset < snapshot.length; offset += BlueprintProtocol.CHUNK_BYTES) {
+                        BlueprintMaterialExportPacket response = new BlueprintMaterialExportPacket(BlueprintMaterialExportData);
+                        response.request = data.request;
+                        response.id = blueprint.id;
+                        response.total = snapshot.length;
+                        response.offset = offset;
+                        response.data = Arrays.copyOfRange(snapshot, offset, Math.min(snapshot.length, offset + BlueprintProtocol.CHUNK_BYTES));
+                        BlueprintMaterialExportData.sendToPlayer(player, response);
+                    }
+                }
                 case RENAME -> {
                     BlueprintProtocol.validateId(data.id);
                     validateBlueprintName(data.name);
@@ -830,6 +909,11 @@ public enum Messages {
             buffer.writeInt(data.request);
             BlueprintProtocol.writeText(buffer, data.id, 36);
             BlueprintProtocol.writeText(buffer, data.name, BlueprintProtocol.MAX_NAME_BYTES);
+            if (data.operation == BlueprintOperation.MATERIALS) {
+                BlueprintProtocol.validateMaterialPage(data.page, data.pageSize);
+                buffer.writeInt(data.page);
+                buffer.writeByte(data.pageSize);
+            }
         }
 
         @Override
@@ -837,15 +921,13 @@ public enum Messages {
             int operation = buffer.readUnsignedByte();
             if (operation >= BlueprintOperation.values().length) throw new IllegalArgumentException("Invalid blueprint operation");
             int request = buffer.readInt();
-            return new BlueprintRequestPacket(
-                message,
-                new BlueprintRequestData(
-                    BlueprintOperation.values()[operation],
-                    request,
-                    BlueprintProtocol.readText(buffer, 36),
-                    BlueprintProtocol.readText(buffer, BlueprintProtocol.MAX_NAME_BYTES)
-                )
-            );
+            String id = BlueprintProtocol.readText(buffer, 36);
+            String name = BlueprintProtocol.readText(buffer, BlueprintProtocol.MAX_NAME_BYTES);
+            BlueprintOperation action = BlueprintOperation.values()[operation];
+            int page = action == BlueprintOperation.MATERIALS ? buffer.readInt() : 0;
+            int pageSize = action == BlueprintOperation.MATERIALS ? buffer.readUnsignedByte() : 8;
+            if (action == BlueprintOperation.MATERIALS) BlueprintProtocol.validateMaterialPage(page, pageSize);
+            return new BlueprintRequestPacket(message, new BlueprintRequestData(action, request, id, name, page, pageSize));
         }
     }
 
@@ -890,6 +972,88 @@ public enum Messages {
                 if (blocks < 0 || blocks > BlueprintCodec.MAX_BLOCKS) throw new IllegalArgumentException("Invalid blueprint block count");
                 packet.entries.add(new BlueprintEntry(id, name, deltas, blocks));
             }
+            return packet;
+        }
+    }
+
+    private static final class BlueprintMaterialListPacket extends SimplePacket {
+
+        private int request, page, pageSize, totalTypes;
+        private String id;
+        private final List<BlueprintMaterials.Entry> entries = new ArrayList<>();
+
+        private BlueprintMaterialListPacket(Messages message) {
+            super(message);
+        }
+
+        @Override
+        public void encode(ByteBuf buffer) {
+            BlueprintProtocol.validateId(id);
+            int start = BlueprintProtocol.materialOffset(page, pageSize, totalTypes);
+            if (entries.size() != Math.min(pageSize, totalTypes - start)) throw new IllegalArgumentException("Invalid material page size");
+            buffer.writeInt(request);
+            BlueprintProtocol.writeText(buffer, id, 36);
+            buffer.writeInt(page);
+            buffer.writeByte(pageSize);
+            buffer.writeInt(totalTypes);
+            buffer.writeByte(entries.size());
+            for (BlueprintMaterials.Entry entry : entries)
+                BlueprintProtocol.writeMaterial(buffer, entry);
+        }
+
+        @Override
+        public MMPacket decode(ByteBuf buffer) {
+            BlueprintMaterialListPacket packet = new BlueprintMaterialListPacket(message);
+            packet.request = buffer.readInt();
+            packet.id = BlueprintProtocol.readText(buffer, 36);
+            BlueprintProtocol.validateId(packet.id);
+            packet.page = buffer.readInt();
+            packet.pageSize = buffer.readUnsignedByte();
+            packet.totalTypes = buffer.readInt();
+            int start = BlueprintProtocol.materialOffset(packet.page, packet.pageSize, packet.totalTypes);
+            int count = buffer.readUnsignedByte();
+            if (count != Math.min(packet.pageSize, packet.totalTypes - start)) throw new IllegalArgumentException("Invalid material page size");
+            for (int i = 0; i < count; i++)
+                packet.entries.add(BlueprintProtocol.readMaterial(buffer));
+            return packet;
+        }
+    }
+
+    private static final class BlueprintMaterialExportPacket extends SimplePacket {
+
+        private int request, total, offset;
+        private String id;
+        private byte[] data;
+
+        private BlueprintMaterialExportPacket(Messages message) {
+            super(message);
+        }
+
+        @Override
+        public void encode(ByteBuf buffer) {
+            BlueprintProtocol.validateId(id);
+            BlueprintProtocol.validateChunk(total, offset, data.length);
+            buffer.writeInt(request);
+            BlueprintProtocol.writeText(buffer, id, 36);
+            buffer.writeInt(total);
+            buffer.writeInt(offset);
+            buffer.writeShort(data.length);
+            buffer.writeBytes(data);
+        }
+
+        @Override
+        public MMPacket decode(ByteBuf buffer) {
+            BlueprintMaterialExportPacket packet = new BlueprintMaterialExportPacket(message);
+            packet.request = buffer.readInt();
+            packet.id = BlueprintProtocol.readText(buffer, 36);
+            BlueprintProtocol.validateId(packet.id);
+            packet.total = buffer.readInt();
+            packet.offset = buffer.readInt();
+            int size = buffer.readUnsignedShort();
+            BlueprintProtocol.validateChunk(packet.total, packet.offset, size);
+            if (size != buffer.readableBytes()) throw new IllegalArgumentException("Invalid material export chunk length");
+            packet.data = new byte[size];
+            buffer.readBytes(packet.data);
             return packet;
         }
     }
@@ -1816,11 +1980,52 @@ final class BlueprintProtocol {
 
     static final int CHUNK_BYTES = 16 * 1024;
     static final int MAX_ERROR_BYTES = 384;
+    static final int MAX_MATERIAL_PAGE_SIZE = 16;
+    static final int MAX_MATERIAL_TYPES = 65536;
+    static final int MAX_MATERIAL_PACKET_BYTES = 1 + 4 + 2 + 36 + 4 + 1 + 4 + 1 + MAX_MATERIAL_PAGE_SIZE * (2 + 256 + 4 + 2 + 512 + 8 + 1);
     // A valid name has at most 64 UTF-16 code units: BMP characters cost at most 3 UTF-8 bytes per unit.
     static final int MAX_NAME_BYTES = 64 * 3;
     static final int MAX_LIST_PACKET_BYTES = 1 + 4 + 2 + BlueprintStore.MAX_ENTRIES * (2 + 36 + 2 + MAX_NAME_BYTES + 16);
 
     private BlueprintProtocol() {}
+
+    static void validateMaterialPage(int page, int pageSize) {
+        if (page < 0 || page >= MAX_MATERIAL_TYPES || pageSize < 1 || pageSize > MAX_MATERIAL_PAGE_SIZE) {
+            throw new IllegalArgumentException("Invalid material page request");
+        }
+    }
+
+    static int materialOffset(int page, int pageSize, int totalTypes) {
+        validateMaterialPage(page, pageSize);
+        if (totalTypes < 0 || totalTypes > MAX_MATERIAL_TYPES) throw new IllegalArgumentException("Invalid material type count");
+        return (int) Math.min((long) totalTypes, (long) page * pageSize);
+    }
+
+    static void writeMaterial(ByteBuf buffer, BlueprintMaterials.Entry entry) {
+        validateMaterial(entry.registryName, entry.amount);
+        writeText(buffer, entry.registryName, 256);
+        buffer.writeInt(entry.metadata);
+        writeText(buffer, entry.displayName, 512);
+        buffer.writeLong(entry.amount);
+        buffer.writeBoolean(entry.configured);
+    }
+
+    static BlueprintMaterials.Entry readMaterial(ByteBuf buffer) {
+        String id = readText(buffer, 256);
+        int metadata = buffer.readInt();
+        String displayName = readText(buffer, 512);
+        long amount = buffer.readLong();
+        boolean configured = buffer.readBoolean();
+        validateMaterial(id, amount);
+        return new BlueprintMaterials.Entry(id, metadata, displayName, amount, configured);
+    }
+
+    private static void validateMaterial(String id, long amount) {
+        int colon = id.indexOf(':');
+        if (colon <= 0 || colon == id.length() - 1 || id.indexOf(':', colon + 1) >= 0 || amount <= 0) {
+            throw new IllegalArgumentException("Invalid material entry");
+        }
+    }
 
     static long checkedVolume(long x, long y, long z) {
         long volume = 1;
@@ -1918,9 +2123,9 @@ final class BlueprintProtocol {
 /** Per-session limits; SELECT cannot be starved by automatic FETCH or unrelated explicit requests. */
 final class BlueprintRate {
 
-    private long window, lastSave, lastPlan;
-    private boolean saved, planned;
-    private int requests, fetches, selections, lists, feedback;
+    private long window, lastSave, lastPlan, lastExport;
+    private boolean saved, planned, exported;
+    private int requests, fetches, selections, lists, feedback, materials;
 
     boolean accept(Messages.BlueprintOperation operation, long now) {
         resetWindow(now);
@@ -1930,13 +2135,21 @@ final class BlueprintRate {
             selections++;
             return true;
         }
+        if (operation == Messages.BlueprintOperation.BOOKMARKS) {
+            if (exported && now - lastExport < 2000) return false;
+            lastExport = now;
+            exported = true;
+            return true;
+        }
         if (requests >= 8) return false;
         if (operation == Messages.BlueprintOperation.FETCH && fetches >= 2) return false;
         if (operation == Messages.BlueprintOperation.LIST && lists >= 2) return false;
+        if (operation == Messages.BlueprintOperation.MATERIALS && materials >= 2) return false;
         if (operation == Messages.BlueprintOperation.SAVE && saved && now - lastSave < 2000) return false;
         requests++;
         if (operation == Messages.BlueprintOperation.FETCH) fetches++;
         if (operation == Messages.BlueprintOperation.LIST) lists++;
+        if (operation == Messages.BlueprintOperation.MATERIALS) materials++;
         if (operation == Messages.BlueprintOperation.SAVE) {
             lastSave = now;
             saved = true;
@@ -1961,7 +2174,7 @@ final class BlueprintRate {
     private void resetWindow(long now) {
         if (now < window || now - window >= 1000) {
             window = now;
-            requests = fetches = selections = lists = feedback = 0;
+            requests = fetches = selections = lists = feedback = materials = 0;
         }
     }
 }

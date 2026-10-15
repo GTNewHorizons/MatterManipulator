@@ -129,6 +129,7 @@ public class BlockAnalyzer {
         public int x, y, z;
         public EntityPlayer player;
         public MMConfig config;
+        public boolean fromScratch;
 
         public Object2LongOpenHashMap<ItemId> requiredItems = new Object2LongOpenHashMap<>();
 
@@ -157,7 +158,7 @@ public class BlockAnalyzer {
 
         @Override
         public TileEntity getTileEntity() {
-            return world.getTileEntity(x, y, z);
+            return fromScratch ? null : world.getTileEntity(x, y, z);
         }
 
         @Override
@@ -318,6 +319,7 @@ public class BlockAnalyzer {
         context.player = player;
         context.world = player.getEntityWorld();
         context.config = state.config;
+        context.fromScratch = fromScratch;
 
         BlockSpec pooled = new BlockSpec();
 
