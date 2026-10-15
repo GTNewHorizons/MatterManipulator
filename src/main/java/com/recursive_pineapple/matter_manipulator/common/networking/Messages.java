@@ -545,7 +545,6 @@ public enum Messages {
         SELECT,
         RENAME,
         DELETE,
-        WORLD_SOURCE,
         FETCH
     }
 
@@ -647,8 +646,7 @@ public enum Messages {
             if (data.operation == null) throw new BlueprintFailure(BlueprintStatus.INVALID);
             // A pending build owns its original snapshot until item use stops. Never replace it underneath that build.
             if (
-                player.isUsingItem() && (data.operation == BlueprintOperation.SELECT || data.operation == BlueprintOperation.WORLD_SOURCE ||
-                    data.operation == BlueprintOperation.DELETE)
+                player.isUsingItem() && (data.operation == BlueprintOperation.SELECT || data.operation == BlueprintOperation.DELETE)
             ) {
                 throw new BlueprintFailure(BlueprintStatus.BUSY);
             }
@@ -724,12 +722,6 @@ public enum Messages {
                         state.config.action = null;
                         ItemMatterManipulator.setState(held, state);
                     }
-                }
-                case WORLD_SOURCE -> {
-                    state.config.clearBlueprint();
-                    state.config.placeMode = PlaceMode.COPYING;
-                    state.config.action = null;
-                    ItemMatterManipulator.setState(held, state);
                 }
             }
         } catch (BlueprintFailure e) {

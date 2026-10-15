@@ -56,7 +56,6 @@ mm.blueprint.select=Select
 mm.blueprint.rename=Rename
 mm.blueprint.delete=Delete
 mm.blueprint.confirm=Confirm Delete
-mm.blueprint.world=World Selection
 mm.blueprint.refresh=Refresh
 mm.blueprint.done=Done
 mm.blueprint.previous=Previous
@@ -81,7 +80,7 @@ mm.blueprint.result.range=The source region is outside this manipulator's range.
 mm.blueprint.result.unloaded=Every source chunk must already be loaded.
 mm.blueprint.result.storage=Blueprint storage failed. See the server log for details.
 mm.blueprint.result.busy=Finish using the tool, or wait a moment and try again.
-mm.blueprint.source_required=To save, use World Selection in Copy mode and mark both source corners.
+mm.blueprint.source_required=To save, use Mark Copy in Copy mode and mark both source corners.
 mm.blueprint.warning=SmartCopy and wireless links are not restored. Opaque GT machine data is omitted; reconfigure these settings after placement.
 
 # GUI

@@ -129,7 +129,7 @@ In **Copying** mode, open the radial menu and choose **Blueprint Library**. This
 1. Mark a source region with **Mark Copy**.
 2. Open **Blueprint Library**, enter a name, and click **Save Region**.
 3. Select a saved entry and click **Select**. Mark the paste position, adjust the existing rotation, flip, or stack settings, then build normally with sneak + right-click.
-4. Use **World Selection** to return to copying the live source region. The library also supports searching, renaming, and confirmed deletion.
+4. Use **Mark Copy** to stop using the active blueprint and select a new source region in the world. Saved blueprints remain in the library, which also supports searching, renaming, and confirmed deletion.
 
 A blueprint is an independent snapshot: the original can be removed or unloaded. It can be pasted in another dimension of the same world/server. Building still consumes the normal items and energy and obeys the tool's range and removal settings. Material planning also works with saved blueprints. Entries belong to the player's UUID, not to the tool, so another player cannot use a transferred tool's active blueprint reference.
 

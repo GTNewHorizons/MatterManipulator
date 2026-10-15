@@ -32,7 +32,7 @@ import org.lwjgl.input.Mouse;
 @SideOnly(Side.CLIENT)
 public class BlueprintLibraryScreen extends GuiScreen {
 
-    private static final int SAVE = 1, SELECT = 2, RENAME = 3, DELETE = 4, WORLD = 5, REFRESH = 6, DONE = 7, PREV = 8, NEXT = 9;
+    private static final int SAVE = 1, SELECT = 2, RENAME = 3, DELETE = 4, REFRESH = 6, DONE = 7, PREV = 8, NEXT = 9;
     private final List<BlueprintEntry> entries = new ArrayList<>();
     private final List<BlueprintEntry> filtered = new ArrayList<>();
     private GuiTextField search, name;
@@ -70,10 +70,9 @@ public class BlueprintLibraryScreen extends GuiScreen {
         add(SELECT, left + quarter, height - 60, quarter - 3, "select");
         add(RENAME, left + quarter * 2, height - 60, quarter - 3, "rename");
         add(DELETE, left + quarter * 3, height - 60, panelWidth - quarter * 3, "delete");
-        int third = panelWidth / 3;
-        add(WORLD, left, height - 35, third - 3, "world");
-        add(REFRESH, left + third, height - 35, third - 3, "refresh");
-        add(DONE, left + third * 2, height - 35, panelWidth - third * 2, "done");
+        int half = panelWidth / 2;
+        add(REFRESH, left, height - 35, half - 3, "refresh");
+        add(DONE, left + half, height - 35, panelWidth - half, "done");
         add(PREV, left, height - 123, 65, "previous");
         add(NEXT, left + panelWidth - 65, height - 123, 65, "next");
         filter();
@@ -159,7 +158,6 @@ public class BlueprintLibraryScreen extends GuiScreen {
                 case SAVE -> !busy && canSave && validName();
                 case SELECT, DELETE -> !busy && hasSelection;
                 case RENAME -> !busy && hasSelection && validName();
-                case WORLD -> !busy;
                 case REFRESH -> !busy && listRequest == -1;
                 case PREV -> page > 0;
                 case NEXT -> page + 1 < pages();
@@ -188,7 +186,6 @@ public class BlueprintLibraryScreen extends GuiScreen {
                     status = text("confirm_delete", entry.name);
                 }
             }
-            case WORLD -> send(BlueprintOperation.WORLD_SOURCE);
             case REFRESH -> refresh();
             case DONE -> mc.displayGuiScreen(null);
             case PREV -> page--;
@@ -328,7 +325,7 @@ public class BlueprintLibraryScreen extends GuiScreen {
         drawCenteredString(fontRendererObj, fontRendererObj.trimStringToWidth(status, panelWidth), width / 2, height - 11, 0xFFFF88);
         super.drawScreen(mouseX, mouseY, partialTicks);
         if (!hasWorldSource() && mouseX >= left && mouseX < left + panelWidth / 4 && mouseY >= height - 60 && mouseY < height - 40) {
-            String guidance = localized("source_required", "To save, use world selection in Copy mode and mark both source corners.");
+            String guidance = localized("source_required", "To save, use Mark Copy in Copy mode and mark both source corners.");
             drawHoveringText(fontRendererObj.listFormattedStringToWidth(guidance, Math.min(panelWidth, 280)), mouseX, mouseY, fontRendererObj);
         }
     }
@@ -383,7 +380,7 @@ public class BlueprintLibraryScreen extends GuiScreen {
         if (operation == BlueprintOperation.SAVE || operation == BlueprintOperation.RENAME || operation == BlueprintOperation.DELETE) {
             screen.refresh();
         }
-        if (operation == BlueprintOperation.SELECT || operation == BlueprintOperation.WORLD_SOURCE) {
+        if (operation == BlueprintOperation.SELECT) {
             Minecraft.getMinecraft().displayGuiScreen(null);
         } else
             screen.updateButtons();
