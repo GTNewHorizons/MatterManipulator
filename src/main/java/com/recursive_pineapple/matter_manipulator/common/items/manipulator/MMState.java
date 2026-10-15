@@ -865,8 +865,15 @@ public class MMState {
 
                 int flags = connections.getOrDefault(voxel, 0);
 
-                if (i > 0) flags |= getDirectionFlag(voxel, path.get(i - 1));
-                if (i < path.size() - 1) flags |= getDirectionFlag(voxel, path.get(i + 1));
+                // the voxels before and after this one
+                for (int j = i - 1; j <= i + 1; j += 2) {
+                    if (j < 0 || j >= path.size()) continue;
+
+                    ForgeDirection dir = getAxisDirection(voxel, path.get(j));
+
+                    // UNKNOWN's flag isn't a side, so it must not end up in the connections
+                    if (dir != ForgeDirection.UNKNOWN) flags |= dir.flag;
+                }
 
                 connections.put(voxel, flags);
             }
@@ -904,11 +911,7 @@ public class MMState {
      */
     @Optional(Names.GREG_TECH_NH)
     private static boolean isBendableLaserPipe(ImmutableBlockSpec cable) {
-        int id = cable.getItemMeta();
-
-        if (id < 0 || id >= GregTechAPI.METATILEENTITIES.length) return false;
-
-        IMetaTileEntity mte = GregTechAPI.METATILEENTITIES[id];
+        IMetaTileEntity mte = MMUtils.getIndexSafe(GregTechAPI.METATILEENTITIES, cable.getItemMeta());
 
         return mte instanceof MTEPipeLaser && !(mte instanceof MTEPipeLaserMirror);
     }
@@ -930,17 +933,6 @@ public class MMState {
         return flags != (ForgeDirection.DOWN.flag | ForgeDirection.UP.flag) &&
             flags != (ForgeDirection.NORTH.flag | ForgeDirection.SOUTH.flag) &&
             flags != (ForgeDirection.WEST.flag | ForgeDirection.EAST.flag);
-    }
-
-    /**
-     * @return The flag of the direction from one voxel to an adjacent voxel.
-     */
-    private static int getDirectionFlag(Vector3i from, Vector3i to) {
-        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
-            if (from.x + dir.offsetX == to.x && from.y + dir.offsetY == to.y && from.z + dir.offsetZ == to.z) { return dir.flag; }
-        }
-
-        return 0;
     }
 
     @Optional(Names.APPLIED_ENERGISTICS2)
@@ -1397,6 +1389,20 @@ public class MMState {
             case 2 -> new Vector3i(origin.x, origin.y, point.z);
             default -> throw new AssertionError();
         };
+    }
+
+    /**
+     * @return The direction from one point to another point on one of its axes, or UNKNOWN if the points are equal or
+     *         not on a shared axis.
+     */
+    static ForgeDirection getAxisDirection(Vector3i from, Vector3i to) {
+        int dx = Integer.signum(to.x - from.x), dy = Integer.signum(to.y - from.y), dz = Integer.signum(to.z - from.z);
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (dir.offsetX == dx && dir.offsetY == dy && dir.offsetZ == dz) return dir;
+        }
+
+        return ForgeDirection.UNKNOWN;
     }
 
     public boolean hasUpgrade(MMUpgrades upgrade) {

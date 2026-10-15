@@ -654,7 +654,7 @@ public class MMRenderer {
             int sides = getCableNeighbours(voxels, voxel);
 
             if (start != null) {
-                ForgeDirection step = getAxisDirection(end, voxel);
+                ForgeDirection step = MMState.getAxisDirection(end, voxel);
                 int axis = step.flag | step.getOpposite().flag;
 
                 if ((dir == ForgeDirection.UNKNOWN || dir == step) && (startSides & ~axis) == (sides & ~axis)) {
@@ -702,19 +702,6 @@ public class MMRenderer {
         }
 
         return sides;
-    }
-
-    /**
-     * @return The direction from one point to another point on one of its axes.
-     */
-    private static ForgeDirection getAxisDirection(Vector3i from, Vector3i to) {
-        int dx = Integer.signum(to.x - from.x), dy = Integer.signum(to.y - from.y), dz = Integer.signum(to.z - from.z);
-
-        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
-            if (dir.offsetX == dx && dir.offsetY == dy && dir.offsetZ == dz) return dir;
-        }
-
-        return ForgeDirection.UNKNOWN;
     }
 
     private static void drawRulers(EntityPlayer player, Location l, boolean fromSurface, float partialTickTime) {
