@@ -113,8 +113,7 @@ public class MMRenderer {
     }
 
     private static boolean restoreCopyAnalysis(MMState state, World world) {
-        if (!copySnapshotEnabled || cachedCopyBlocks == null || cachedCopyWorld != world
-            || !Objects.equals(cachedCopyConfig, state.config)) return false;
+        if (!copySnapshotEnabled || cachedCopyBlocks == null || cachedCopyWorld != world || !Objects.equals(cachedCopyConfig, state.config)) return false;
 
         analysisCache = cachedCopyBlocks;
         return true;
@@ -438,8 +437,8 @@ public class MMRenderer {
     }
 
     private static void renderRegions(RenderWorldLastEvent event, EntityPlayer player, MMState state, ItemMatterManipulator manipulator) {
-        boolean markingCopy = state.config.placeMode == PlaceMode.COPYING
-            && (state.config.action == PendingAction.MARK_COPY_A || state.config.action == PendingAction.MARK_COPY_B);
+        boolean markingCopy = state.config.placeMode == PlaceMode.COPYING &&
+            (state.config.action == PendingAction.MARK_COPY_A || state.config.action == PendingAction.MARK_COPY_B);
 
         if (markingCopy && !copySelectionInProgress) {
             // This is a NEW Copy selection, not coordinates restored from item NBT.
@@ -581,16 +580,14 @@ public class MMRenderer {
                 // Only restore a snapshot if a NEW Copy was marked in this world,
                 // before the normal reanalysis checks. Do not require object identity with the old
                 // render list: other modes and clear() legitimately replace it.
-                if (snapshotMode && !markingCopy && (viewChanged || analysisCache == null)
-                    && restoreCopyAnalysis(state, player.worldObj)) {
+                if (snapshotMode && !markingCopy && (viewChanged || analysisCache == null) && restoreCopyAnalysis(state, player.worldObj)) {
                     lastAnalyzedConfig = state.clone().config;
                     needsHintDraw = true;
                 }
 
                 boolean sourceReturned = copyMode && sourceAvailable && !sourceWasAvailable;
                 boolean selectionChanged = !Objects.equals(lastAnalyzedConfig, state.config);
-                boolean positionChanged = lastPlayerPosition == null
-                    || (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
+                boolean positionChanged = lastPlayerPosition == null || (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
 
                 // A Paste chunk may finish loading while the player stands still.
                 // Probe only the player's current chunk once per second; other
@@ -611,11 +608,13 @@ public class MMRenderer {
                 // Snapshot mode reads Copy only when needed; the ten-second timer
                 // updates Paste. Fallback mode rereads Copy normally when loaded.
                 boolean refreshDue = (now - lastAnalysisMS) >= ANALYSIS_INTERVAL_MS;
-                boolean reanalyze = needsAnalysis || selectionChanged || sourceReturned
-                    || (copyAnalysisDeferred && sourceAvailable)
-                    || (analysisCache == null && sourceAvailable)
+                boolean reanalyze = needsAnalysis || selectionChanged ||
+                    sourceReturned ||
+                    (copyAnalysisDeferred && sourceAvailable) ||
+                    (analysisCache == null && sourceAvailable)
                     // With snapshots disabled, use the normal periodic source read.
-                    || (copyMode && !snapshotMode && refreshDue && sourceAvailable);
+                    ||
+                    (copyMode && !snapshotMode && refreshDue && sourceAvailable);
                 if (viewChanged && analysisCache == null) {
                     // No valid snapshot exists: wait for source chunks rather
                     // than reading unloaded Copy data as air.
@@ -780,7 +779,6 @@ public class MMRenderer {
             if (errors != null && errors.remove(packed)) {
                 tint = ERROR;
             }
-
 
             if (pendingBlock.spec.isAir()) {
                 RenderHints.INSTANCE.addHint(
