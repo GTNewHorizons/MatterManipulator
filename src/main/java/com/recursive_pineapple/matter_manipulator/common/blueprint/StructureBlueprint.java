@@ -25,7 +25,8 @@ public class StructureBlueprint {
      * SmartCopy actions cannot be undone and are rejected. Internal P2P groups become blueprint-local positive tokens;
      * the build caller must remap these to fresh destination frequencies before placement. One-sided P2P groups,
      * absolute wireless targets, AE source identity fields and opaque GT mGTData are discarded. Item/pattern NBT is
-     * preserved verbatim, not inspected for links; this is not a general-purpose NBT security boundary.
+     * preserved verbatim except quantum bridge inventories/names, which contain the installed singularity's identity.
+     * This is not a general-purpose NBT security boundary.
      */
     public static StructureBlueprint capture(RegionAnalysis analysis, String name) {
         if (analysis == null) throw new IllegalArgumentException("Missing region analysis");

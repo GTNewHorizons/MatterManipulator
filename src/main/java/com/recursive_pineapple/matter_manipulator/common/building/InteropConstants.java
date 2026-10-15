@@ -4,10 +4,14 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.MaterialLiquid;
 import net.minecraft.block.material.MaterialTransparent;
 import net.minecraft.init.Blocks;
+import net.minecraft.tileentity.TileEntity;
 
 import net.minecraftforge.oredict.OreDictionary;
 
 import gregtech.api.GregTechAPI;
+
+import appeng.block.qnb.BlockQuantumBase;
+import appeng.tile.qnb.TileQuantumBridge;
 
 import com.gtnewhorizon.gtnhlib.util.data.LazyBlock;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
@@ -33,6 +37,24 @@ public class InteropConstants {
     public static final LazyBlockSpec OC_TRANSPOSER = LazyBlockSpec.ofBlock(Mods.OpenComputers, "transposer", MMValues.W);
     public static final LazyBlockSpec OC_MICROCONTROLLER = LazyBlockSpec.ofBlock(Mods.OpenComputers, "microcontroller", MMValues.W);
     public static final LazyBlockSpec ENDER_STORAGE = LazyBlockSpec.ofBlock(Mods.EnderStorage, "enderChest", MMValues.W);
+
+    public static boolean isQuantumBridge(TileEntity tile) {
+        return tile != null && Mods.AppliedEnergistics2.isModLoaded() && isAEQuantumBridge(tile);
+    }
+
+    public static boolean isQuantumBridge(Block block) {
+        return block != null && Mods.AppliedEnergistics2.isModLoaded() && isAEQuantumBridge(block);
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static boolean isAEQuantumBridge(TileEntity tile) {
+        return tile instanceof TileQuantumBridge;
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static boolean isAEQuantumBridge(Block block) {
+        return block instanceof BlockQuantumBase;
+    }
 
     public static boolean isWirelessConnector(Block block, int meta) {
         return WIRELESS_CONNECTOR.matches(block, meta) || WIRELESS_HUB.matches(block, meta);

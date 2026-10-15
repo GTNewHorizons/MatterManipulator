@@ -131,6 +131,52 @@ class BlueprintCodecTest {
     }
 
     @Test
+    void quantumBridgeDataExcludesInventoryAndSingularityNamesForBlockAndItemSpecs() {
+        for (String name : new String[] { "tile.BlockQuantumRing", "tile.BlockQuantumLinkChamber" }) {
+            for (boolean isBlock : new boolean[] { true, false }) {
+                JsonObject block = quantumInventoryBlock("appliedenergistics2:" + name);
+                block.getAsJsonObject("spec").addProperty("b", isBlock);
+                JsonObject tree = snapshotTree(block);
+                BlueprintCodec.stripQuantumBridgeData(tree);
+                assertTrue(!block.has("inventory"));
+                JsonObject ae = aeData(block);
+                assertTrue(!ae.has("mAECustomName"));
+                assertTrue(!ae.has("mAEConfig"));
+                assertEquals(1, ae.get("mAEUp").getAsInt());
+                assertEquals(2, ae.get("mAEForward").getAsInt());
+                String sanitized = tree.toString();
+                BlueprintCodec.stripQuantumBridgeData(tree);
+                assertEquals(sanitized, tree.toString());
+            }
+        }
+    }
+
+    @Test
+    void quantumExclusionLeavesOtherInventoriesSettingsAndUpgradesUntouched() {
+        for (String id : new String[] { "minecraft:chest", "appliedenergistics2:tile.BlockCableBus",
+            "appliedenergistics2:item.ItemMultiPart", "gregtech:gt.blockmachines", "othermod:tile.BlockQuantumLinkChamber" }) {
+            JsonObject tree = snapshotTree(quantumInventoryBlock(id));
+            String original = tree.toString();
+            BlueprintCodec.stripQuantumBridgeData(tree);
+            assertEquals(original, tree.toString());
+        }
+    }
+
+    private static JsonObject quantumInventoryBlock(String id) {
+        JsonObject block = aeBlock("[{\"mAEUpgrades\":[{\"id\":\"appliedenergistics2:item.ItemMultiMaterial\",\"m\":30}]}]");
+        JsonObject spec = new JsonObject();
+        spec.addProperty("id", id);
+        spec.addProperty("b", true);
+        block.add("spec", spec);
+        block.add("inventory", new JsonParser().parse("{\"mItems\":[{\"type\":\"stack\",\"data\":{\"nbt\":{\"freq\":\"l123\"}}}]}"));
+        aeData(block).addProperty("mAECustomName", "Source singularity");
+        aeData(block).add("mAEConfig", new JsonParser().parse("{\"display\":{\"Name\":\"Source singularity\"}}"));
+        aeData(block).addProperty("mAEUp", 1);
+        aeData(block).addProperty("mAEForward", 2);
+        return block;
+    }
+
+    @Test
     void internalP2PGroupsGetStableLocalTokensAndExternalGroupsAreCleared() {
         JsonObject first = aeBlock("[{\"mP2PFreq\":9007199254740993,\"mP2POutput\":true},null,"
             + "{\"mP2PFreq\":88,\"mP2POutput\":false},{\"mP2PFreq\":5,\"mP2POutput\":false},{\"mP2PFreq\":0}]");

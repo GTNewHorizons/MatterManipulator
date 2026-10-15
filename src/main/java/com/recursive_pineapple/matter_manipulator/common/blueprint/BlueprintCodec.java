@@ -143,6 +143,8 @@ public final class BlueprintCodec {
             checkSyntax(json);
             JsonObject tree = object(new JsonParser().parse(json));
             validateTree(tree);
+            // Apply this on read too: pre-fix files and cached JSON must not restore old quantum links.
+            stripQuantumBridgeData(tree);
             // Full snapshots are authoritative; older version-1 files may not contain this derived field.
             tree.addProperty("blockCount", tree.getAsJsonArray("blocks").size());
             StructureBlueprint blueprint = GSON.fromJson(tree, StructureBlueprint.class);
@@ -177,6 +179,7 @@ public final class BlueprintCodec {
         for (JsonElement block : tree.getAsJsonArray("blocks"))
             block.getAsJsonObject().addProperty("worldId", 0);
         validateTree(tree);
+        stripQuantumBridgeData(tree);
         return tree;
     }
 
@@ -250,6 +253,24 @@ public final class BlueprintCodec {
                 }
             }
             if (block.has("smartCopy")) throw new IllegalArgumentException("SmartCopy is not portable");
+        }
+    }
+
+    static void stripQuantumBridgeData(JsonObject tree) {
+        for (JsonElement element : tree.getAsJsonArray("blocks")) {
+            JsonObject block = object(element);
+            String id = string(required(object(required(block, "spec")), "id"));
+            if (!"appliedenergistics2:tile.BlockQuantumRing".equals(id) && !"appliedenergistics2:tile.BlockQuantumLinkChamber".equals(id)) continue;
+
+            // Every bridge tile has an inventory, even ring blocks. Its singularity carries the source link identity.
+            // Omit the plan entirely rather than clearing slots: existing destination contents must remain untouched.
+            block.remove("inventory");
+            JsonObject ae = integrationData(block, "ae");
+            if (ae != null) {
+                // Bridge names/settings describe the installed singularity; renaming it can rename its remote partner.
+                ae.remove("mAECustomName");
+                ae.remove("mAEConfig");
+            }
         }
     }
 

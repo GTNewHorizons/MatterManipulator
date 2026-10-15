@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentTranslation;
 
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
@@ -84,6 +85,8 @@ public class InventoryAnalysis {
      * @return True when the inventory was successfully updated
      */
     public boolean apply(IBlockApplyContext context, IInventory inv, boolean consume, boolean simulate) {
+        // Guard the actual destination too: live copies and stale plans may bypass blueprint serialization.
+        if (inv instanceof TileEntity tile && InteropConstants.isQuantumBridge(tile)) return true;
         return apply(context, inv, InventoryAdapter.findAdapter(inv), consume, simulate);
     }
 

@@ -82,7 +82,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         if (te instanceof AEBaseTile ae) {
             mAEUp = nullIfUnknown(ae.getUp());
             mAEForward = nullIfUnknown(ae.getForward());
-            mAEConfig = MMUtils.toJsonObject(ae.downloadSettings(SettingsFrom.MEMORY_CARD));
+            if (!InteropConstants.isQuantumBridge(te)) mAEConfig = MMUtils.toJsonObject(ae.downloadSettings(SettingsFrom.MEMORY_CARD));
         }
 
         if (te instanceof IColorableTile colorable) {
@@ -90,7 +90,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         }
 
         // check if the tile has a custom name
-        if (te instanceof ICustomNameObject customName && !(te instanceof TileCableBus)) {
+        if (te instanceof ICustomNameObject customName && !(te instanceof TileCableBus) && !InteropConstants.isQuantumBridge(te)) {
             mAECustomName = customName.hasCustomName() ? customName.getCustomName() : null;
         }
 
@@ -206,7 +206,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
                 ae.setOrientation(mAEForward, mAEUp);
             }
 
-            if (mAEConfig != null) {
+            if (mAEConfig != null && !InteropConstants.isQuantumBridge(te)) {
                 ae.uploadSettings(SettingsFrom.MEMORY_CARD, (NBTTagCompound) MMUtils.toNbt(mAEConfig));
             }
         }
@@ -217,7 +217,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         }
 
         // set ae tile custom name
-        if (mAECustomName != null && te instanceof ICustomNameObject customName && !(te instanceof TileCableBus)) {
+        if (mAECustomName != null && te instanceof ICustomNameObject customName && !(te instanceof TileCableBus) && !InteropConstants.isQuantumBridge(te)) {
             customName.setCustomName(mAECustomName);
         }
 

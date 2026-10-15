@@ -200,7 +200,7 @@ public class PendingBlock extends Location {
             if (!analysis.getRequiredItemsForExistingBlock(context)) return false;
         }
 
-        if (this.inventory != null && te instanceof IInventory inventory) {
+        if (this.inventory != null && te instanceof IInventory inventory && !InteropConstants.isQuantumBridge(te)) {
             this.inventory.apply(context, inventory, true, true);
         }
 
@@ -217,7 +217,7 @@ public class PendingBlock extends Location {
             if (!analysis.getRequiredItemsForNewBlock(context)) return false;
         }
 
-        if (this.inventory != null) {
+        if (this.inventory != null && !InteropConstants.isQuantumBridge(spec.getBlock())) {
             for (IItemProvider item : this.inventory.mItems) {
                 if (item != null) {
                     item.getStack(context, true);
@@ -555,9 +555,11 @@ public class PendingBlock extends Location {
                 this.cb = CarpentersBlocksAnalysisResult.analyze(te);
             }
 
+            // Quantum singularities identify external links and must be supplied manually, never copied.
             // Microcontroller parts are copied with the item (see MicrocontrollerCompat), not as an inventory
             if (
                 (flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory &&
+                    !InteropConstants.isQuantumBridge(te) &&
                     !InteropConstants.OC_MICROCONTROLLER.matches(te.getBlockType(), te.getBlockMetadata())
             ) {
                 this.inventory = InventoryAnalysis.fromInventory(inventory, false);

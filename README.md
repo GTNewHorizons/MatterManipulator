@@ -142,6 +142,7 @@ Limits: **128 entries per player**, **32,768 positions in a source region**, **2
 - SmartCopy operations that depend on the original (CRIB proxies, source-side interface-to-P2P conversion, and external hub links) are not applied to blueprints.
 - Internal P2P groups with both input and output in the snapshot are remapped for each paste/array instance. One-sided P2P links are disconnected. Frequencies alone do not distinguish separate source AE networks; avoid capturing unrelated networks reusing the same frequency.
 - Wireless links must be configured again after placement.
+- Quantum bridge rings/chambers are built without singularities. Install a new entangled pair manually. Their inventory and singularity names are excluded, including when loading older blueprints. The same restriction applies to live Copy mode and is enforced on the actual destination tile before inventory changes. Existing bridge singularities are not inserted, removed, or renamed; Moving remains unchanged. Already-built structures are not modified by this update.
 - Opaque GregTech `IDataCopyable` data is omitted because it can contain absolute source references; machine-specific settings stored there must be configured again. Ordinary supported GT analysis fields are retained.
 - Arbitrary item/pattern NBT is preserved, so third-party data may still contain mod-specific references. Missing registry entries, unavailable integrations, invalid data, and unknown format versions are rejected rather than silently replaced.
 
