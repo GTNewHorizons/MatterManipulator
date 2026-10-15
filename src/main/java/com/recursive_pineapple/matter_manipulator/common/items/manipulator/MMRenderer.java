@@ -200,6 +200,8 @@ public class MMRenderer {
         Location coordB = state.config.getCoordB(player.worldObj, lookingAt);
         Location coordC = state.config.getCoordC(player.worldObj, lookingAt);
 
+        if (state.config.placeMode == PlaceMode.CABLES) ItemMatterManipulator.moveCableCornersWithCoordA(state, coordA);
+
         state.config.coordA = coordA;
         state.config.coordB = coordB;
         state.config.coordC = coordC;

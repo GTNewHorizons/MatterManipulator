@@ -747,20 +747,24 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             case MOVING_COORDS: {
                 Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
 
+                Location movedA = state.config.getCoordA(world, lookingAt);
+
+                if (state.config.placeMode == PlaceMode.CABLES) moveCableCornersWithCoordA(state, movedA);
+
                 if (
                     state.config.placeMode == PlaceMode.GEOMETRY && state.config.coordAOffset == null &&
                         state.config.coordBOffset != null &&
                         state.config.coordCOffset == null &&
                         state.config.shape.requiresC()
                 ) {
-                    state.config.coordA = state.config.getCoordA(world, lookingAt);
+                    state.config.coordA = movedA;
                     state.config.coordB = state.config.getCoordB(world, lookingAt);
                     state.config.coordC = null;
                     state.config.coordAOffset = null;
                     state.config.coordBOffset = null;
                     state.config.coordCOffset = new Vector3i();
                 } else {
-                    state.config.coordA = state.config.getCoordA(world, lookingAt);
+                    state.config.coordA = movedA;
                     state.config.coordB = state.config.getCoordB(world, lookingAt);
                     state.config.coordC = state.config.getCoordC(world, lookingAt);
                     state.config.coordAOffset = null;
@@ -864,6 +868,42 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         state.config.cableCorners.add(corner);
 
         return true;
+    }
+
+    /**
+     * Moves every cable corner by an offset.
+     * Bent cable paths keep their shape.
+     */
+    public static void moveCableCorners(MMState state, Vector3i offset) {
+        if (state.config.cableCorners == null) return;
+
+        for (Vector3i corner : state.config.cableCorners) {
+            corner.add(offset);
+        }
+    }
+
+    /**
+     * Keeps a bent cable path together while coord A is being moved.
+     * When every coord is moving, the corners move along with them.
+     * When only coord A is moving, it's pinned to the axes of the first corner.
+     */
+    public static void moveCableCornersWithCoordA(MMState state, Location movedA) {
+        MMConfig config = state.config;
+
+        if (config.cableCorners == null || config.cableCorners.isEmpty()) return;
+        if (movedA == null || config.coordAOffset == null) return;
+
+        if (config.coordBOffset != null) {
+            if (config.coordA == null) return;
+
+            moveCableCorners(state, movedA.toVec().sub(config.coordA.toVec()));
+        } else {
+            Vector3i pinned = MMState.pinToAxes(config.cableCorners.get(0), movedA.toVec());
+
+            movedA.x = pinned.x;
+            movedA.y = pinned.y;
+            movedA.z = pinned.z;
+        }
     }
 
     public void onMMBPressed(EntityPlayer player, ItemStack stack, MMState state) {
@@ -1892,8 +1932,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
             component.set(loc, i);
 
-            // editing the coords turns a bent cable path back into a straight line, because i CBA
-            if (coord != Coord.Stack) currState.config.cableCorners = null;
+            if (coord == Coord.Copy) {
+                moveCableCorners(currState, loc);
+            } else if (coord != Coord.Stack) {
+                currState.config.cableCorners = null;
+            }
 
             // Cylinder shape coords handling
             if (currState.config.placeMode == PlaceMode.GEOMETRY && currState.config.shape == Shape.CYLINDER) {
@@ -1984,12 +2027,16 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
                 switch (coord) {
                     case Copy -> {
-                        if (currState.config.coordA != null) {
-                            Messages.SetA.sendToServer(currState.config.coordA.toVec());
-                        }
+                        if (currState.config.cableCorners != null) {
+                            Messages.MoveCablePath.sendToServer(loc);
+                        } else {
+                            if (currState.config.coordA != null) {
+                                Messages.SetA.sendToServer(currState.config.coordA.toVec());
+                            }
 
-                        if (currState.config.coordB != null) {
-                            Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                            if (currState.config.coordB != null) {
+                                Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                            }
                         }
                     }
                     case CopyA -> {
