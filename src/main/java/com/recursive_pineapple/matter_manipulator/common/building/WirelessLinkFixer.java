@@ -41,6 +41,11 @@ public class WirelessLinkFixer {
     }
 
     public void tryInit(World world) {
+        // Library snapshots have no live source; never scan old selection coordinates or restore its external links.
+        if (state.config.isBlueprint()) {
+            initialized = true;
+            return;
+        }
         if (!initialized && Mods.AppliedEnergistics2.isModLoaded()) {
             try {
                 init(world);

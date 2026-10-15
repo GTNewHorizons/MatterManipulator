@@ -1,5 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
+import java.util.Objects;
+
 import javax.annotation.Nullable;
 
 import net.minecraft.util.AxisAlignedBB;
@@ -28,6 +30,20 @@ public class MMConfig {
     public Shape shape = Shape.LINE;
 
     public Location coordA, coordB, coordC;
+    /** Only a reference and preview bounds belong on the item; snapshots live in the server's library. */
+    public String blueprintId, blueprintOwner;
+    public Vector3i blueprintDeltas;
+
+    public boolean isBlueprint() {
+        return blueprintId != null;
+    }
+
+    public void clearBlueprint() {
+        blueprintId = null;
+        blueprintOwner = null;
+        blueprintDeltas = null;
+    }
+
     // these are used to determine which blocks are being moved
     // if any are non-null, then the corresponding block is being moved
     public Vector3i coordAOffset, coordBOffset, coordCOffset;
@@ -208,12 +224,14 @@ public class MMConfig {
         Location dest,
         Vector3i lookingAt
     ) {
-        if (!Location.areCompatible(sourceA, sourceB, dest)) return new Vector3i(1);
+        boolean blueprint = placeMode == PlaceMode.COPYING && isBlueprint();
+        if (blueprint) {
+            if (blueprintDeltas == null || dest == null || !dest.isInWorld(world)) return new Vector3i();
+        } else if (!Location.areCompatible(sourceA, sourceB, dest)) { return new Vector3i(1); }
 
         Vector3i array = new Vector3i(lookingAt).sub(dest.toVec());
 
-        Vector3i delta = sourceB.toVec()
-            .sub(sourceA.toVec());
+        Vector3i delta = blueprint ? new Vector3i(blueprintDeltas) : sourceB.toVec().sub(sourceA.toVec());
 
         if (transform != null) {
             Vector3f v2 = new Vector3f(array).mulTransposeDirection(new Matrix4f(transform.getRotation()).invert());
@@ -231,10 +249,16 @@ public class MMConfig {
     }
 
     public VoxelAABB getPasteVisualDeltas(World world, boolean transform) {
-        if (!Location.areCompatible(coordA, coordB, coordC)) return null;
-        if (world != null && coordA.worldId != world.provider.dimensionId) return null;
-
-        VoxelAABB aabb = new VoxelAABB(coordA.toVec(), coordB.toVec());
+        boolean blueprint = placeMode == PlaceMode.COPYING && isBlueprint();
+        VoxelAABB aabb;
+        if (blueprint) {
+            if (blueprintDeltas == null || coordC == null || (world != null && !coordC.isInWorld(world))) return null;
+            aabb = new VoxelAABB(new Vector3i(), new Vector3i(blueprintDeltas));
+        } else {
+            if (!Location.areCompatible(coordA, coordB, coordC)) return null;
+            if (world != null && coordA.worldId != world.provider.dimensionId) return null;
+            aabb = new VoxelAABB(coordA.toVec(), coordB.toVec());
+        }
 
         aabb.moveOrigin(coordC.toVec());
 
@@ -250,6 +274,7 @@ public class MMConfig {
     }
 
     public VoxelAABB getCopyVisualDeltas(World world) {
+        if (placeMode == PlaceMode.COPYING && isBlueprint()) return null;
         if (!Location.areCompatible(coordA, coordB)) return null;
         if (world != null && coordA.worldId != world.provider.dimensionId) return null;
 
@@ -268,6 +293,7 @@ public class MMConfig {
         result = prime * result + ((coordA == null) ? 0 : coordA.hashCode());
         result = prime * result + ((coordB == null) ? 0 : coordB.hashCode());
         result = prime * result + ((coordC == null) ? 0 : coordC.hashCode());
+        result = prime * result + Objects.hash(blueprintId, blueprintOwner, blueprintDeltas);
         result = prime * result + ((coordAOffset == null) ? 0 : coordAOffset.hashCode());
         result = prime * result + ((coordBOffset == null) ? 0 : coordBOffset.hashCode());
         result = prime * result + ((coordCOffset == null) ? 0 : coordCOffset.hashCode());
@@ -296,6 +322,10 @@ public class MMConfig {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         MMConfig other = (MMConfig) obj;
+        if (
+            !Objects.equals(blueprintId, other.blueprintId) || !Objects.equals(blueprintOwner, other.blueprintOwner) ||
+                !Objects.equals(blueprintDeltas, other.blueprintDeltas)
+        ) return false;
         if (action != other.action) return false;
         if (blockSelectMode != other.blockSelectMode) return false;
         if (removeMode != other.removeMode) return false;

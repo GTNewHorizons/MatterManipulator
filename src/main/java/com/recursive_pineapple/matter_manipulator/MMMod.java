@@ -9,6 +9,7 @@ import cpw.mods.fml.common.event.FMLMissingMappingsEvent.MissingMapping;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.event.FMLServerStoppedEvent;
 import cpw.mods.fml.common.registry.GameRegistry.Type;
 
 import org.apache.logging.log4j.LogManager;
@@ -44,6 +45,12 @@ public class MMMod {
     @Mod.EventHandler
     public void serverStarting(FMLServerStartingEvent event) {
         proxy.serverStarting(event);
+    }
+
+    @EventHandler
+    public void serverStopped(FMLServerStoppedEvent event) {
+        com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintStore.clearCache();
+        com.recursive_pineapple.matter_manipulator.common.networking.Messages.clearServerTasks();
     }
 
     @EventHandler

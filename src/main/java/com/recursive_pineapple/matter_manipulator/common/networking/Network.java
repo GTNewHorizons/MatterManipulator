@@ -65,7 +65,8 @@ public class Network extends MessageToMessageCodec<FMLProxyPacket, MMPacket> {
         aOutput.add(tPacket);
     }
 
-    public void sendToPlayer(MMPacket aPacket, EntityPlayerMP aPlayer) {
+    // The embedded server channel shares routing attributes: recipient selection and write must be serialized.
+    public synchronized void sendToPlayer(MMPacket aPacket, EntityPlayerMP aPlayer) {
         if (aPacket == null) {
             MMMod.LOG.info("packet null");
             return;
@@ -84,7 +85,7 @@ public class Network extends MessageToMessageCodec<FMLProxyPacket, MMPacket> {
             .writeAndFlush(aPacket);
     }
 
-    public void sendToAllAround(MMPacket aPacket, NetworkRegistry.TargetPoint aPosition) {
+    public synchronized void sendToAllAround(MMPacket aPacket, NetworkRegistry.TargetPoint aPosition) {
         this.mChannel.get(Side.SERVER)
             .attr(FMLOutboundHandler.FML_MESSAGETARGET)
             .set(FMLOutboundHandler.OutboundTarget.ALLAROUNDPOINT);
@@ -95,7 +96,7 @@ public class Network extends MessageToMessageCodec<FMLProxyPacket, MMPacket> {
             .writeAndFlush(aPacket);
     }
 
-    public void sendToAll(MMPacket aPacket) {
+    public synchronized void sendToAll(MMPacket aPacket) {
         this.mChannel.get(Side.SERVER)
             .attr(FMLOutboundHandler.FML_MESSAGETARGET)
             .set(FMLOutboundHandler.OutboundTarget.ALL);

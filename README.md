@@ -122,6 +122,29 @@ The cylinder will pin its second and third (B & C) coordinates to specific locat
 
 To start building, the player has to hold shift + right click for 10 ticks (as a precaution, since there isn't an undo button). After that, the tool will place blocks in several batches. The amount placed and the interval between batches depends on the tool's tier. The tool will play a sound wherever it places or removes blocks; it won't spam several sounds in one, it'll calculate the centre point before playing anything.
 
+## Blueprint Library
+
+In **Copying** mode, open the radial menu and choose **Blueprint Library**. This feature uses the existing `ALLOW_COPYING` capability: the prototype and MKI cannot save or use blueprints; MKII and MKIII can. No progression requirements or recipes have been changed.
+
+1. Mark a source region with **Mark Copy**.
+2. Open **Blueprint Library**, enter a name, and click **Save Region**.
+3. Select a saved entry and click **Select**. Mark the paste position, adjust the existing rotation, flip, or stack settings, then build normally with sneak + right-click.
+4. Use **World Selection** to return to copying the live source region. The library also supports searching, renaming, and confirmed deletion.
+
+A blueprint is an independent snapshot: the original can be removed or unloaded. It can be pasted in another dimension of the same world/server. Building still consumes the normal items and energy and obeys the tool's range and removal settings. Material planning also works with saved blueprints. Entries belong to the player's UUID, not to the tool, so another player cannot use a transferred tool's active blueprint reference.
+
+Blueprints are stored under `<world>/matter_manipulator/blueprints/<player-uuid>/` as versioned compressed JSON files. Back up this directory with the world. The item stores only the active reference and preview bounds, never the complete structure. Export/import between different servers is not provided.
+
+Limits: **128 entries per player**, **32,768 positions in a source region**, **2 MiB decoded data per entry**, **64 characters per name**, and **262,144 expanded blocks per array**. Saving requires already-loaded source chunks within the tool's range.
+
+### Portability limitations
+
+- SmartCopy operations that depend on the original (CRIB proxies, source-side interface-to-P2P conversion, and external hub links) are not applied to blueprints.
+- Internal P2P groups with both input and output in the snapshot are remapped for each paste/array instance. One-sided P2P links are disconnected. Frequencies alone do not distinguish separate source AE networks; avoid capturing unrelated networks reusing the same frequency.
+- Wireless links must be configured again after placement.
+- Opaque GregTech `IDataCopyable` data is omitted because it can contain absolute source references; machine-specific settings stored there must be configured again. Ordinary supported GT analysis fields are retained.
+- Arbitrary item/pattern NBT is preserved, so third-party data may still contain mod-specific references. Missing registry entries, unavailable integrations, invalid data, and unknown format versions are rejected rather than silently replaced.
+
 ## AE Integration
 
 The higher tiers can directly interface with an ME system. The tool acts exactly like a terminal, and must be place into a security terminal to connect it to an ME system. Once connected, the player must be in range of a wireless access point on the network and the network must be powered. The tool will be able to insert and extract fluids and items from the ME network when needed. The tooltip states whether the tool can interact with the connected ME system.

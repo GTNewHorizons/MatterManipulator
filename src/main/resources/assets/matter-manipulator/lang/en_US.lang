@@ -47,6 +47,43 @@ mm.tooltip.installed_upgrades=Installed Upgrades:
 mm.structure.hatch-info=Any %s Casing
 mm.structure.hatch-dots= (dots %s)
 
+# Blueprint library
+mm.blueprint.title=Blueprint Library
+mm.blueprint.search=Search blueprints
+mm.blueprint.name=Name
+mm.blueprint.save=Save Region
+mm.blueprint.select=Select
+mm.blueprint.rename=Rename
+mm.blueprint.delete=Delete
+mm.blueprint.confirm=Confirm Delete
+mm.blueprint.world=World Selection
+mm.blueprint.refresh=Refresh
+mm.blueprint.done=Done
+mm.blueprint.previous=Previous
+mm.blueprint.next=Next
+mm.blueprint.loading=Loading blueprints...
+mm.blueprint.working=Working...
+mm.blueprint.empty=No matching blueprints.
+mm.blueprint.page=%s / %s (%s entries)
+mm.blueprint.dimensions=%s x %s x %s
+mm.blueprint.blocks=%s stored blocks
+
+mm.blueprint.confirm_delete=Delete "%s" permanently? Click Confirm Delete; Esc cancels.
+mm.blueprint.timeout=Request timed out or was rate limited. Try again shortly.
+mm.blueprint.result.ok=Blueprint library updated.
+mm.blueprint.result.denied=Use your own blueprint with a Matter Manipulator that supports copying.
+mm.blueprint.result.invalid=Invalid blueprint name, data, or request (names must contain 1-64 characters).
+mm.blueprint.result.not_found=This blueprint is unavailable in your library.
+mm.blueprint.result.quota=Your library is full (128 blueprints). Delete an entry first.
+mm.blueprint.result.region=Select two valid source corners in this dimension first.
+mm.blueprint.result.volume=The inclusive source region exceeds 32,768 blocks.
+mm.blueprint.result.range=The source region is outside this manipulator's range.
+mm.blueprint.result.unloaded=Every source chunk must already be loaded.
+mm.blueprint.result.storage=Blueprint storage failed. See the server log for details.
+mm.blueprint.result.busy=Finish using the tool, or wait a moment and try again.
+mm.blueprint.source_required=To save, use World Selection in Copy mode and mark both source corners.
+mm.blueprint.warning=SmartCopy and wireless links are not restored. Opaque GT machine data is omitted; reconfigure these settings after placement.
+
 # GUI
 mm.gui.set_mode=Set Mode
 mm.gui.set_remove_mode=Set Remove Mode

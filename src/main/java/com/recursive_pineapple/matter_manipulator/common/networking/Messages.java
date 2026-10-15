@@ -3,7 +3,18 @@ package com.recursive_pineapple.matter_manipulator.common.networking;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.AppliedEnergistics2;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregTech;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.function.BiConsumer;
 
 import net.minecraft.client.Minecraft;
@@ -18,7 +29,12 @@ import net.minecraft.world.chunk.Chunk;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.PlayerEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.network.ByteBufUtils;
+import cpw.mods.fml.common.network.FMLNetworkEvent;
 import cpw.mods.fml.common.network.NetworkRegistry.TargetPoint;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
@@ -30,6 +46,12 @@ import com.gtnewhorizons.modularui.common.internal.network.NetworkUtils;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.client.gui.BlueprintLibraryScreen;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintClientCache;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintCodec;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintStore;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.StructureBlueprint;
+import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMRenderer;
@@ -196,6 +218,7 @@ public enum Messages {
         }
     }))),
     ClearCoords(server(simple((player, stack, manipulator, state) -> {
+        state.config.clearBlueprint();
         state.config.action = null;
         state.config.coordA = null;
         state.config.coordB = null;
@@ -209,11 +232,15 @@ public enum Messages {
         state.config.arraySpan = null;
     }))),
     MarkCopy(server(simple((player, stack, manipulator, state) -> {
+        if (!state.hasCap(ItemMatterManipulator.ALLOW_COPYING)) return;
+        state.config.clearBlueprint();
         state.config.action = PendingAction.MARK_COPY_A;
         state.config.coordA = null;
         state.config.coordB = null;
     }))),
     MarkCut(server(simple((player, stack, manipulator, state) -> {
+        if (!state.hasCap(ItemMatterManipulator.ALLOW_MOVING)) return;
+        state.config.clearBlueprint();
         state.config.action = PendingAction.MARK_CUT_A;
         state.config.coordA = null;
         state.config.coordB = null;
@@ -222,11 +249,20 @@ public enum Messages {
         state.config.action = PendingAction.MARK_PASTE;
         state.config.coordC = null;
     }))),
-    GetRequiredItems(server(intPacket((player, stack, manipulator, state, value) -> {
-        if (state.config.placeMode != PlaceMode.COPYING) { return; }
+    GetRequiredItems(server(new ISimplePacketHandler<IntPacket>() {
 
-        MMUtils.createPlanImpl(player, state, manipulator, value);
-    }))),
+        @Override
+        public void handle(EntityPlayer player, IntPacket packet) {
+            BlueprintTasks.submitPlan((EntityPlayerMP) player, packet.value);
+        }
+
+        @Override
+        public IntPacket getNewPacket(Messages message, Object value) {
+            IntPacket packet = new IntPacket(message);
+            packet.value = value == null ? 0 : (Integer) value;
+            return packet;
+        }
+    })),
     ClearManualPlans(server(simple((player, stack, manipulator, state) -> {
         if (state.connectToUplink()) {
             state.uplink.clearManualPlans(player);
@@ -437,7 +473,617 @@ public enum Messages {
         }
     })),
 
+    BlueprintRequest(server(new ISimplePacketHandler<BlueprintRequestPacket>() {
+
+        @Override
+        public void handle(EntityPlayer player, BlueprintRequestPacket packet) {
+            BlueprintTasks.submit((EntityPlayerMP) player, packet);
+        }
+
+        @Override
+        public BlueprintRequestPacket getNewPacket(Messages message, Object value) {
+            return new BlueprintRequestPacket(message, (BlueprintRequestData) value);
+        }
+    })),
+    BlueprintList(client(new ISimplePacketHandler<BlueprintListPacket>() {
+
+        @Override
+        @SideOnly(Side.CLIENT)
+        public void handle(EntityPlayer player, BlueprintListPacket packet) {
+            BlueprintTasks.enqueueClient(() -> BlueprintLibraryScreen.onList(packet.request, packet.entries));
+        }
+
+        @Override
+        public BlueprintListPacket getNewPacket(Messages message, Object value) {
+            return value == null ? new BlueprintListPacket(message) : (BlueprintListPacket) value;
+        }
+    })),
+    BlueprintData(client(new ISimplePacketHandler<BlueprintDataPacket>() {
+
+        @Override
+        @SideOnly(Side.CLIENT)
+        public void handle(EntityPlayer player, BlueprintDataPacket packet) {
+            BlueprintTasks.enqueueClient(
+                () -> BlueprintClientCache.receive(
+                    packet.request,
+                    packet.owner,
+                    packet.id,
+                    packet.total,
+                    packet.offset,
+                    packet.data
+                )
+            );
+        }
+
+        @Override
+        public BlueprintDataPacket getNewPacket(Messages message, Object value) {
+            return value == null ? new BlueprintDataPacket(message) : (BlueprintDataPacket) value;
+        }
+    })),
+    BlueprintResult(client(new ISimplePacketHandler<BlueprintResultPacket>() {
+
+        @Override
+        @SideOnly(Side.CLIENT)
+        public void handle(EntityPlayer player, BlueprintResultPacket packet) {
+            BlueprintTasks.enqueueClient(() -> {
+                BlueprintClientCache.onResult(packet.request, packet.result == BlueprintStatus.OK);
+                BlueprintLibraryScreen.onResult(packet.request, packet.result);
+            });
+        }
+
+        @Override
+        public BlueprintResultPacket getNewPacket(Messages message, Object value) {
+            return value == null ? new BlueprintResultPacket(message) : (BlueprintResultPacket) value;
+        }
+    })),
+
     ;
+
+    public enum BlueprintOperation {
+        LIST,
+        SAVE,
+        SELECT,
+        RENAME,
+        DELETE,
+        WORLD_SOURCE,
+        FETCH
+    }
+
+    public enum BlueprintStatus {
+
+        OK,
+        DENIED,
+        INVALID,
+        NOT_FOUND,
+        QUOTA,
+        REGION,
+        VOLUME,
+        RANGE,
+        UNLOADED,
+        STORAGE,
+        BUSY;
+
+        public String translationKey() {
+
+            return "mm.blueprint.result." + name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    public static final class BlueprintRequestData {
+
+        public final BlueprintOperation operation;
+        public final int request;
+        public final String id, name;
+
+        public BlueprintRequestData(BlueprintOperation operation, int request, String id, String name) {
+            this.operation = operation;
+            this.request = request;
+            this.id = id == null ? "" : id;
+            this.name = name == null ? "" : name;
+        }
+    }
+
+    public static final class BlueprintEntry {
+
+        public final String id, name;
+        public final Vector3i deltas;
+        public final int blockCount;
+
+        public BlueprintEntry(String id, String name, Vector3i deltas, int blockCount) {
+            this.id = id;
+            this.name = name;
+            this.deltas = new Vector3i(deltas);
+            this.blockCount = blockCount;
+        }
+    }
+
+    private static boolean isOnline(EntityPlayerMP player) {
+        net.minecraft.server.MinecraftServer server = net.minecraft.server.MinecraftServer.getServer();
+        return server != null && !player.isDead && server.getConfigurationManager().playerEntityList.contains(player);
+    }
+
+    private static void handleRequiredItems(EntityPlayerMP player, int flags) {
+        if (!isOnline(player)) return;
+        try {
+            ItemStack held = player.inventory.getCurrentItem();
+            if (held == null || !(held.getItem() instanceof ItemMatterManipulator manipulator)) {
+                MMUtils.sendErrorToPlayer(player, "mm.blueprint.result.denied");
+                return;
+            }
+            MMState state = ItemMatterManipulator.getState(held);
+            if (state.config.placeMode != PlaceMode.COPYING || !state.hasCap(ItemMatterManipulator.ALLOW_COPYING) || !state.canUseBlueprint(player)) {
+                MMUtils.sendErrorToPlayer(player, "mm.blueprint.result.denied");
+                return;
+            }
+            if (state.config.isBlueprint() && state.getBlueprint(player.worldObj) == null) {
+                MMUtils.sendErrorToPlayer(player, "mm.blueprint.result.not_found");
+                return;
+            }
+            MMUtils.createPlanImpl(player, state, manipulator, flags);
+        } catch (RuntimeException e) {
+            MMMod.LOG.warn("Could not analyze manipulator plan for " + player.getUniqueID(), e);
+            MMUtils.sendErrorToPlayer(player, "mm.blueprint.result.storage");
+        }
+    }
+
+    private static void sendBlueprintResult(EntityPlayerMP player, int request, BlueprintStatus status) {
+        BlueprintResultPacket response = new BlueprintResultPacket(BlueprintResult);
+        response.request = request;
+        response.result = status;
+        BlueprintResult.sendToPlayer(player, response);
+    }
+
+    private static void handleBlueprint(EntityPlayerMP player, BlueprintRequestPacket packet) {
+        if (!isOnline(player)) return;
+        BlueprintStatus result = BlueprintStatus.OK;
+        try {
+            ItemStack held = player.inventory.getCurrentItem();
+            if (held == null || !(held.getItem() instanceof ItemMatterManipulator manipulator)) { throw new BlueprintFailure(BlueprintStatus.DENIED); }
+            MMState state = ItemMatterManipulator.getState(held);
+            if (!state.hasCap(ItemMatterManipulator.ALLOW_COPYING)) throw new BlueprintFailure(BlueprintStatus.DENIED);
+            World world = player.worldObj;
+            UUID owner = player.getUniqueID();
+            BlueprintRequestData data = packet.data;
+            if (data.operation == null) throw new BlueprintFailure(BlueprintStatus.INVALID);
+            // A pending build owns its original snapshot until item use stops. Never replace it underneath that build.
+            if (
+                player.isUsingItem() && (data.operation == BlueprintOperation.SELECT || data.operation == BlueprintOperation.WORLD_SOURCE ||
+                    data.operation == BlueprintOperation.DELETE)
+            ) {
+                throw new BlueprintFailure(BlueprintStatus.BUSY);
+            }
+            switch (data.operation) {
+                case LIST -> {
+                    BlueprintListPacket response = new BlueprintListPacket(BlueprintList);
+                    response.request = data.request;
+                    for (StructureBlueprint blueprint : BlueprintStore.list(world, owner)) {
+                        BlueprintProtocol.validateName(blueprint.name);
+                        response.entries.add(
+                            new BlueprintEntry(
+                                blueprint.id,
+                                blueprint.name,
+                                blueprint.deltas,
+                                blueprint.blockCount
+                            )
+                        );
+                    }
+                    BlueprintList.sendToPlayer(player, response);
+                }
+                case SAVE -> {
+                    if (state.config.placeMode != PlaceMode.COPYING || state.config.isBlueprint()) { throw new BlueprintFailure(BlueprintStatus.REGION); }
+                    BlueprintProtocol.validateName(data.name);
+                    if (BlueprintStore.list(world, owner).size() >= BlueprintStore.MAX_ENTRIES) { throw new BlueprintFailure(BlueprintStatus.QUOTA); }
+                    validateCapture(player, manipulator, state);
+                    StructureBlueprint blueprint = StructureBlueprint.capture(
+                        BlockAnalyzer.analyzeRegion(world, state.config.coordA, state.config.coordB, true),
+                        data.name
+                    );
+                    BlueprintStore.save(world, owner, blueprint);
+                }
+                case SELECT, FETCH -> {
+                    BlueprintProtocol.validateId(data.id);
+                    // The authenticated player's UUID is the only owner used, including for lazy fetches.
+                    StructureBlueprint blueprint = BlueprintStore.load(world, owner, data.id);
+                    if (blueprint == null) throw new BlueprintFailure(BlueprintStatus.NOT_FOUND);
+                    byte[] json = BlueprintCodec.encode(blueprint).getBytes(StandardCharsets.UTF_8);
+                    if (data.operation == BlueprintOperation.SELECT) {
+                        state.config.blueprintId = blueprint.id;
+                        state.config.blueprintOwner = owner.toString();
+                        state.config.blueprintDeltas = new Vector3i(blueprint.deltas);
+                        state.config.placeMode = PlaceMode.COPYING;
+                        state.config.coordC = null;
+                        state.config.action = PendingAction.MARK_PASTE;
+                        state.config.coordAOffset = null;
+                        state.config.coordBOffset = null;
+                        state.config.coordCOffset = null;
+                        state.config.arraySpan = null;
+                        ItemMatterManipulator.setState(held, state);
+                    }
+                    for (int offset = 0; offset < json.length; offset += BlueprintProtocol.CHUNK_BYTES) {
+                        BlueprintDataPacket response = new BlueprintDataPacket(BlueprintData);
+                        response.request = data.request;
+                        response.owner = owner.toString();
+                        response.id = blueprint.id;
+                        response.total = json.length;
+                        response.offset = offset;
+                        response.data = Arrays.copyOfRange(json, offset, Math.min(json.length, offset + BlueprintProtocol.CHUNK_BYTES));
+                        BlueprintData.sendToPlayer(player, response);
+                    }
+                }
+                case RENAME -> {
+                    BlueprintProtocol.validateId(data.id);
+                    BlueprintProtocol.validateName(data.name);
+                    if (BlueprintStore.load(world, owner, data.id) == null) throw new BlueprintFailure(BlueprintStatus.NOT_FOUND);
+                    BlueprintStore.rename(world, owner, data.id, data.name);
+                }
+                case DELETE -> {
+                    BlueprintProtocol.validateId(data.id);
+                    BlueprintStore.delete(world, owner, data.id);
+                    if (data.id.equals(state.config.blueprintId) && owner.toString().equals(state.config.blueprintOwner)) {
+                        state.config.clearBlueprint();
+                        state.config.action = null;
+                        ItemMatterManipulator.setState(held, state);
+                    }
+                }
+                case WORLD_SOURCE -> {
+                    state.config.clearBlueprint();
+                    state.config.placeMode = PlaceMode.COPYING;
+                    state.config.action = null;
+                    ItemMatterManipulator.setState(held, state);
+                }
+            }
+        } catch (BlueprintFailure e) {
+            result = e.status;
+        } catch (IllegalArgumentException e) {
+            result = BlueprintStatus.INVALID;
+        } catch (IOException e) {
+            MMMod.LOG.warn("Blueprint storage request failed for " + player.getUniqueID(), e);
+            result = BlueprintStatus.STORAGE;
+        } catch (RuntimeException e) {
+            MMMod.LOG.error("Blueprint request failed for " + player.getUniqueID(), e);
+            result = BlueprintStatus.STORAGE;
+        }
+        sendBlueprintResult(player, packet.data.request, result);
+    }
+
+    private static void validateCapture(EntityPlayerMP player, ItemMatterManipulator manipulator, MMState state) {
+        Location a = state.config.coordA, b = state.config.coordB;
+        World world = player.worldObj;
+        if (
+            !Location.areCompatible(a, b) || a.worldId != world.provider.dimensionId ||
+                a.y < 0 ||
+                b.y < 0 ||
+                a.y >= world.getHeight() ||
+                b.y >= world.getHeight() ||
+                Math.abs((long) a.x) > 30000000 ||
+                Math.abs((long) b.x) > 30000000 ||
+                Math.abs((long) a.z) > 30000000 ||
+                Math.abs((long) b.z) > 30000000
+        ) {
+            throw new BlueprintFailure(BlueprintStatus.REGION);
+        }
+        try {
+            BlueprintProtocol.checkedVolume((long) b.x - a.x, (long) b.y - a.y, (long) b.z - a.z);
+        } catch (IllegalArgumentException e) {
+            throw new BlueprintFailure(BlueprintStatus.VOLUME);
+        }
+        int minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
+        int minZ = Math.min(a.z, b.z), maxZ = Math.max(a.z, b.z);
+        // chunkExists does not obtain/generate chunks. Never call getChunkFromChunkCoords during validation.
+        for (int x = minX >> 4; x <= maxX >> 4; x++) {
+            for (int z = minZ >> 4; z <= maxZ >> 4; z++) {
+                if (!world.getChunkProvider().chunkExists(x, z)) throw new BlueprintFailure(BlueprintStatus.UNLOADED);
+            }
+        }
+        if (manipulator.tier.maxRange >= 0) {
+            double range2 = (double) manipulator.tier.maxRange * manipulator.tier.maxRange;
+            // The farthest point of an axis-aligned box is a corner, so all eight corners suffice.
+            for (int x : new int[] {
+                a.x, b.x
+            }) {
+                for (int y : new int[] {
+                    a.y, b.y
+                }) {
+                    for (int z : new int[] {
+                        a.z, b.z
+                    }) {
+                        double dx = x - player.posX, dy = y - player.posY, dz = z - player.posZ;
+                        if (dx * dx + dy * dy + dz * dz > range2) throw new BlueprintFailure(BlueprintStatus.RANGE);
+                    }
+                }
+            }
+        }
+    }
+
+    private static final class BlueprintFailure extends RuntimeException {
+
+        private final BlueprintStatus status;
+
+        private BlueprintFailure(BlueprintStatus status) {
+            this.status = status;
+        }
+    }
+
+    private static final class BlueprintRequestPacket extends SimplePacket {
+
+        private BlueprintRequestData data;
+        private BlueprintOperation operation;
+
+        private BlueprintRequestPacket(Messages message, BlueprintRequestData data) {
+            super(message);
+            this.data = data;
+            operation = data == null ? null : data.operation;
+        }
+
+        @Override
+        public void encode(ByteBuf buffer) {
+            buffer.writeByte(data.operation.ordinal());
+            buffer.writeInt(data.request);
+            BlueprintProtocol.writeText(buffer, data.id, 36);
+            BlueprintProtocol.writeText(buffer, data.name, BlueprintProtocol.MAX_NAME_BYTES);
+        }
+
+        @Override
+        public MMPacket decode(ByteBuf buffer) {
+            int operation = buffer.readUnsignedByte();
+            if (operation >= BlueprintOperation.values().length) throw new IllegalArgumentException("Invalid blueprint operation");
+            int request = buffer.readInt();
+            return new BlueprintRequestPacket(
+                message,
+                new BlueprintRequestData(
+                    BlueprintOperation.values()[operation],
+                    request,
+                    BlueprintProtocol.readText(buffer, 36),
+                    BlueprintProtocol.readText(buffer, BlueprintProtocol.MAX_NAME_BYTES)
+                )
+            );
+        }
+    }
+
+    private static final class BlueprintListPacket extends SimplePacket {
+
+        private int request;
+        private final List<BlueprintEntry> entries = new ArrayList<>();
+
+        private BlueprintListPacket(Messages message) {
+            super(message);
+        }
+
+        @Override
+        public void encode(ByteBuf buffer) {
+            if (entries.size() > BlueprintStore.MAX_ENTRIES) throw new IllegalArgumentException("Too many blueprint entries");
+            buffer.writeInt(request);
+            buffer.writeShort(entries.size());
+            for (BlueprintEntry entry : entries) {
+                BlueprintProtocol.validateName(entry.name);
+                BlueprintProtocol.writeText(buffer, entry.id, 36);
+                BlueprintProtocol.writeText(buffer, entry.name, BlueprintProtocol.MAX_NAME_BYTES);
+                buffer.writeInt(entry.deltas.x);
+                buffer.writeInt(entry.deltas.y);
+                buffer.writeInt(entry.deltas.z);
+                buffer.writeInt(entry.blockCount);
+            }
+        }
+
+        @Override
+        public MMPacket decode(ByteBuf buffer) {
+            BlueprintListPacket packet = new BlueprintListPacket(message);
+            packet.request = buffer.readInt();
+            int count = buffer.readUnsignedShort();
+            if (count > BlueprintStore.MAX_ENTRIES) throw new IllegalArgumentException("Too many blueprint entries");
+            for (int i = 0; i < count; i++) {
+                String id = BlueprintProtocol.readText(buffer, 36), name = BlueprintProtocol.readText(buffer, BlueprintProtocol.MAX_NAME_BYTES);
+                BlueprintProtocol.validateId(id);
+                BlueprintProtocol.validateName(name);
+                Vector3i deltas = new Vector3i(buffer.readInt(), buffer.readInt(), buffer.readInt());
+                BlueprintProtocol.checkedVolume(deltas.x, deltas.y, deltas.z);
+                int blocks = buffer.readInt();
+                if (blocks < 0 || blocks > BlueprintCodec.MAX_BLOCKS) throw new IllegalArgumentException("Invalid blueprint block count");
+                packet.entries.add(new BlueprintEntry(id, name, deltas, blocks));
+            }
+            return packet;
+        }
+    }
+
+    private static final class BlueprintDataPacket extends SimplePacket {
+
+        private int request, total, offset;
+        private String owner, id;
+        private byte[] data;
+
+        private BlueprintDataPacket(Messages message) {
+            super(message);
+        }
+
+        @Override
+        public void encode(ByteBuf buffer) {
+            BlueprintProtocol.validateChunk(total, offset, data.length);
+            buffer.writeInt(request);
+            BlueprintProtocol.writeText(buffer, owner, 36);
+            BlueprintProtocol.writeText(buffer, id, 36);
+            buffer.writeInt(total);
+            buffer.writeInt(offset);
+            buffer.writeShort(data.length);
+            buffer.writeBytes(data);
+        }
+
+        @Override
+        public MMPacket decode(ByteBuf buffer) {
+            BlueprintDataPacket packet = new BlueprintDataPacket(message);
+            packet.request = buffer.readInt();
+            packet.owner = BlueprintProtocol.readText(buffer, 36);
+            packet.id = BlueprintProtocol.readText(buffer, 36);
+            BlueprintProtocol.validateId(packet.owner);
+            BlueprintProtocol.validateId(packet.id);
+            packet.total = buffer.readInt();
+            packet.offset = buffer.readInt();
+            int size = buffer.readUnsignedShort();
+            BlueprintProtocol.validateChunk(packet.total, packet.offset, size);
+            if (size > buffer.readableBytes()) throw new IllegalArgumentException("Truncated blueprint chunk");
+            packet.data = new byte[size];
+            buffer.readBytes(packet.data);
+            return packet;
+        }
+    }
+
+    private static final class BlueprintResultPacket extends SimplePacket {
+
+        private int request;
+        private BlueprintStatus result;
+
+        private BlueprintResultPacket(Messages message) {
+            super(message);
+        }
+
+        @Override
+        public void encode(ByteBuf buffer) {
+            buffer.writeInt(request);
+            buffer.writeByte(result.ordinal());
+        }
+
+        @Override
+        public MMPacket decode(ByteBuf buffer) {
+            BlueprintResultPacket packet = new BlueprintResultPacket(message);
+            packet.request = buffer.readInt();
+            int status = buffer.readUnsignedByte();
+            if (status >= BlueprintStatus.values().length) throw new IllegalArgumentException("Invalid blueprint result");
+            packet.result = BlueprintStatus.values()[status];
+            return packet;
+        }
+    }
+
+    private static final class BlueprintQueue {
+
+        private final ArrayDeque<BlueprintTask> tasks = new ArrayDeque<>();
+        private final int capacity;
+
+        private BlueprintQueue(int capacity) {
+            this.capacity = capacity;
+        }
+
+        synchronized boolean offer(EntityPlayerMP player, Runnable task) {
+            if (tasks.size() >= capacity) return false;
+            tasks.addLast(new BlueprintTask(player, task));
+            return true;
+        }
+
+        void drain(int limit) {
+            for (int i = 0; i < limit; i++) {
+                BlueprintTask task;
+                synchronized (this) {
+                    task = tasks.pollFirst();
+                }
+                if (task == null) return;
+                try {
+                    task.action.run();
+                } catch (RuntimeException e) {
+                    MMMod.LOG.error("Blueprint queued task failed", e);
+                }
+            }
+        }
+
+        synchronized void remove(EntityPlayer player) {
+            tasks.removeIf(task -> task.player == player);
+        }
+
+        synchronized void clear() {
+            tasks.clear();
+        }
+    }
+
+    private static final class BlueprintTask {
+
+        private final EntityPlayerMP player;
+        private final Runnable action;
+
+        private BlueprintTask(EntityPlayerMP player, Runnable action) {
+            this.player = player;
+            this.action = action;
+        }
+    }
+
+    /** Call from the parent mod's serverStopped lifecycle hook; logout cleanup is registered automatically. */
+    public static void clearServerTasks() {
+        synchronized (BlueprintTasks.class) {
+            BlueprintTasks.SERVER.clear();
+            BlueprintTasks.FEEDBACK.clear();
+            BlueprintTasks.RATES.clear();
+        }
+    }
+
+    /** Registered on FML's event bus by init(); all storage, world scans and client mutations run on tick threads. */
+    public static final class BlueprintTasks {
+
+        private static boolean initialized;
+        private static final BlueprintQueue SERVER = new BlueprintQueue(256);
+        // Rejections must not depend on work-queue capacity or send shared-channel packets from Netty callbacks.
+        private static final BlueprintQueue FEEDBACK = new BlueprintQueue(128);
+        // Two full 128-chunk transfers plus their result/list packets must fit before the next client tick.
+        private static final BlueprintQueue CLIENT = new BlueprintQueue(512);
+        private static final Map<EntityPlayerMP, BlueprintRate> RATES = new WeakHashMap<>();
+
+        private static synchronized void submit(EntityPlayerMP player, BlueprintRequestPacket packet) {
+            BlueprintRate rate = RATES.computeIfAbsent(player, ignored -> new BlueprintRate());
+            long now = System.currentTimeMillis();
+            if (rate.accept(packet.operation, now) && SERVER.offer(player, () -> handleBlueprint(player, packet))) return;
+            // Lazy fetches retry. Explicit requests get prompt feedback, capped independently to prevent reply floods.
+            if (packet.operation != BlueprintOperation.FETCH && rate.allowFeedback(now)) {
+                FEEDBACK.offer(player, () -> {
+                    if (isOnline(player)) sendBlueprintResult(player, packet.data.request, BlueprintStatus.BUSY);
+                });
+            }
+        }
+
+        private static synchronized void submitPlan(EntityPlayerMP player, int flags) {
+            BlueprintRate rate = RATES.computeIfAbsent(player, ignored -> new BlueprintRate());
+            long now = System.currentTimeMillis();
+            if (rate.acceptPlan(now) && SERVER.offer(player, () -> handleRequiredItems(player, flags))) return;
+            if (rate.allowFeedback(now)) {
+                FEEDBACK.offer(player, () -> {
+                    if (isOnline(player)) MMUtils.sendErrorToPlayer(player, "mm.blueprint.result.busy");
+                });
+            }
+        }
+
+        @SubscribeEvent
+        public void logout(PlayerEvent.PlayerLoggedOutEvent event) {
+            synchronized (BlueprintTasks.class) {
+                SERVER.remove(event.player);
+                FEEDBACK.remove(event.player);
+                RATES.remove(event.player);
+            }
+        }
+
+        @SubscribeEvent
+        public void serverTick(TickEvent.ServerTickEvent event) {
+            if (event.phase != TickEvent.Phase.END) return;
+            FEEDBACK.drain(16);
+            SERVER.drain(8);
+        }
+
+        @SideOnly(Side.CLIENT)
+        private static void enqueueClient(Runnable task) {
+            World world = Minecraft.getMinecraft().theWorld;
+            CLIENT.offer(null, () -> {
+                if (world != null && world == Minecraft.getMinecraft().theWorld) task.run();
+            });
+        }
+
+        @SubscribeEvent
+        @SideOnly(Side.CLIENT)
+        public void clientTick(TickEvent.ClientTickEvent event) {
+            if (event.phase != TickEvent.Phase.END) return;
+            BlueprintClientCache.checkWorld(Minecraft.getMinecraft().theWorld);
+            CLIENT.drain(256);
+        }
+
+        @SubscribeEvent
+        @SideOnly(Side.CLIENT)
+        public void disconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+            CLIENT.clear();
+            BlueprintClientCache.clearCache();
+        }
+    }
 
     private ISimplePacketHandler<? extends SimplePacket> handler;
 
@@ -538,8 +1184,10 @@ public enum Messages {
     /**
      * Makes sure this class is loaded (initializes {@link #CHANNEL}).
      */
-    public static void init() {
-        // does nothing
+    public static synchronized void init() {
+        if (BlueprintTasks.initialized) return;
+        BlueprintTasks.initialized = true;
+        FMLCommonHandler.instance().bus().register(new BlueprintTasks());
     }
 
     /**
@@ -1146,8 +1794,141 @@ public enum Messages {
         public MMPacket decode(ByteBuf buffer) {
             CursorItemStackPacket message = new CursorItemStackPacket(super.message);
             message.itemStack = ByteBufUtils.readItemStack(buffer);
-            message.isSneak = buffer.readBoolean();
             return message;
+        }
+    }
+}
+
+/** Wire bounds are checked before allocating memory; kept independent of channel initialization for protocol tests. */
+final class BlueprintProtocol {
+
+    static final int CHUNK_BYTES = 16 * 1024;
+    // A valid name has at most 64 UTF-16 code units: BMP characters cost at most 3 UTF-8 bytes per unit.
+    static final int MAX_NAME_BYTES = 64 * 3;
+    static final int MAX_LIST_PACKET_BYTES = 1 + 4 + 2 + BlueprintStore.MAX_ENTRIES * (2 + 36 + 2 + MAX_NAME_BYTES + 16);
+
+    private BlueprintProtocol() {}
+
+    static long checkedVolume(long x, long y, long z) {
+        long volume = 1;
+        for (long delta : new long[] {
+            x, y, z
+        }) {
+            if (delta == Long.MIN_VALUE) throw new IllegalArgumentException("Invalid region delta");
+            long length = Math.abs(delta) + 1;
+            if (length <= 0 || length > BlueprintCodec.MAX_BLOCKS / volume) { throw new IllegalArgumentException("Blueprint region is too large"); }
+            volume *= length;
+        }
+        return volume;
+    }
+
+    static void validateChunk(int total, int offset, int size) {
+        if (
+            total < 1 || total > BlueprintCodec.MAX_BYTES ||
+                offset < 0 ||
+                offset >= total ||
+                offset % CHUNK_BYTES != 0 ||
+                size < 1 ||
+                size > CHUNK_BYTES ||
+                size != Math.min(CHUNK_BYTES, total - offset)
+        ) {
+            throw new IllegalArgumentException("Invalid blueprint chunk bounds");
+        }
+    }
+
+    static void validateId(String id) {
+        if (id == null || !UUID.fromString(id).toString().equals(id)) throw new IllegalArgumentException("Invalid blueprint UUID");
+    }
+
+    static void validateName(String name) {
+        if (name == null || name.trim().isEmpty() || name.length() > 64) throw new IllegalArgumentException("Invalid blueprint name");
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (Character.isISOControl(c)) throw new IllegalArgumentException("Invalid blueprint name");
+            if (Character.isHighSurrogate(c)) {
+                if (++i >= name.length() || !Character.isLowSurrogate(name.charAt(i))) { throw new IllegalArgumentException("Malformed blueprint name"); }
+            } else if (Character.isLowSurrogate(c)) throw new IllegalArgumentException("Malformed blueprint name");
+        }
+    }
+
+    static void writeText(ByteBuf buffer, String value, int maxBytes) {
+        try {
+            ByteBuffer bytes = StandardCharsets.UTF_8.newEncoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .encode(java.nio.CharBuffer.wrap(value));
+            if (bytes.remaining() > maxBytes) throw new IllegalArgumentException("Blueprint text is too long");
+            buffer.writeShort(bytes.remaining());
+            buffer.writeBytes(bytes);
+        } catch (CharacterCodingException e) {
+            throw new IllegalArgumentException("Invalid blueprint UTF-16", e);
+        }
+    }
+
+    static String readText(ByteBuf buffer, int maxBytes) {
+        int size = buffer.readUnsignedShort();
+        if (size > maxBytes || size > buffer.readableBytes()) throw new IllegalArgumentException("Invalid blueprint text length");
+        byte[] bytes = new byte[size];
+        buffer.readBytes(bytes);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes))
+                .toString();
+        } catch (CharacterCodingException e) {
+            throw new IllegalArgumentException("Invalid blueprint UTF-8", e);
+        }
+    }
+}
+
+/** Per-session limits; SELECT cannot be starved by automatic FETCH or unrelated explicit requests. */
+final class BlueprintRate {
+
+    private long window, lastSave, lastPlan;
+    private boolean saved, planned;
+    private int requests, fetches, selections, lists, feedback;
+
+    boolean accept(Messages.BlueprintOperation operation, long now) {
+        resetWindow(now);
+        if (operation == null) return false;
+        if (operation == Messages.BlueprintOperation.SELECT) {
+            if (selections >= 2) return false;
+            selections++;
+            return true;
+        }
+        if (requests >= 8) return false;
+        if (operation == Messages.BlueprintOperation.FETCH && fetches >= 2) return false;
+        if (operation == Messages.BlueprintOperation.LIST && lists >= 2) return false;
+        if (operation == Messages.BlueprintOperation.SAVE && saved && now - lastSave < 2000) return false;
+        requests++;
+        if (operation == Messages.BlueprintOperation.FETCH) fetches++;
+        if (operation == Messages.BlueprintOperation.LIST) lists++;
+        if (operation == Messages.BlueprintOperation.SAVE) {
+            lastSave = now;
+            saved = true;
+        }
+        return true;
+    }
+
+    boolean acceptPlan(long now) {
+        if (planned && now - lastPlan < 1000) return false;
+        lastPlan = now;
+        planned = true;
+        return true;
+    }
+
+    boolean allowFeedback(long now) {
+        resetWindow(now);
+        if (feedback >= 2) return false;
+        feedback++;
+        return true;
+    }
+
+    private void resetWindow(long now) {
+        if (now < window || now - window >= 1000) {
+            window = now;
+            requests = fetches = selections = lists = feedback = 0;
         }
     }
 }

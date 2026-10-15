@@ -387,11 +387,12 @@ public class MMRenderer {
         state.config.coordB = sourceB;
         state.config.coordC = paste;
 
-        boolean isSourceAValid = sourceA != null && sourceA.isInWorld(player.worldObj);
-        boolean isSourceBValid = sourceB != null && sourceB.isInWorld(player.worldObj);
+        boolean blueprint = state.config.placeMode == PlaceMode.COPYING && state.config.isBlueprint();
+        boolean isSourceAValid = !blueprint && sourceA != null && sourceA.isInWorld(player.worldObj);
+        boolean isSourceBValid = !blueprint && sourceB != null && sourceB.isInWorld(player.worldObj);
         boolean isPasteValid = paste != null && paste.isInWorld(player.worldObj);
 
-        boolean isValid = isSourceAValid && isSourceBValid && isPasteValid;
+        boolean isValid = (blueprint || (isSourceAValid && isSourceBValid)) && isPasteValid;
 
         if (!isValid && wasValid) {
             clear(player);

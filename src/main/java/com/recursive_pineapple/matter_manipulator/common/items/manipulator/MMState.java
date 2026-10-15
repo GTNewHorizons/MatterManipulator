@@ -5,11 +5,13 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.si
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.AppliedEnergistics2;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregTech;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -21,6 +23,8 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 
 import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.enums.ItemList;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
@@ -55,6 +59,9 @@ import com.google.gson.annotations.SerializedName;
 import com.gtnewhorizon.structurelib.util.XSTR;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintClientCache;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintStore;
+import com.recursive_pineapple.matter_manipulator.common.blueprint.StructureBlueprint;
 import com.recursive_pineapple.matter_manipulator.common.building.AEAnalysisResult;
 import com.recursive_pineapple.matter_manipulator.common.building.AEPartData;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer;
@@ -358,6 +365,7 @@ public class MMState {
      * Note: moving uses a special algorithm, so its value returned here should only be used for drawing the hints.
      */
     public List<PendingBlock> getPendingBlocks(ManipulatorTier tier, World world) {
+        if (config.placeMode == PlaceMode.COPYING && !hasCap(ItemMatterManipulator.ALLOW_COPYING)) return new ArrayList<>();
         return switch (config.placeMode) {
             case COPYING, MOVING -> getAnalysis(world);
             case GEOMETRY -> getGeomPendingBlocks(world);
@@ -366,19 +374,48 @@ public class MMState {
         };
     }
 
+    public boolean canUseBlueprint(EntityPlayer player) {
+        return !config.isBlueprint() || (hasCap(ItemMatterManipulator.ALLOW_COPYING) && player.getUniqueID().toString().equals(config.blueprintOwner));
+    }
+
+    public StructureBlueprint getBlueprint(World world) {
+        if (!hasCap(ItemMatterManipulator.ALLOW_COPYING) || !config.isBlueprint() || config.blueprintOwner == null) return null;
+        if (world.isRemote) return getClientBlueprint(world);
+        try {
+            return BlueprintStore.load(world, UUID.fromString(config.blueprintOwner), config.blueprintId);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalStateException("Could not load blueprint " + config.blueprintId, e);
+        }
+    }
+
+    @SideOnly(Side.CLIENT)
+    private StructureBlueprint getClientBlueprint(World world) {
+        return BlueprintClientCache.get(world, config.blueprintOwner, config.blueprintId);
+    }
+
     private List<PendingBlock> getAnalysis(World world) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
         Location coordC = config.coordC;
 
-        if (!Location.areCompatible(coordA, coordB, coordC) || !coordA.isInWorld(world)) { return new ArrayList<>(); }
-
-        // MOVING's result is only used visually since it has a special build algorithm
-        RegionAnalysis analysis = BlockAnalyzer
-            .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING ? true : false);
-
-        if (config.placeMode == PlaceMode.COPYING) {
-            applySmartCopySubstitutions(world, analysis.blocks, coordA);
+        boolean blueprint = config.placeMode == PlaceMode.COPYING && config.isBlueprint();
+        RegionAnalysis analysis;
+        if (blueprint) {
+            if (coordC == null || !coordC.isInWorld(world)) return new ArrayList<>();
+            StructureBlueprint snapshot = getBlueprint(world);
+            if (snapshot == null) return new ArrayList<>();
+            analysis = snapshot.instantiate(world);
+            if (!canExpandBlueprint(analysis.blocks.size(), config.arraySpan)) {
+                if (world.isRemote) return new ArrayList<>();
+                throw new IllegalArgumentException("Blueprint array exceeds 262144 blocks");
+            }
+        } else {
+            if (!Location.areCompatible(coordA, coordB, coordC) || !coordA.isInWorld(world)) return new ArrayList<>();
+            // MOVING's result is only used visually since it has a special build algorithm.
+            analysis = BlockAnalyzer.analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING);
+            if (config.placeMode == PlaceMode.COPYING) {
+                applySmartCopySubstitutions(world, analysis.blocks, coordA);
+            }
         }
 
         if (config.placeMode == PlaceMode.COPYING) {
@@ -442,6 +479,20 @@ public class MMState {
         }
 
         return analysis.blocks;
+    }
+
+    static boolean canExpandBlueprint(int blockCount, Vector3i span) {
+        long count = Math.max(1, blockCount);
+        if (span != null) {
+            for (int axis : new int[] {
+                span.x, span.y, span.z
+            }) {
+                long repetitions = axis >= 0 ? (long) axis + 1 : -(long) axis;
+                if (repetitions > 262144L / count) return false;
+                count *= repetitions;
+            }
+        }
+        return count <= 262144;
     }
 
     private void applySmartCopySubstitutions(World world, List<PendingBlock> blocks, Location coordA) {
@@ -587,9 +638,10 @@ public class MMState {
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void giveCopiedP2PInputsNewFrequencies(List<PendingBlock> copy, Location dest, Vector3i arrayOffset) {
-        if (config.p2pInterfaceCopyMode != P2PInterfaceCopyMode.COPY_PATTERNS) return;
+        // Blueprint frequencies are local topology tokens, never links back to a source network.
+        if (!config.isBlueprint() && config.p2pInterfaceCopyMode != P2PInterfaceCopyMode.COPY_PATTERNS) return;
 
-        List<AEPartData> p2ps = getBoundP2PInterfaces(copy);
+        List<AEPartData> p2ps = config.isBlueprint() ? getBlueprintP2Ps(copy) : getBoundP2PInterfaces(copy);
 
         Set<Long> copiedInputs = new HashSet<>();
 
@@ -618,6 +670,18 @@ public class MMState {
             .asLong();
 
         return freq == 0 || freq == original ? freq + 1 : freq;
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static List<AEPartData> getBlueprintP2Ps(List<PendingBlock> blocks) {
+        List<AEPartData> out = new ArrayList<>();
+        for (PendingBlock block : blocks) {
+            if (!(block.ae instanceof AEAnalysisResult result) || result.mAEParts == null) continue;
+            for (AEPartData part : result.mAEParts) {
+                if (part != null && part.mP2PFreq != 0 && part.isP2P()) out.add(part);
+            }
+        }
+        return out;
     }
 
     @Optional(Names.APPLIED_ENERGISTICS2)

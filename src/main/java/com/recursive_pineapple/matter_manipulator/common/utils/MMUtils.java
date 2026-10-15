@@ -1422,19 +1422,43 @@ public class MMUtils {
         ItemMatterManipulator manipulator,
         int flags
     ) {
-        state = state.clone();
-
-        if (!Location.areCompatible(state.config.coordA, state.config.coordB)) {
-            sendErrorToPlayer(player, "mm.info.error.must_have_copy_region");
+        if (!state.hasCap(ItemMatterManipulator.ALLOW_COPYING) || !state.canUseBlueprint(player)) {
+            sendErrorToPlayer(player, "mm.blueprint.result.denied");
             return;
         }
+        state = state.clone();
+        String planName;
 
-        if ((flags & PLAN_ALL) != 0) {
-            if (!Location.areCompatible(state.config.coordA, state.config.coordC)) {
-                state.config.coordC = state.config.coordA.clone();
+        if (state.config.isBlueprint()) {
+            var blueprint = state.getBlueprint(player.worldObj);
+            if (blueprint == null) {
+                sendErrorToPlayer(player, "mm.blueprint.result.not_found");
+                return;
+            }
+            planName = blueprint.name;
+            if (state.config.coordC == null || !state.config.coordC.isInWorld(player.worldObj)) {
+                if ((flags & PLAN_ALL) == 0) {
+                    sendErrorToPlayer(player, "mm.info.error.must_have_paste_region");
+                    return;
+                }
+                state.config.coordC = new Location(
+                    player.worldObj,
+                    MathHelper.floor_double(player.posX),
+                    MathHelper.floor_double(player.posY),
+                    MathHelper.floor_double(player.posZ)
+                );
             }
         } else {
-            if (!Location.areCompatible(state.config.coordA, state.config.coordC)) {
+            if (!Location.areCompatible(state.config.coordA, state.config.coordB)) {
+                sendErrorToPlayer(player, "mm.info.error.must_have_copy_region");
+                return;
+            }
+            planName = state.config.coordA.toString();
+            if ((flags & PLAN_ALL) != 0) {
+                if (!Location.areCompatible(state.config.coordA, state.config.coordC)) {
+                    state.config.coordC = state.config.coordA.clone();
+                }
+            } else if (!Location.areCompatible(state.config.coordA, state.config.coordC)) {
                 sendErrorToPlayer(player, "mm.info.error.must_have_paste_region");
                 return;
             }
@@ -1525,7 +1549,7 @@ public class MMUtils {
                 if (!requiredItems.isEmpty()) {
                     state.uplink.submitPlan(
                         player,
-                        state.config.coordA.toString(),
+                        planName,
                         requiredItems,
                         (flags & PLAN_AUTO_SUBMIT) != 0
                     );

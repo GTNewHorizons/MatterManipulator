@@ -91,6 +91,7 @@ import com.gtnewhorizons.modularui.common.widget.VanillaButtonWidget;
 import com.gtnewhorizons.modularui.common.widget.textfield.NumericWidget;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
+import com.recursive_pineapple.matter_manipulator.client.gui.BlueprintLibraryScreen;
 import com.recursive_pineapple.matter_manipulator.client.gui.DirectionDrawable;
 import com.recursive_pineapple.matter_manipulator.client.gui.RadialMenuBuilder;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
@@ -742,6 +743,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         MMState state,
         MovingObjectPosition hit
     ) {
+        if (
+            (state.config.action == PendingAction.MARK_COPY_A || state.config.action == PendingAction.MARK_COPY_B) && !state.hasCap(ALLOW_COPYING)
+        ) return false;
         switch (state.config.action) {
             case MOVING_COORDS: {
                 Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
@@ -778,6 +782,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 return true;
             }
             case MARK_COPY_A: {
+                state.config.clearBlueprint();
                 state.config.coordA = new Location(world, MMUtils.getLookingAtLocation(player));
                 state.config.action = PendingAction.MARK_COPY_B;
                 return true;
@@ -1040,7 +1045,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     private void onMarkArray(World world, EntityPlayer player, ItemStack stack, MMState state) {
         Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
 
-        if (!Location.areCompatible(state.config.coordA, state.config.coordB)) {
+        if (state.config.isBlueprint() ? state.config.blueprintDeltas == null : !Location.areCompatible(state.config.coordA, state.config.coordB)) {
             sendErrorToPlayer(player, "mm.info.error.cannot_mark_copy");
             state.config.arraySpan = null;
             return;
@@ -1094,19 +1099,34 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
             MMState state = getState(stack);
 
+            if (state.config.placeMode == PlaceMode.COPYING && (!state.hasCap(ALLOW_COPYING) || !state.canUseBlueprint(player))) {
+                stopBuildable(player);
+                player.stopUsingItem();
+                sendErrorToPlayer(player, "mm.blueprint.result.denied");
+                return;
+            }
+
             if (ticksUsed == 1) {
-                switch (state.config.placeMode) {
-                    case GEOMETRY:
-                    case COPYING:
-                    case EXCHANGING:
-                    case CABLES: {
-                        PENDING_BUILDS.put(player, getPendingBuild(player, stack, state));
-                        break;
+                try {
+                    switch (state.config.placeMode) {
+                        case GEOMETRY:
+                        case COPYING:
+                        case EXCHANGING:
+                        case CABLES: {
+                            PENDING_BUILDS.put(player, getPendingBuild(player, stack, state));
+                            break;
+                        }
+                        case MOVING: {
+                            PENDING_BUILDS.put(player, getPendingMove(player, stack, state));
+                            break;
+                        }
                     }
-                    case MOVING: {
-                        PENDING_BUILDS.put(player, getPendingMove(player, stack, state));
-                        break;
-                    }
+                } catch (RuntimeException e) {
+                    stopBuildable(player);
+                    player.stopUsingItem();
+                    MMMod.LOG.warn("Could not prepare manipulator build", e);
+                    sendErrorToPlayer(player, "mm.info.error.could_not_place_blocks");
+                    return;
                 }
             }
 
@@ -1133,6 +1153,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private IBuildable getPendingBuild(EntityPlayer player, ItemStack stack, MMState state) {
+        if (
+            state.config.placeMode == PlaceMode.COPYING && state.config.isBlueprint() &&
+                (!state.canUseBlueprint(player) || state.getBlueprint(player.worldObj) == null)
+        ) {
+            throw new IllegalStateException("Blueprint is missing or does not belong to this player");
+        }
         List<PendingBlock> blocks = state.getPendingBlocks(tier, player.getEntityWorld());
 
         if (tier.maxRange != -1) {
@@ -1443,7 +1469,14 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private void addCopyingOptions(RadialMenuBuilder builder, UIBuildContext buildContext, ItemStack heldStack, MMState initialState) {
+        if (!initialState.hasCap(ALLOW_COPYING)) return;
         builder
+            .option()
+                .label(StatCollector.translateToLocal("mm.blueprint.title"))
+                .onClicked((menu, option, mouseButton, doubleClicked) -> {
+                    Minecraft.getMinecraft().displayGuiScreen(new BlueprintLibraryScreen());
+                })
+            .done()
             .option()
                 .label(StatCollector.translateToLocal("mm.gui.mark_copy"))
                 .onClicked(() -> {
@@ -1734,6 +1767,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
     @SideOnly(Side.CLIENT)
     private Row makeCoordinateEditor(EntityPlayer player, Coord coord, CoordComponent component) {
+        MMConfig config = getState(player.getHeldItem()).config;
+        if (config.isBlueprint() && config.placeMode == PlaceMode.COPYING
+            && (coord == Coord.Copy || coord == Coord.CopyA || coord == Coord.CopyB)) {
+            return new Row().widgets(new TextWidget(new Text(component.name() + " — N/A").shadow()).setSize(130, 18));
+        }
         IntSupplier getter = createGetter(player, coord, component);
         IntConsumer setter = createSetter(player, coord, component);
         SizeStorage storage = new SizeStorage(player, coord, component);
