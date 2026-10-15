@@ -1287,7 +1287,10 @@ public class MMUtils {
 
             String data = primitive.getAsString();
 
-            if (data.length() < 2) throw new JsonParseException("illegal json primitive string: '" + data + "'");
+            // Empty strings and arrays contain only their type prefix; numeric payloads must still be nonempty.
+            if (data.length() < 2 && !"s".equals(data) && !"1".equals(data) && !"2".equals(data)) {
+                throw new JsonParseException("illegal json primitive string: '" + data + "'");
+            }
 
             char prefix = data.charAt(0);
             data = data.substring(1);

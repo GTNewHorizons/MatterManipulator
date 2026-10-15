@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.StatCollector;
 
 import cpw.mods.fml.relauncher.Side;
@@ -324,6 +325,9 @@ public class BlueprintLibraryScreen extends GuiScreen {
         name.drawTextBox();
         drawCenteredString(fontRendererObj, fontRendererObj.trimStringToWidth(status, panelWidth), width / 2, height - 11, 0xFFFF88);
         super.drawScreen(mouseX, mouseY, partialTicks);
+        if (!status.isEmpty() && mouseY >= height - 13) {
+            drawHoveringText(fontRendererObj.listFormattedStringToWidth(status, Math.min(panelWidth, 320)), mouseX, mouseY, fontRendererObj);
+        }
         if (!hasWorldSource() && mouseX >= left && mouseX < left + panelWidth / 4 && mouseY >= height - 60 && mouseY < height - 40) {
             String guidance = localized("source_required", "To save, use Mark Copy in Copy mode and mark both source corners.");
             drawHoveringText(fontRendererObj.listFormattedStringToWidth(guidance, Math.min(panelWidth, 280)), mouseX, mouseY, fontRendererObj);
@@ -352,6 +356,10 @@ public class BlueprintLibraryScreen extends GuiScreen {
     }
 
     public static void onError(int request, String translationKey) {
+        onError(request, translationKey, "");
+    }
+
+    private static void onError(int request, String translationKey, String detail) {
         if (!(Minecraft.getMinecraft().currentScreen instanceof BlueprintLibraryScreen screen)) return;
         if (request != screen.listRequest && request != screen.operationRequest) return;
         if (request == screen.listRequest) screen.listRequest = -1;
@@ -360,13 +368,17 @@ public class BlueprintLibraryScreen extends GuiScreen {
             screen.operationRequest = -1;
         }
         screen.status = StatCollector.translateToLocal(translationKey);
+        if (!detail.isEmpty()) {
+            screen.status += " " + detail;
+            if (screen.mc.thePlayer != null) screen.mc.thePlayer.addChatMessage(new ChatComponentTranslation("mm.blueprint.error.detail", detail));
+        }
         screen.updateButtons();
     }
 
-    public static void onResult(int request, BlueprintStatus result) {
+    public static void onResult(int request, BlueprintStatus result, String detail) {
         if (!(Minecraft.getMinecraft().currentScreen instanceof BlueprintLibraryScreen screen)) return;
         if (result != BlueprintStatus.OK) {
-            onError(request, result.translationKey());
+            onError(request, result.translationKey(), detail);
             return;
         }
         if (request != screen.operationRequest) return;

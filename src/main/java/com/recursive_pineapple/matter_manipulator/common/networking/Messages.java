@@ -527,7 +527,7 @@ public enum Messages {
         public void handle(EntityPlayer player, BlueprintResultPacket packet) {
             BlueprintTasks.enqueueClient(() -> {
                 BlueprintClientCache.onResult(packet.request, packet.result == BlueprintStatus.OK);
-                BlueprintLibraryScreen.onResult(packet.request, packet.result);
+                BlueprintLibraryScreen.onResult(packet.request, packet.result, packet.detail);
             });
         }
 
@@ -560,7 +560,8 @@ public enum Messages {
         RANGE,
         UNLOADED,
         STORAGE,
-        BUSY;
+        BUSY,
+        INVALID_NAME;
 
         public String translationKey() {
 
@@ -626,15 +627,21 @@ public enum Messages {
     }
 
     private static void sendBlueprintResult(EntityPlayerMP player, int request, BlueprintStatus status) {
+        sendBlueprintResult(player, request, status, "");
+    }
+
+    private static void sendBlueprintResult(EntityPlayerMP player, int request, BlueprintStatus status, String detail) {
         BlueprintResultPacket response = new BlueprintResultPacket(BlueprintResult);
         response.request = request;
         response.result = status;
+        response.detail = detail;
         BlueprintResult.sendToPlayer(player, response);
     }
 
     private static void handleBlueprint(EntityPlayerMP player, BlueprintRequestPacket packet) {
         if (!isOnline(player)) return;
         BlueprintStatus result = BlueprintStatus.OK;
+        String detail = "";
         try {
             ItemStack held = player.inventory.getCurrentItem();
             if (held == null || !(held.getItem() instanceof ItemMatterManipulator manipulator)) { throw new BlueprintFailure(BlueprintStatus.DENIED); }
@@ -669,7 +676,7 @@ public enum Messages {
                 }
                 case SAVE -> {
                     if (state.config.placeMode != PlaceMode.COPYING || state.config.isBlueprint()) { throw new BlueprintFailure(BlueprintStatus.REGION); }
-                    BlueprintProtocol.validateName(data.name);
+                    validateBlueprintName(data.name);
                     if (BlueprintStore.list(world, owner).size() >= BlueprintStore.MAX_ENTRIES) { throw new BlueprintFailure(BlueprintStatus.QUOTA); }
                     validateCapture(player, manipulator, state);
                     StructureBlueprint blueprint = StructureBlueprint.capture(
@@ -710,7 +717,7 @@ public enum Messages {
                 }
                 case RENAME -> {
                     BlueprintProtocol.validateId(data.id);
-                    BlueprintProtocol.validateName(data.name);
+                    validateBlueprintName(data.name);
                     if (BlueprintStore.load(world, owner, data.id) == null) throw new BlueprintFailure(BlueprintStatus.NOT_FOUND);
                     BlueprintStore.rename(world, owner, data.id, data.name);
                 }
@@ -727,7 +734,9 @@ public enum Messages {
         } catch (BlueprintFailure e) {
             result = e.status;
         } catch (IllegalArgumentException e) {
+            MMMod.LOG.warn("Rejected blueprint " + packet.data.operation + " request for " + player.getUniqueID(), e);
             result = BlueprintStatus.INVALID;
+            detail = BlueprintProtocol.errorDetail(e);
         } catch (IOException e) {
             MMMod.LOG.warn("Blueprint storage request failed for " + player.getUniqueID(), e);
             result = BlueprintStatus.STORAGE;
@@ -735,7 +744,15 @@ public enum Messages {
             MMMod.LOG.error("Blueprint request failed for " + player.getUniqueID(), e);
             result = BlueprintStatus.STORAGE;
         }
-        sendBlueprintResult(player, packet.data.request, result);
+        sendBlueprintResult(player, packet.data.request, result, detail);
+    }
+
+    private static void validateBlueprintName(String name) {
+        try {
+            BlueprintProtocol.validateName(name);
+        } catch (IllegalArgumentException e) {
+            throw new BlueprintFailure(BlueprintStatus.INVALID_NAME);
+        }
     }
 
     private static void validateCapture(EntityPlayerMP player, ItemMatterManipulator manipulator, MMState state) {
@@ -922,6 +939,7 @@ public enum Messages {
 
         private int request;
         private BlueprintStatus result;
+        private String detail = "";
 
         private BlueprintResultPacket(Messages message) {
             super(message);
@@ -931,6 +949,7 @@ public enum Messages {
         public void encode(ByteBuf buffer) {
             buffer.writeInt(request);
             buffer.writeByte(result.ordinal());
+            BlueprintProtocol.writeText(buffer, detail, BlueprintProtocol.MAX_ERROR_BYTES);
         }
 
         @Override
@@ -940,6 +959,7 @@ public enum Messages {
             int status = buffer.readUnsignedByte();
             if (status >= BlueprintStatus.values().length) throw new IllegalArgumentException("Invalid blueprint result");
             packet.result = BlueprintStatus.values()[status];
+            if (buffer.isReadable()) packet.detail = BlueprintProtocol.readText(buffer, BlueprintProtocol.MAX_ERROR_BYTES);
             return packet;
         }
     }
@@ -1795,6 +1815,7 @@ public enum Messages {
 final class BlueprintProtocol {
 
     static final int CHUNK_BYTES = 16 * 1024;
+    static final int MAX_ERROR_BYTES = 384;
     // A valid name has at most 64 UTF-16 code units: BMP characters cost at most 3 UTF-8 bytes per unit.
     static final int MAX_NAME_BYTES = 64 * 3;
     static final int MAX_LIST_PACKET_BYTES = 1 + 4 + 2 + BlueprintStore.MAX_ENTRIES * (2 + 36 + 2 + MAX_NAME_BYTES + 16);
@@ -1830,6 +1851,26 @@ final class BlueprintProtocol {
 
     static void validateId(String id) {
         if (id == null || !UUID.fromString(id).toString().equals(id)) throw new IllegalArgumentException("Invalid blueprint UUID");
+    }
+
+    static String errorDetail(Throwable error) {
+        Throwable cause = error;
+        for (int depth = 0; depth < 8 && cause.getCause() != null && cause.getCause() != cause; depth++) {
+            cause = cause.getCause();
+        }
+        String message = cause.getClass().getSimpleName() + ": " + String.valueOf(cause.getMessage());
+        StringBuilder detail = new StringBuilder();
+        int bytes = 0;
+        for (int i = 0; i < message.length();) {
+            int codePoint = message.codePointAt(i);
+            i += Character.charCount(codePoint);
+            if (Character.isISOControl(codePoint) || codePoint == '\u00a7' || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) codePoint = ' ';
+            int length = codePoint <= 0x7F ? 1 : codePoint <= 0x7FF ? 2 : codePoint <= 0xFFFF ? 3 : 4;
+            if (bytes + length > MAX_ERROR_BYTES) break;
+            detail.appendCodePoint(codePoint);
+            bytes += length;
+        }
+        return detail.toString();
     }
 
     static void validateName(String name) {

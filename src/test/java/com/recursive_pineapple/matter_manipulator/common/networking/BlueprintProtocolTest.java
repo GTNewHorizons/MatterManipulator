@@ -147,6 +147,31 @@ class BlueprintProtocolTest {
     }
 
     @Test
+    void errorDetailsExposeUnderlyingCodecFailureWithoutFormattingOrControlCharacters() {
+        Throwable error = new IllegalArgumentException("Invalid blueprint data", new IllegalStateException("AE config\nfailed\u00a7c\u0000"));
+        String detail = BlueprintProtocol.errorDetail(error);
+        assertEquals("IllegalStateException: AE config failed c ", detail);
+        assertFalse(detail.contains("\n"));
+        assertFalse(detail.contains("\u00a7"));
+    }
+
+    @Test
+    void errorDetailsAreBoundedUtf8AndNeverSplitSurrogatePairs() {
+        String message = new String(new char[300]).replace("\0", "\uD83C\uDFE0");
+        String detail = BlueprintProtocol.errorDetail(new IllegalArgumentException(message));
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            BlueprintProtocol.writeText(buffer, detail, BlueprintProtocol.MAX_ERROR_BYTES);
+            assertTrue(buffer.readableBytes() <= 2 + BlueprintProtocol.MAX_ERROR_BYTES);
+            assertEquals(detail, BlueprintProtocol.readText(buffer, BlueprintProtocol.MAX_ERROR_BYTES));
+            assertDoesNotThrow(() -> BlueprintProtocol.writeText(buffer,
+                BlueprintProtocol.errorDetail(new IllegalArgumentException("broken\uD83C")), BlueprintProtocol.MAX_ERROR_BYTES));
+        } finally {
+            buffer.release();
+        }
+    }
+
+    @Test
     void namesAndIdsRejectTraversalAndControlCharacters() {
         String id = UUID.randomUUID().toString();
         assertDoesNotThrow(() -> BlueprintProtocol.validateId(id));

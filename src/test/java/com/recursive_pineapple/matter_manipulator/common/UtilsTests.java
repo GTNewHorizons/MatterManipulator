@@ -1,15 +1,40 @@
 package com.recursive_pineapple.matter_manipulator.common;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.NBTTagString;
+
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
 
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 
 import org.junit.jupiter.api.Test;
 
 class UtilsTests {
+
+    @Test
+    void exactNbtRoundTripsEmptyStringAndArrays() {
+        NBTTagCompound tag = new NBTTagCompound();
+        tag.setString("customName", "");
+        tag.setByteArray("bytes", new byte[0]);
+        tag.setIntArray("ints", new int[0]);
+        NBTTagList strings = new NBTTagList();
+        strings.appendTag(new NBTTagString(""));
+        tag.setTag("strings", strings);
+        tag.setTag("nested", (NBTTagCompound) tag.copy());
+        assertEquals(tag, MMUtils.toNbtExact(MMUtils.toJsonObjectExact(tag)));
+    }
+
+    @Test
+    void exactNbtStillRejectsMissingPrefixesAndEmptyNumericPayloads() {
+        for (String invalid : new String[] { "", "b", "h", "i", "l", "f", "d", "x" }) {
+            assertThrows(JsonParseException.class, () -> MMUtils.toNbtExact(new JsonPrimitive(invalid)), invalid);
+        }
+    }
 
     @Test
     void testNBTExact() {

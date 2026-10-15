@@ -106,6 +106,11 @@ class StructureBlueprintTest {
     }
 
     @Test
+    void captureRoundTripsEmptyNbtValues() throws Exception {
+        run("captureRoundTripsEmptyNbtValues");
+    }
+
+    @Test
     void capturePreservesArbitraryItemConfiguration() throws Exception {
         run("capturePreservesArbitraryItemConfiguration");
     }
@@ -141,6 +146,23 @@ class StructureBlueprintTest {
             block.inventory.mItems = new IItemProvider[] { item, null };
             blueprint.blocks.add(block);
             return blueprint;
+        }
+
+        public static void captureRoundTripsEmptyNbtValues() {
+            StructureBlueprint source = snapshot();
+            PortableItemStack original = (PortableItemStack) source.blocks.get(0).inventory.mItems[0];
+            original.nbt.setString("customName", "");
+            original.nbt.setByteArray("bytes", new byte[0]);
+            original.nbt.setIntArray("ints", new int[0]);
+            RegionAnalysis region = new RegionAnalysis();
+            region.deltas = source.deltas;
+            region.blocks = source.blocks;
+            StructureBlueprint captured = StructureBlueprint.capture(region, "Empty NBT regression");
+            StructureBlueprint decoded = BlueprintCodec.decode(BlueprintCodec.encode(captured));
+            PortableItemStack copy = (PortableItemStack) decoded.blocks.get(0).inventory.mItems[0];
+            assertEquals(original.nbt, copy.nbt);
+            assertNotSame(original.nbt, copy.nbt);
+            assertEquals(original.nbt, ((PortableItemStack) captured.instantiate(42).blocks.get(0).inventory.mItems[0]).nbt);
         }
 
         public static void deepCopiesBlocksSpecsInventoryAndNbtAndRebindsTargetWorld() {
