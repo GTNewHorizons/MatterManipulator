@@ -610,7 +610,6 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
 
     private class ManipulatorRequest {
 
-
         public final UUID requester;
         public final String requestName;
         public final List<IAEItemStack> requiredItems;
@@ -706,8 +705,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
          * might not identify a specific item, in which case we show the available AE2 error instead.
          */
         void reportFailure(EntityPlayer player) {
-            if (failedJob != null && failedJob.isSimulation()
-                && (failedJob.getErrorMessage() == null || failedJob.getErrorMessage().isEmpty())) {
+            if (failedJob != null && failedJob.isSimulation() && (failedJob.getErrorMessage() == null || failedJob.getErrorMessage().isEmpty())) {
                 IItemList<IAEStack<?>> plan = AEApi.instance()
                     .storage()
                     .createAEStackList();
@@ -742,8 +740,7 @@ public class MTEMMUplinkMEHatch extends MTEHatch implements IGridProxyable, IPow
             IChatComponent reason;
             if (failureReason != null) {
                 reason = new ChatComponentTranslation(failureReason);
-            } else if (failedJob != null && failedJob.getErrorMessage() != null
-                && !failedJob.getErrorMessage().trim().isEmpty()) {
+            } else if (failedJob != null && failedJob.getErrorMessage() != null && !failedJob.getErrorMessage().trim().isEmpty()) {
                 reason = new ChatComponentText(failedJob.getErrorMessage());
             } else {
                 reason = new ChatComponentTranslation("mm.info.crafting_error_unknown");
