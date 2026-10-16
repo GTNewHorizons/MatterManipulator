@@ -182,7 +182,7 @@ public class MMRenderer {
         int minZ = Math.min(a.z, b.z), maxZ = Math.max(a.z, b.z);
         for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
             for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
-                if (!world.getChunkProvider().chunkExists(cx, cz)) return false;
+                if (world.getChunkFromChunkCoords(cx, cz).isEmpty()) return false;
             }
         }
         return true;
@@ -595,7 +595,7 @@ public class MMRenderer {
                 if (now >= nextPasteChunkCheckMS) {
                     int cx = playerLocation.x >> 4;
                     int cz = playerLocation.z >> 4;
-                    boolean loaded = player.worldObj.getChunkProvider().chunkExists(cx, cz);
+                    boolean loaded = !player.worldObj.getChunkFromChunkCoords(cx, cz).isEmpty();
                     if (cx != lastPasteChunkX || cz != lastPasteChunkZ || loaded != lastPasteChunkLoaded) {
                         needsHintDraw = true;
                     }
@@ -738,7 +738,7 @@ public class MMRenderer {
             int chunkZ = pendingBlock.z >> 4;
             long chunkKey = (((long) chunkX) << 32) | (chunkZ & 0xffffffffL);
             if (!loadedPasteChunks.containsKey(chunkKey)) {
-                loadedPasteChunks.put(chunkKey, world.getChunkProvider().chunkExists(chunkX, chunkZ));
+                loadedPasteChunks.put(chunkKey, !world.getChunkFromChunkCoords(chunkX, chunkZ).isEmpty());
             }
             if (!loadedPasteChunks.get(chunkKey)) continue;
 
