@@ -714,6 +714,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 state.config.coordC = null;
                 state.config.coordBOffset = new Vector3i();
                 state.config.cableCorners = null;
+                state.config.cableHatchA = getClickedCableHatch(player, hit);
+                state.config.cableHatchB = null;
                 state.config.action = PendingAction.MOVING_COORDS;
             }
 
@@ -749,7 +751,17 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
                 Location movedA = state.config.getCoordA(world, lookingAt);
 
-                if (state.config.placeMode == PlaceMode.CABLES) moveCableCornersWithCoordA(state, movedA);
+                if (state.config.placeMode == PlaceMode.CABLES) {
+                    moveCableCornersWithCoordA(state, movedA);
+
+                    if (state.config.coordAOffset != null && state.config.coordBOffset == null) {
+                        state.config.cableHatchA = getClickedCableHatch(player, hit);
+                    }
+
+                    if (state.config.coordAOffset == null && state.config.coordBOffset != null) {
+                        state.config.cableHatchB = getClickedCableHatch(player, hit);
+                    }
+                }
 
                 if (
                     state.config.placeMode == PlaceMode.GEOMETRY && state.config.coordAOffset == null &&
@@ -835,6 +847,15 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         return false;
+    }
+
+    /**
+     * @return The block that was clicked to place a cable path's end, which might be a laser hatch.
+     */
+    private static Vector3i getClickedCableHatch(EntityPlayer player, MovingObjectPosition hit) {
+        if (hit == null || player.isSneaking()) return null;
+
+        return new Vector3i(hit.blockX, hit.blockY, hit.blockZ);
     }
 
     /**
