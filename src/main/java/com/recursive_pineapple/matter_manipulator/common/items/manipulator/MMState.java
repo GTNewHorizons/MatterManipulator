@@ -7,8 +7,14 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregT
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.Nullable;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -21,6 +27,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
 
+import gregtech.api.GregTechAPI;
 import gregtech.api.enums.ItemList;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -42,9 +49,11 @@ import appeng.api.parts.IPartItem;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.util.DimensionalCoord;
+import appeng.parts.p2p.PartP2PInterface;
 import appeng.tile.misc.TileSecurity;
 import appeng.tile.networking.TileWireless;
 
+import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -81,6 +90,9 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import org.joml.Vector3i;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import tectech.thing.CustomItemList;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaserMirror;
 
 /**
  * The NBT state of a manipulator.
@@ -121,6 +133,8 @@ public class MMState {
     @Optional(Names.APPLIED_ENERGISTICS2)
     public transient IMEMonitor<IAEItemStack> itemStorage;
 
+    private static long lastP2PFrequency;
+
     public static MMState load(NBTTagCompound tag) {
         JsonObject obj = (JsonObject) MMUtils.toJsonObject(tag);
 
@@ -130,6 +144,11 @@ public class MMState {
 
         if (state == null) state = new MMState();
         if (state.config == null) state.config = new MMConfig();
+        // Gson loads an enum name it does not know as null
+        if (state.config.interfaceCopyMode == null) state.config.interfaceCopyMode = InterfaceCopyMode.COPY;
+        if (state.config.p2pInterfaceCopyMode == null) {
+            state.config.p2pInterfaceCopyMode = P2PInterfaceCopyMode.COPY_PATTERNS;
+        }
 
         state.migrate();
         state.onLoad();
@@ -150,7 +169,7 @@ public class MMState {
         return copy;
     }
 
-    private static final int LASTEST_JSON_VERSION = 2;
+    private static final int LASTEST_JSON_VERSION = 3;
     private static final int LASTEST_DATA_VERSION = 0;
 
     private static void migrateJson(JsonObject obj) {
@@ -184,6 +203,19 @@ public class MMState {
             }
 
             version = 2;
+        }
+
+        if (version == 2) {
+            if (obj.get("config") instanceof JsonObject config && config.has("replaceInterfacesWithP2P")) {
+                if (config.get("replaceInterfacesWithP2P").getAsBoolean()) {
+                    config.addProperty("interfaceCopyMode", InterfaceCopyMode.CONVERT_TO_P2P.name());
+                    config.addProperty("p2pInterfaceCopyMode", P2PInterfaceCopyMode.LINK_TO_ORIGINAL.name());
+                }
+
+                config.remove("replaceInterfacesWithP2P");
+            }
+
+            version = 3;
         }
 
         obj.addProperty("jv", version);
@@ -355,7 +387,7 @@ public class MMState {
         RegionAnalysis analysis = BlockAnalyzer
             .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING ? true : false);
 
-        if (config.placeMode == PlaceMode.COPYING && (config.replaceCribsWithProxies || config.replaceInterfacesWithP2P)) {
+        if (config.placeMode == PlaceMode.COPYING) {
             applySmartCopySubstitutions(world, analysis.blocks, coordA);
         }
 
@@ -390,14 +422,22 @@ public class MMState {
                 MMUtils.forEachArrayOffset(config.arraySpan, analysis.deltas, d -> {
                     t.apply(d);
 
+                    List<PendingBlock> copy = new ArrayList<>(base.size());
+
                     for (PendingBlock original : base) {
                         PendingBlock dup = original.clone();
                         dup.x += d.x;
                         dup.y += d.y;
                         dup.z += d.z;
-                        analysis.blocks.add(dup);
+                        copy.add(dup);
                     }
+
+                    if (AppliedEnergistics2.isModLoaded()) giveCopiedP2PInputsNewFrequencies(copy, coordC, d);
+
+                    analysis.blocks.addAll(copy);
                 });
+            } else if (AppliedEnergistics2.isModLoaded()) {
+                giveCopiedP2PInputsNewFrequencies(analysis.blocks, coordC, new Vector3i());
             }
 
             analysis.deltas = t.apply(analysis.deltas);
@@ -419,8 +459,12 @@ public class MMState {
             applySmartCopyCribs(world, blocks, coordA);
         }
 
-        if (AppliedEnergistics2.isModLoaded() && config.replaceInterfacesWithP2P) {
-            applySmartCopyP2P(world, blocks, coordA);
+        if (AppliedEnergistics2.isModLoaded()) {
+            applyP2PInterfaceCopyMode(blocks);
+
+            if (config.interfaceCopyMode == InterfaceCopyMode.CONVERT_TO_P2P) {
+                applySmartCopyP2P(world, blocks, coordA);
+            }
         }
     }
 
@@ -478,9 +522,6 @@ public class MMState {
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void applySmartCopyP2P(World world, List<PendingBlock> blocks, Location coordA) {
-        long freqBase = System.currentTimeMillis();
-        int freqOffset = 0;
-
         ItemStack p2pIfaceStack = AEApi.instance().definitions().parts().p2PTunnelMEInterface().maybeStack(1).orNull();
         if (p2pIfaceStack == null) return;
 
@@ -507,7 +548,8 @@ public class MMState {
                 ItemStack replacementStack = isDual ? p2pDualIfaceStack : p2pIfaceStack;
 
                 ForgeDirection side = AEAnalysisResult.ALL_DIRECTIONS[i];
-                long freq = freqBase + freqOffset++;
+                long freq = nextP2PFrequency();
+                PortableItemStack sourcePart = partData.mPart;
 
                 // Replace the interface part with a P2P tunnel in the analysis
                 partData.mPart = new PortableItemStack(replacementStack);
@@ -533,9 +575,83 @@ public class MMState {
                 info.srcSide = side;
                 info.destSide = side;
                 info.p2pItem = new PortableItemStack(replacementStack);
+                info.sourcePart = sourcePart;
                 block.smartCopy.p2pActions.add(info);
             }
         }
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void applyP2PInterfaceCopyMode(List<PendingBlock> blocks) {
+        if (config.p2pInterfaceCopyMode != P2PInterfaceCopyMode.LINK_TO_ORIGINAL) return;
+
+        for (AEPartData partData : getBoundP2PInterfaces(blocks)) {
+            partData.mP2POutput = true;
+            partData.mAEPatterns = null;
+        }
+    }
+
+    /**
+     * AE allows one input per frequency. The new frequency depends only on the old one and the paste position, so
+     * analysing the same paste again gives the same result.
+     */
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void giveCopiedP2PInputsNewFrequencies(List<PendingBlock> copy, Location dest, Vector3i arrayOffset) {
+        if (config.p2pInterfaceCopyMode != P2PInterfaceCopyMode.COPY_PATTERNS) return;
+
+        List<AEPartData> p2ps = getBoundP2PInterfaces(copy);
+
+        Set<Long> copiedInputs = new HashSet<>();
+
+        for (AEPartData partData : p2ps) {
+            if (!partData.mP2POutput) copiedInputs.add(partData.mP2PFreq);
+        }
+
+        if (copiedInputs.isEmpty()) return;
+
+        for (AEPartData partData : p2ps) {
+            if (copiedInputs.contains(partData.mP2PFreq)) {
+                partData.mP2PFreq = getCopiedFrequency(partData.mP2PFreq, dest, arrayOffset);
+            }
+        }
+    }
+
+    private static long getCopiedFrequency(long original, Location dest, Vector3i arrayOffset) {
+        long freq = Hashing.murmur3_128()
+            .newHasher()
+            .putLong(original)
+            .putInt(dest.worldId)
+            .putInt(dest.x + arrayOffset.x)
+            .putInt(dest.y + arrayOffset.y)
+            .putInt(dest.z + arrayOffset.z)
+            .hash()
+            .asLong();
+
+        return freq == 0 || freq == original ? freq + 1 : freq;
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static List<AEPartData> getBoundP2PInterfaces(List<PendingBlock> blocks) {
+        List<AEPartData> out = new ArrayList<>();
+
+        for (PendingBlock block : blocks) {
+            if (!(block.ae instanceof AEAnalysisResult aeResult)) continue;
+            if (aeResult.mAEParts == null) continue;
+
+            for (AEPartData partData : aeResult.mAEParts) {
+                if (partData == null || partData.mP2PFreq == 0) continue;
+                if (!partData.isPartSubclassOf(PartP2PInterface.class)) continue;
+
+                out.add(partData);
+            }
+        }
+
+        return out;
+    }
+
+    private static synchronized long nextP2PFrequency() {
+        lastP2PFrequency = Math.max(System.currentTimeMillis(), lastP2PFrequency + 1);
+        return lastP2PFrequency;
     }
 
     @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
@@ -633,15 +749,15 @@ public class MMState {
 
         if (!Location.areCompatible(coordA, coordB) || !coordA.isInWorld(world)) { return new ArrayList<>(); }
 
-        Vector3i a = coordA.toVec();
-        Vector3i b = pinToAxes(a, coordB.toVec());
+        List<Vector3i> path = getCablePath(getCablePoints(coordA.toVec(), config.cableCorners, coordB.toVec()));
+        Set<Vector3i> voxels = new LinkedHashSet<>(path);
 
         ArrayList<PendingBlock> out = new ArrayList<>();
 
         if (config.cables == null) {
             BlockSpec pooled = new BlockSpec();
 
-            for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+            for (Vector3i voxel : voxels) {
                 if (AppliedEnergistics2.isModLoaded()) {
                     if (MMUtils.getAECable(pooled, world, voxel.x, voxel.y, voxel.z)) {
                         PendingBlock pendingBlock = InteropConstants.AE_BLOCK_CABLE.toSpec().instantiate(world, voxel.x, voxel.y, voxel.z);
@@ -662,18 +778,18 @@ public class MMState {
             Block block = Block.getBlockFromItem(config.cables.getItem());
 
             if (GregTech.isModLoaded()) {
-                getGTCables(a, b, out, block, world, config.cables);
+                getGTCables(path, out, block, world, config.cables);
             }
 
             if (AppliedEnergistics2.isModLoaded()) {
-                getAECables(a, b, out, block, world, config.cables);
+                getAECables(voxels, out, block, world, config.cables);
             }
 
             if (Mods.OpenComputers.isModLoaded()) {
-                getOCCables(a, b, out, block, world, config.cables);
+                getOCCables(voxels, out, block, world, config.cables);
             }
             if (Mods.EnderIO.isModLoaded() && MMUtils.isEnderIOConduit(config.cables.getItem())) {
-                for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+                for (Vector3i voxel : voxels) {
                     PendingBlock pending = new BlockSpec().setObject(InteropConstants.EIO_CONDUIT.getBlock(), 0)
                         .instantiate(world, voxel.x, voxel.y, voxel.z);
                     pending.eio = EnderIOAnalysisResult.forCablePlacement(config.cables.toStack(1));
@@ -685,58 +801,112 @@ public class MMState {
         return out;
     }
 
+    /**
+     * Gets the points of a cable path: A, every corner inbetween A and B, then B.
+     * Each point is pinned to the axes of the point before it, so that every segment is axis-aligned.
+     */
+    public static List<Vector3i> getCablePoints(Vector3i a, @Nullable List<Vector3i> corners, @Nullable Vector3i b) {
+        List<Vector3i> points = new ArrayList<>();
+
+        points.add(new Vector3i(a));
+
+        if (corners != null) {
+            for (Vector3i corner : corners) {
+                addCablePoint(points, corner);
+            }
+        }
+
+        if (b != null) addCablePoint(points, b);
+
+        return points;
+    }
+
+    private static void addCablePoint(List<Vector3i> points, Vector3i point) {
+        Vector3i last = points.get(points.size() - 1);
+        Vector3i pinned = pinToAxes(last, point);
+
+        if (!pinned.equals(last)) points.add(pinned);
+    }
+
+    /**
+     * Gets every voxel along a cable path, in order. Each voxel is adjacent to the one before it. A voxel may appear
+     * more than once if the path crosses itself.
+     */
+    static List<Vector3i> getCablePath(List<Vector3i> points) {
+        List<Vector3i> path = new ArrayList<>();
+
+        path.add(points.get(0));
+
+        for (int i = 1; i < points.size(); i++) {
+            Vector3i start = points.get(i - 1), end = points.get(i);
+
+            List<Vector3i> segment = getLineVoxels(start.x, start.y, start.z, end.x, end.y, end.z);
+
+            // the first voxel is the previous segment's last voxel
+            path.addAll(segment.subList(1, segment.size()));
+        }
+
+        return path;
+    }
+
     private void getOCCables(
-        Vector3i a,
-        Vector3i b,
+        Set<Vector3i> voxels,
         List<PendingBlock> out,
         Block block,
         World world,
         ImmutableBlockSpec cable
     ) {
         if (InteropConstants.OC_CABLE.matches(block, 0)) {
-            for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+            for (Vector3i voxel : voxels) {
                 out.add(cable.instantiate(world, voxel.x, voxel.y, voxel.z));
             }
         }
     }
 
     @Optional(Names.GREG_TECH_NH)
-    private void getGTCables(Vector3i a, Vector3i b, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
+    private void getGTCables(List<Vector3i> path, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
         if (block instanceof BlockMachines) {
-            int end = 0, start = 0;
+            // connect each voxel to the voxels before and after it in the path, so that corners connect both ways
+            Map<Vector3i, Integer> connections = new LinkedHashMap<>();
 
-            // calculate the start & end mConnections flags
-            switch (new Vector3i(b).sub(a).maxComponent()) {
-                case 0: {
-                    start = b.x < a.x ? ForgeDirection.EAST.flag : ForgeDirection.WEST.flag;
-                    end = b.x > a.x ? ForgeDirection.EAST.flag : ForgeDirection.WEST.flag;
-                    break;
+            for (int i = 0; i < path.size(); i++) {
+                Vector3i voxel = path.get(i);
+
+                int flags = connections.getOrDefault(voxel, 0);
+
+                // the voxels before and after this one
+                for (int j = i - 1; j <= i + 1; j += 2) {
+                    if (j < 0 || j >= path.size()) continue;
+
+                    ForgeDirection dir = getAxisDirection(voxel, path.get(j));
+
+                    // UNKNOWN's flag isn't a side, so it must not end up in the connections
+                    if (dir != ForgeDirection.UNKNOWN) flags |= dir.flag;
                 }
-                case 1: {
-                    start = b.y < a.y ? ForgeDirection.UP.flag : ForgeDirection.DOWN.flag;
-                    end = b.y > a.y ? ForgeDirection.UP.flag : ForgeDirection.DOWN.flag;
-                    break;
-                }
-                case 2: {
-                    start = b.z < a.z ? ForgeDirection.SOUTH.flag : ForgeDirection.NORTH.flag;
-                    end = b.z > a.z ? ForgeDirection.SOUTH.flag : ForgeDirection.NORTH.flag;
-                    break;
-                }
+
+                connections.put(voxel, flags);
             }
 
-            List<Vector3i> voxels = getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z);
+            ImmutableBlockSpec mirror = isBendableLaserPipe(cable) ? getLaserMirrorSpec() : null;
 
-            for (int i = 0; i < voxels.size(); i++) {
-                Vector3i voxel = voxels.get(i);
+            for (Map.Entry<Vector3i, Integer> entry : connections.entrySet()) {
+                Vector3i voxel = entry.getKey();
 
-                GTAnalysisResult gt = GTAnalysisResult.analyze(world.getTileEntity(voxel.x, voxel.y, voxel.z));
+                TileEntity te = world.getTileEntity(voxel.x, voxel.y, voxel.z);
+
+                GTAnalysisResult gt = GTAnalysisResult.analyze(te);
 
                 if (gt == null) gt = new GTAnalysisResult();
 
-                if (i > 0) gt.mConnections |= start;
-                if (i < voxels.size() - 1) gt.mConnections |= end;
+                // paint newly placed cables with the picked cable's colour
+                // existing GT tiles keep their own colour, because thats how it already is
+                if (!(te instanceof IGregTechTileEntity)) gt.mGTColour = config.cableColour;
 
-                PendingBlock pendingBlock = cable.instantiate(world, voxel.x, voxel.y, voxel.z);
+                gt.mConnections |= entry.getValue();
+
+                ImmutableBlockSpec spec = mirror != null && isTurn(entry.getValue()) ? mirror : cable;
+
+                PendingBlock pendingBlock = spec.instantiate(world, voxel.x, voxel.y, voxel.z);
 
                 pendingBlock.gt = gt;
 
@@ -745,11 +915,40 @@ public class MMState {
         }
     }
 
+    /**
+     * @return True if the cable is a laser pipe, which needs mirrors to bend.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private static boolean isBendableLaserPipe(ImmutableBlockSpec cable) {
+        IMetaTileEntity mte = MMUtils.getIndexSafe(GregTechAPI.METATILEENTITIES, cable.getItemMeta());
+
+        return mte instanceof MTEPipeLaser && !(mte instanceof MTEPipeLaserMirror);
+    }
+
+    @Optional(Names.GREG_TECH_NH)
+    private static ImmutableBlockSpec getLaserMirrorSpec() {
+        ItemStack stack = CustomItemList.LASERpipeSmart.get(1);
+
+        return new BlockSpec().setObject(stack.getItem(), stack.getItemDamage());
+    }
+
+    /**
+     * @return True if the connection flags are perpendicular.
+     */
+    private static boolean isTurn(int flags) {
+        if (Integer.bitCount(flags) != 2) return false;
+
+        // straight lines connect to opposite sides: down/up, north/south, west/east
+        return flags != (ForgeDirection.DOWN.flag | ForgeDirection.UP.flag) &&
+            flags != (ForgeDirection.NORTH.flag | ForgeDirection.SOUTH.flag) &&
+            flags != (ForgeDirection.WEST.flag | ForgeDirection.EAST.flag);
+    }
+
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private void getAECables(Vector3i a, Vector3i b, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
+    private void getAECables(Set<Vector3i> voxels, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
         if (cableSpec.getItem() instanceof IPartItem partItem) {
             if (partItem.createPartFromItemStack(cableSpec.toStack(1)) instanceof IPartCable cable) {
-                for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+                for (Vector3i voxel : voxels) {
                     int x = voxel.x, y = voxel.y, z = voxel.z;
 
                     AEAnalysisResult ae;
@@ -1201,6 +1400,20 @@ public class MMState {
         };
     }
 
+    /**
+     * @return The direction from one point to another point on one of its axes, or UNKNOWN if the points are equal or
+     *         not on a shared axis.
+     */
+    static ForgeDirection getAxisDirection(Vector3i from, Vector3i to) {
+        int dx = Integer.signum(to.x - from.x), dy = Integer.signum(to.y - from.y), dz = Integer.signum(to.z - from.z);
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (dir.offsetX == dx && dir.offsetY == dy && dir.offsetZ == dz) return dir;
+        }
+
+        return ForgeDirection.UNKNOWN;
+    }
+
     public boolean hasUpgrade(MMUpgrades upgrade) {
         return upgrade != null && installedUpgrades.get(upgrade.bit);
     }
@@ -1269,6 +1482,16 @@ public class MMState {
         NONE,
         REPLACEABLE,
         ALL
+    }
+
+    public static enum InterfaceCopyMode {
+        COPY,
+        CONVERT_TO_P2P
+    }
+
+    public static enum P2PInterfaceCopyMode {
+        LINK_TO_ORIGINAL,
+        COPY_PATTERNS
     }
 
     public static enum PlaceMode {

@@ -200,7 +200,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         }
 
         // check if the machine has a locked item
-        if (mte instanceof IItemLockable lockable && lockable.acceptsItemLock() && lockable.getLockedItem() != null) {
+        if (mte instanceof IItemLockable lockable && lockable.acceptsConfigCopy() && lockable.getLockedItem() != null) {
             mGTItemLock = new PortableItemStack(lockable.getLockedItem());
         }
 
@@ -410,7 +410,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             }
 
             // set the locked item
-            if (mte instanceof IItemLockable lockable && lockable.acceptsItemLock()) {
+            if (mte instanceof IItemLockable lockable && lockable.acceptsConfigCopy()) {
                 ItemStack lockedItem = mGTItemLock == null ? null : mGTItemLock.toStack();
 
                 lockable.setLockedItem(lockedItem);

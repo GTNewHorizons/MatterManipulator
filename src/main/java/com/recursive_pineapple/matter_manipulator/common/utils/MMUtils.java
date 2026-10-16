@@ -88,6 +88,7 @@ import gregtech.common.blocks.BlockMachines;
 import gregtech.common.tileentities.machines.MTEHatchInputBusME;
 import gregtech.common.tileentities.machines.MTEHatchInputME;
 
+import appeng.api.AEApi;
 import appeng.api.config.Upgrades;
 import appeng.api.implementations.IUpgradeableHost;
 import appeng.api.implementations.items.IUpgradeModule;
@@ -100,6 +101,8 @@ import appeng.api.storage.ICellWorkbenchItem;
 import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
+import appeng.api.util.AEColor;
+import appeng.api.util.AEColoredItemDefinition;
 import appeng.parts.automation.UpgradeInventory;
 import appeng.tile.inventory.IAEStackInventory;
 import appeng.util.Platform;
@@ -1442,10 +1445,35 @@ public class MMUtils {
 
         List<PendingBlock> blocks = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
         RequiredItemAnalysis itemAnalysis = BlockAnalyzer
-            .getRequiredItemsForBuild(player, blocks, (flags & PLAN_ALL) != 0);
+            .getRequiredItemsForBuild(player, state, blocks, (flags & PLAN_ALL) != 0);
+
+        Object2LongOpenHashMap<ItemId> requiredItemCounts = new Object2LongOpenHashMap<>();
+
+        for (var entry : itemAnalysis.requiredItems.entrySet()) {
+            ItemStack stack = entry.getKey().getItemStack();
+
+            if (
+                AppliedEnergistics2.isModLoaded() && stack.getItem() instanceof IPartItem partItem &&
+                    partItem.createPartFromItemStack(stack) instanceof IPartCable cable
+            ) {
+                var parts = AEApi.instance().definitions().parts();
+                AEColoredItemDefinition definition = switch (cable.getCableConnectionType()) {
+                    case GLASS -> parts.cableGlass();
+                    case COVERED -> parts.cableCovered();
+                    case SMART -> parts.cableSmart();
+                    case DENSE -> parts.cableDense();
+                    case DENSE_COVERED -> parts.cableDenseCovered();
+                    default -> null;
+                };
+
+                if (definition != null) stack = definition.stack(AEColor.Transparent, 1);
+            }
+
+            requiredItemCounts.addTo(ItemId.create(stack), entry.getValue());
+        }
 
         List<BigItemStack> requiredItems = mapToList(
-            itemAnalysis.requiredItems.entrySet(),
+            requiredItemCounts.object2LongEntrySet(),
             e -> BigItemStack.create(e.getKey(), e.getValue())
         );
 
@@ -1694,6 +1722,18 @@ public class MMUtils {
         }
 
         return false;
+    }
+
+    /**
+     * @return The colour of the GT cable at the given position, or -1 if it's unpainted or not a GT cable.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    public static byte getGTCableColour(World world, int x, int y, int z) {
+        if (world.getTileEntity(x, y, z) instanceof IGregTechTileEntity igte && igte.getMetaTileEntity() instanceof IConnectable) {
+            return igte.getColorization();
+        }
+
+        return -1;
     }
 
     public static String getDirectionDisplayName(ForgeDirection dir) {

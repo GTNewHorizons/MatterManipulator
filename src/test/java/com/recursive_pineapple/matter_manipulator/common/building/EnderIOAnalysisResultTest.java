@@ -24,6 +24,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.EnderIOAnalysisResult.ConduitData;
 import com.recursive_pineapple.matter_manipulator.common.building.EnderIOAnalysisResult.SideData;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigFluidStack;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
@@ -319,6 +320,8 @@ class EnderIOAnalysisResultTest {
         public TileEntity getTileEntity() { throw new AssertionError("Preview accessed tile"); }
         @Override
         public EntityPlayer getRealPlayer() { throw new AssertionError("Preview accessed player"); }
+        @Override
+        public MMConfig getConfig() { throw new AssertionError("Preview accessed config"); }
         @Override
         public int getX() { return 0; }
         @Override

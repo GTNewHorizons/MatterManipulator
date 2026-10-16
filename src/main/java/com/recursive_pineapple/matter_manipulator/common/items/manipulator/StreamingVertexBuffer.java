@@ -45,8 +45,8 @@ public class StreamingVertexBuffer implements AutoCloseable {
         this.drawMode = drawMode;
     }
 
-    /// Generates a new vertex buffer and closes the previous one, if present.
-    /// This should be used sparingly - it's very expensive to call it each frame.
+    /// Generates a new vertex buffer and closes the previous one, if present. This should be used sparingly - it's very
+    /// expensive to call it each frame.
     public void generate() {
         if (this.id > 0) {
             close();
@@ -135,10 +135,9 @@ public class StreamingVertexBuffer implements AutoCloseable {
         this.cleanupState();
     }
 
-    /// Reallocates the memory stored in this VBO so that the driver can avoid synchronization flushes. Typically
-    /// drivers pool memory so there's a good chance it'll just pull it from the pool instead of allocating anything
-    /// since the length is the same.
-    /// Reference: [Buffer Object Streaming](https://wikis.khronos.org/opengl/Buffer_Object_Streaming)
+    /// Reallocates the memory stored in this VBO so that the driver can avoid synchronization flushes. Typically drivers
+    /// pool memory so there's a good chance it'll just pull it from the pool instead of allocating anything since the length
+    /// is the same. Reference: [Buffer Object Streaming](https://wikis.khronos.org/opengl/Buffer_Object_Streaming)
     public void reallocate() {
         bind();
         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, allocatedBytes, bufferFlags);
@@ -176,6 +175,7 @@ public class StreamingVertexBuffer implements AutoCloseable {
     }
 
     /// Maps the buffer into the client memory space (CPU) and returns a [ByteBuffer] wrapper for it.
+    ///
     /// @param access See [glMapBufferRange](https://docs.gl/es3/glMapBufferRange) for more info.
     public ByteBuffer map(
         @MagicConstant(flags = {

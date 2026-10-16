@@ -68,18 +68,18 @@ public class RenderHints {
         }
     }
 
-    /// The most recent batch of hints. This is not used by the renderer, and it must be flushed by calling [#finish()].
-    /// This must only be accessed by the client thread.
+    /// The most recent batch of hints. This is not used by the renderer, and it must be flushed by calling
+    /// [#finish()]. This must only be accessed by the client thread.
     private RenderState pending = null;
 
-    /// The latest batch of hints. This is not sorted in any way and can only be accessed by the client thread.
-    /// The contents of this object's hint list can only be accessed by the worker thread, but the list reference itself
-    /// and the RenderState object can only be accessed by the client. The worker thread receives a reference to the
-    /// hint list, but this field can be replaced arbitrarily.
+    /// The latest batch of hints. This is not sorted in any way and can only be accessed by the client thread. The contents
+    /// of this object's hint list can only be accessed by the worker thread, but the list reference itself and the
+    /// RenderState object can only be accessed by the client. The worker thread receives a reference to the hint list, but
+    /// this field can be replaced arbitrarily.
     private RenderState hints = null;
 
-    /// The player position for the most recent buffer. If the player moves too far, it will cause the quads to be
-    /// re-sorted.
+    /// The player position for the most recent buffer. If the player moves too far, it will cause the quads to
+    /// be re-sorted.
     private final Vector3i lastPlayerPosition = new Vector3i();
 
     /// True when the hints have changed and the VBO needs to be rebuilt from scratch

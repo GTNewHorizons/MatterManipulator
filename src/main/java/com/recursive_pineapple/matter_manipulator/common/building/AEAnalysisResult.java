@@ -188,7 +188,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
             }
 
             IInventory patterns = segmentedInventory.getInventoryByName("patterns");
-            if (mAEPatterns != null && patterns != null) {
+            if (ctx.getConfig().shouldCopyAEPatterns && mAEPatterns != null && patterns != null) {
                 MMUtils.installPatterns(
                     segmentedInventory,
                     ctx,
@@ -336,7 +336,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         return success;
     }
 
-    private void removePart(IBlockApplyContext context, IPartHost partHost, ForgeDirection side, boolean simulate) {
+    static void removePart(IPseudoInventory context, IPartHost partHost, ForgeDirection side, boolean simulate) {
         IPart part = partHost.getPart(side);
 
         if (part == null) return;
