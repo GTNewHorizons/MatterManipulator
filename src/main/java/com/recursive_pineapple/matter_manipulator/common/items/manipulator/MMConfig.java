@@ -242,7 +242,7 @@ public class MMConfig {
 
         aabb.moveOrigin(coordC.toVec());
 
-        if (arraySpan != null) {
+        if (arraySpan != null && placeMode == PlaceMode.COPYING) {
             aabb.scale(arraySpan.x, arraySpan.y, arraySpan.z);
         }
 

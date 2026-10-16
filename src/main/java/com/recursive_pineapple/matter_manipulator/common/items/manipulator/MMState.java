@@ -384,35 +384,35 @@ public class MMState {
 
         // MOVING's result is only used visually since it has a special build algorithm
         RegionAnalysis analysis = BlockAnalyzer
-            .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING ? true : false);
+            .analyzeRegion(world, coordA, coordB, true);
 
         if (config.placeMode == PlaceMode.COPYING) {
             applySmartCopySubstitutions(world, analysis.blocks, coordA);
         }
 
+        Transform t = getTransform();
+
+        t.cacheRotation();
+
+        // apply rotation
+        for (PendingBlock block : analysis.blocks) {
+            Vector3i v = t.apply(block.toVec());
+
+            block.x = v.x;
+            block.y = v.y;
+            block.z = v.z;
+
+            block.transform(t);
+        }
+
+        // offset to the correct location (needs to be after rotating)
+        for (PendingBlock block : analysis.blocks) {
+            block.x += coordC.x;
+            block.y += coordC.y;
+            block.z += coordC.z;
+        }
+
         if (config.placeMode == PlaceMode.COPYING) {
-            Transform t = getTransform();
-
-            t.cacheRotation();
-
-            // apply rotation
-            for (PendingBlock block : analysis.blocks) {
-                Vector3i v = t.apply(block.toVec());
-
-                block.x = v.x;
-                block.y = v.y;
-                block.z = v.z;
-
-                block.transform(t);
-            }
-
-            // offset to the correct location (needs to be after rotating)
-            for (PendingBlock block : analysis.blocks) {
-                block.x += coordC.x;
-                block.y += coordC.y;
-                block.z += coordC.z;
-            }
-
             // copy the blocks (arraying)
             if (config.arraySpan != null) {
                 List<PendingBlock> base = new ArrayList<>(analysis.blocks);
@@ -440,15 +440,9 @@ public class MMState {
             }
 
             analysis.deltas = t.apply(analysis.deltas);
-
-            t.uncacheRotation();
-        } else {
-            for (PendingBlock block : analysis.blocks) {
-                block.x += coordC.x;
-                block.y += coordC.y;
-                block.z += coordC.z;
-            }
         }
+
+        t.uncacheRotation();
 
         return analysis.blocks;
     }
