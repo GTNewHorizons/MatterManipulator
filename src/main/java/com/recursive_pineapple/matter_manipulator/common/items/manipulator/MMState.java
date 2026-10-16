@@ -889,9 +889,7 @@ public class MMState {
 
                 if (gt == null) gt = new GTAnalysisResult();
 
-                // paint newly placed cables with the picked cable's colour
-                // existing GT tiles keep their own colour, because thats how it already is
-                if (!(te instanceof IGregTechTileEntity)) gt.mGTColour = config.cableColour;
+                gt.mGTColour = config.cableColour;
 
                 gt.mConnections |= entry.getValue();
 

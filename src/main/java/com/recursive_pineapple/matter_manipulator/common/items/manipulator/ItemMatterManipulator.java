@@ -1207,6 +1207,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private IBuildable getPendingBuild(EntityPlayer player, ItemStack stack, MMState state) {
+        // the color from the offhand spray can isn't saved intentionally
+        if (state.config.placeMode == PlaceMode.CABLES && Mods.GregTech.isModLoaded()) {
+            Byte sprayColour = MMUtils.getOffhandSprayColour(player);
+
+            if (sprayColour != null) state.config.cableColour = sprayColour;
+        }
+
         List<PendingBlock> blocks = state.getPendingBlocks(tier, player.getEntityWorld());
 
         if (tier.maxRange != -1) {

@@ -80,13 +80,17 @@ import net.minecraftforge.fluids.IFluidHandler;
 import cpw.mods.fml.relauncher.ReflectionHelper;
 
 import gregtech.api.GregTechAPI;
+import gregtech.api.enums.Dyes;
 import gregtech.api.interfaces.metatileentity.IConnectable;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.IHasInventory;
+import gregtech.api.items.MetaBaseItem;
 import gregtech.api.metatileentity.BaseMetaTileEntity;
 import gregtech.common.blocks.BlockMachines;
+import gregtech.common.items.behaviors.BehaviourSprayColor;
 import gregtech.common.tileentities.machines.MTEHatchInputBusME;
 import gregtech.common.tileentities.machines.MTEHatchInputME;
+import gregtech.crossmod.backhand.Backhand;
 
 import appeng.api.AEApi;
 import appeng.api.config.Upgrades;
@@ -1719,6 +1723,26 @@ public class MMUtils {
         }
 
         return -1;
+    }
+
+    /**
+     * @return The colour of the GT spray can in the player's offhand,
+     *         -1 if its solvent, or null if there's no spray can in the offhand.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    public static Byte getOffhandSprayColour(EntityPlayer player) {
+        ItemStack offhand = Backhand.getOffhandItem(player);
+
+        if (offhand == null || !(offhand.getItem() instanceof MetaBaseItem item)) return null;
+
+        List<Integer> dyes = item.mapEachBehavior(offhand, b -> b instanceof BehaviourSprayColor spray ? spray.getDye(offhand) : null);
+
+        if (dyes.isEmpty()) return null;
+
+        int dye = dyes.get(0);
+
+        // solvent cans return -1, the infinite can returns 16 when set to solvent (this is stupid)
+        return dye >= 0 && dye < Dyes.VALUES.length ? (byte) dye : -1;
     }
 
     public static String getDirectionDisplayName(ForgeDirection dir) {
