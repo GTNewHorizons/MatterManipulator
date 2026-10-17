@@ -2,7 +2,6 @@ package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
 import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
 
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,7 +35,6 @@ import org.joml.Vector3d;
 import org.joml.Vector3i;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL30;
 
 public class RenderHints {
 
@@ -273,18 +271,8 @@ public class RenderHints {
                 p.startSection("MM Upload");
 
                 final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
-                vbo.allocate(vertexCount, GL15.GL_DYNAMIC_DRAW);
-                final ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT | GL30.GL_MAP_INVALIDATE_BUFFER_BIT);
 
-                if (buffer == null) {
-                    MMMod.LOG.error(
-                        "Could not upload hint VBO: glMapBufferRange returned null (vertexCount={})",
-                        vertexCount
-                    );
-                } else {
-                    memCopy(lastResult.dataPtr, memAddress0(buffer), lastResult.dataSize);
-                    vbo.unmap();
-                }
+                vbo.upload(GL15.GL_DYNAMIC_DRAW, memByteBuffer(lastResult.dataPtr, lastResult.dataSize), vertexCount);
 
                 nmemFree(lastResult.dataPtr);
 
