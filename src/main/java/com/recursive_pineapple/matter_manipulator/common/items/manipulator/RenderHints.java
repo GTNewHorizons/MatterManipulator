@@ -237,7 +237,7 @@ public class RenderHints {
             GL11.glFrontFace(GL11.GL_CCW);
             GL11.glDisable(GL11.GL_ALPHA_TEST);
             GL11.glEnable(GL11.GL_BLEND); // enable blend so it is transparent
-            GL11.glBlendFunc(GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_SRC_ALPHA);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
             if (!hints.depthTest) {
                 GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -302,7 +302,7 @@ public class RenderHints {
         public void draw(Tessellator tes, int originX, int originY, int originZ) {
             double size = 0.5;
 
-            tes.setColorRGBA(tint[0], tint[1], tint[2], 150);
+            tes.setColorRGBA(tint[0], tint[1], tint[2], 166);
 
             double X = (x - originX) + 0.25;
             double Y = (y - originY) + 0.25;
