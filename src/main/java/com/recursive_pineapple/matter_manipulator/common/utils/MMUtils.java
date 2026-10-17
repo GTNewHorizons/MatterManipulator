@@ -134,7 +134,6 @@ import com.recursive_pineapple.matter_manipulator.common.building.MMInventory;
 import com.recursive_pineapple.matter_manipulator.common.building.MMItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
-import com.recursive_pineapple.matter_manipulator.common.building.consumers.AECableItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
@@ -1457,19 +1456,8 @@ public class MMUtils {
         for (var entry : itemAnalysis.requiredItems.entrySet()) {
             ItemStack stack = entry.getKey().getItemStack();
 
-            if (
-                AppliedEnergistics2.isModLoaded() && stack.getItem() instanceof IPartItem partItem &&
-                    partItem.createPartFromItemStack(stack) instanceof IPartCable cable
-            ) {
-                var parts = AEApi.instance().definitions().parts();
-                AEColoredItemDefinition definition = switch (cable.getCableConnectionType()) {
-                    case GLASS -> parts.cableGlass();
-                    case COVERED -> parts.cableCovered();
-                    case SMART -> parts.cableSmart();
-                    case DENSE -> parts.cableDense();
-                    case DENSE_COVERED -> parts.cableDenseCovered();
-                    default -> null;
-                };
+            if (AppliedEnergistics2.isModLoaded()) {
+                AEColoredItemDefinition definition = getAECableDefinition(stack);
 
                 if (definition != null) stack = definition.stack(AEColor.Transparent, 1);
             }
@@ -1694,9 +1682,29 @@ public class MMUtils {
     public static void recolourAECable(BlockSpec spec, byte gtColour) {
         if (spec == null) return;
 
-        AEColoredItemDefinition definition = AECableItemConsumer.getCableDefinition(spec.toStack(1));
+        AEColoredItemDefinition definition = getAECableDefinition(spec.toStack(1));
         if (definition == null) return;
         spec.setObject(definition.stack(gtColour < 0 ? AEColor.Transparent : AEColor.fromOrdinal(15 - gtColour), 1));
+    }
+
+    /**
+     * @return The AE cable typeof the stack, in any colour, or null if it isn't an AE cable.
+     */
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    public static AEColoredItemDefinition getAECableDefinition(ItemStack stack) {
+        if (stack == null || !(stack.getItem() instanceof IPartItem partItem)) return null;
+        if (!(partItem.createPartFromItemStack(stack) instanceof IPartCable cable)) return null;
+
+        var parts = AEApi.instance().definitions().parts();
+
+        return switch (cable.getCableConnectionType()) {
+            case GLASS -> parts.cableGlass();
+            case COVERED -> parts.cableCovered();
+            case SMART -> parts.cableSmart();
+            case DENSE -> parts.cableDense();
+            case DENSE_COVERED -> parts.cableDenseCovered();
+            default -> null;
+        };
     }
 
     public static boolean isOCCable(ImmutableBlockSpec spec) {

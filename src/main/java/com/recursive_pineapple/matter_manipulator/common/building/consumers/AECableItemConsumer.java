@@ -7,31 +7,21 @@ import java.util.List;
 
 import net.minecraft.item.ItemStack;
 
-import appeng.api.AEApi;
 import appeng.api.util.AEColor;
 import appeng.api.util.AEColoredItemDefinition;
 
 import com.recursive_pineapple.matter_manipulator.common.building.IPseudoInventory;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
+import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 
 /**
  * A consumer that can consume AE cables with any color
  */
 public class AECableItemConsumer implements IItemConsumer {
 
-    public static final AEColoredItemDefinition AE_GLASS_CABLE = AEApi.instance().definitions().parts().cableGlass();
-    public static final AEColoredItemDefinition AE_COVERED_CABLE = AEApi.instance().definitions().parts().cableCovered();
-    public static final AEColoredItemDefinition AE_SMART_CABLE = AEApi.instance().definitions().parts().cableSmart();
-    public static final AEColoredItemDefinition AE_DENSE_SMART_CABLE = AEApi.instance().definitions().parts().cableDense();
-    public static final AEColoredItemDefinition AE_DENSE_COVERED_CABLE = AEApi.instance().definitions().parts().cableDenseCovered();
-
-    private static final AEColoredItemDefinition[] AE_CABLES = {
-        AE_GLASS_CABLE, AE_COVERED_CABLE, AE_SMART_CABLE, AE_DENSE_SMART_CABLE, AE_DENSE_COVERED_CABLE
-    };
-
     @Override
     public void consume(IPseudoInventory inv, BigItemStack in, BigItemStack out, int flags) {
-        AEColoredItemDefinition definition = getCableDefinition(in.getItemStack());
+        AEColoredItemDefinition definition = MMUtils.getAECableDefinition(in.getItemStack());
         if (definition == null) return;
 
         // Start searching from fluix cables
@@ -51,16 +41,5 @@ public class AECableItemConsumer implements IItemConsumer {
 
             if (in.getStackSize() <= 0) return;
         }
-    }
-
-    /** Every AE part is the same item, so a part is only a cable if it matches one of the cable variants. */
-    public static AEColoredItemDefinition getCableDefinition(ItemStack stack) {
-        for (AEColoredItemDefinition definition : AE_CABLES) {
-            for (AEColor color : AEColor.values()) {
-                if (definition.sameAs(color, stack)) return definition;
-            }
-        }
-
-        return null;
     }
 }
