@@ -172,7 +172,7 @@ public class RenderHints {
         long endPtr = writePtr + capacity;
 
         for (int i = 0; i < hintCount; i++) {
-            hints.get(i).draw(tes, eyes.x, eyes.y, eyes.z, worldPos.x, worldPos.y, worldPos.z);
+            hints.get(i).draw(tes, worldPos.x, worldPos.y, worldPos.z);
 
             if (writePtr + quadSize > endPtr) {
                 capacity = Math.max(capacity + quadSize, (int) (capacity * 1.5));
@@ -225,15 +225,16 @@ public class RenderHints {
             p.startSection("Draw MM Hints");
 
             GL11.glPushMatrix();
-            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT);
+            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_POLYGON_BIT);
 
             Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.locationBlocksTexture);
 
             // vboOffset is the integer player pos at build time; translate by how much the player has drifted since
             GL11.glTranslated(lastResult.vboOffset.x - xd, lastResult.vboOffset.y - yd, lastResult.vboOffset.z - zd);
 
-            // we need the back facing rendered because the thing is transparent
-            GL11.glDisable(GL11.GL_CULL_FACE);
+            GL11.glEnable(GL11.GL_CULL_FACE);
+            GL11.glCullFace(GL11.GL_BACK);
+            GL11.glFrontFace(GL11.GL_CCW);
             GL11.glDisable(GL11.GL_ALPHA_TEST);
             GL11.glEnable(GL11.GL_BLEND); // enable blend so it is transparent
             GL11.glBlendFunc(GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_SRC_ALPHA);
@@ -298,25 +299,14 @@ public class RenderHints {
         public IIcon[] icons;
         public short[] tint;
 
-        public void draw(
-            Tessellator tes,
-            double eyeX,
-            double eyeY,
-            double eyeZ,
-            int eyeXint,
-            int eyeYint,
-            int eyeZint
-        ) {
+        public void draw(Tessellator tes, int originX, int originY, int originZ) {
             double size = 0.5;
 
             tes.setColorRGBA(tint[0], tint[1], tint[2], 150);
 
-            double X = (x - eyeXint) + 0.25;
-            double Y = (y - eyeYint) + 0.25;
-            double Z = (z - eyeZint) + 0.25;
-            double worldX = x + 0.25;
-            double worldY = y + 0.25;
-            double worldZ = z + 0.25;
+            double X = (x - originX) + 0.25;
+            double Y = (y - originY) + 0.25;
+            double Z = (z - originZ) + 0.25;
 
             // this rendering code is independently written by glee8e on July 10th, 2023
             // and is released as part of StructureLib under LGPL terms, just like everything else in this project
@@ -325,60 +315,50 @@ public class RenderHints {
             // here we do a 2 pass render.
             // first pass we draw obstructed faces (i.e. faces that are further away from player)
             // second pass we draw unobstructed faces
-            for (int j = 0; j < 2; j++) {
-                boolean unobstructedPass = j == 1;
-                for (int i = 0; i < 6; i++) {
-                    if (icons[i] == null) continue;
+            for (int i = 0; i < 6; i++) {
+                if (icons[i] == null) continue;
 
-                    double u = icons[i].getMinU();
-                    double U = icons[i].getMaxU();
-                    double v = icons[i].getMinV();
-                    double V = icons[i].getMaxV();
+                double u = icons[i].getMinU();
+                double U = icons[i].getMaxU();
+                double v = icons[i].getMinV();
+                double V = icons[i].getMaxV();
 
-                    switch (i) { // {DOWN, UP, NORTH, SOUTH, WEST, EAST}
-                        case 0 -> {
-                            // all these ifs is in form if ((is face unobstructed) != (is in unobstructred pass))
-                            if ((worldY >= eyeY) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y, Z, u, v);
-                            tes.addVertexWithUV(X + size, Y, Z, U, v);
-                            tes.addVertexWithUV(X + size, Y, Z + size, U, V);
-                            tes.addVertexWithUV(X, Y, Z + size, u, V);
-                        }
-                        case 1 -> {
-                            if ((worldY + size <= eyeY) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y + size, Z, u, v);
-                            tes.addVertexWithUV(X, Y + size, Z + size, u, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z + size, U, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z, U, v);
-                        }
-                        case 2 -> {
-                            if ((worldZ >= eyeZ) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y, Z, U, V);
-                            tes.addVertexWithUV(X, Y + size, Z, U, v);
-                            tes.addVertexWithUV(X + size, Y + size, Z, u, v);
-                            tes.addVertexWithUV(X + size, Y, Z, u, V);
-                        }
-                        case 3 -> {
-                            if ((worldZ + size <= eyeZ) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X + size, Y, Z + size, U, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z + size, U, v);
-                            tes.addVertexWithUV(X, Y + size, Z + size, u, v);
-                            tes.addVertexWithUV(X, Y, Z + size, u, V);
-                        }
-                        case 4 -> {
-                            if ((worldX >= eyeX) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y, Z + size, U, V);
-                            tes.addVertexWithUV(X, Y + size, Z + size, U, v);
-                            tes.addVertexWithUV(X, Y + size, Z, u, v);
-                            tes.addVertexWithUV(X, Y, Z, u, V);
-                        }
-                        case 5 -> {
-                            if ((worldX + size <= eyeX) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X + size, Y, Z, U, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z, U, v);
-                            tes.addVertexWithUV(X + size, Y + size, Z + size, u, v);
-                            tes.addVertexWithUV(X + size, Y, Z + size, u, V);
-                        }
+                switch (i) { // {DOWN, UP, NORTH, SOUTH, WEST, EAST}
+                    case 0 -> {
+                        tes.addVertexWithUV(X, Y, Z, u, v);
+                        tes.addVertexWithUV(X + size, Y, Z, U, v);
+                        tes.addVertexWithUV(X + size, Y, Z + size, U, V);
+                        tes.addVertexWithUV(X, Y, Z + size, u, V);
+                    }
+                    case 1 -> {
+                        tes.addVertexWithUV(X, Y + size, Z, u, v);
+                        tes.addVertexWithUV(X, Y + size, Z + size, u, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z + size, U, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z, U, v);
+                    }
+                    case 2 -> {
+                        tes.addVertexWithUV(X, Y, Z, U, V);
+                        tes.addVertexWithUV(X, Y + size, Z, U, v);
+                        tes.addVertexWithUV(X + size, Y + size, Z, u, v);
+                        tes.addVertexWithUV(X + size, Y, Z, u, V);
+                    }
+                    case 3 -> {
+                        tes.addVertexWithUV(X + size, Y, Z + size, U, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z + size, U, v);
+                        tes.addVertexWithUV(X, Y + size, Z + size, u, v);
+                        tes.addVertexWithUV(X, Y, Z + size, u, V);
+                    }
+                    case 4 -> {
+                        tes.addVertexWithUV(X, Y, Z + size, U, V);
+                        tes.addVertexWithUV(X, Y + size, Z + size, U, v);
+                        tes.addVertexWithUV(X, Y + size, Z, u, v);
+                        tes.addVertexWithUV(X, Y, Z, u, V);
+                    }
+                    case 5 -> {
+                        tes.addVertexWithUV(X + size, Y, Z, U, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z, U, v);
+                        tes.addVertexWithUV(X + size, Y + size, Z + size, u, v);
+                        tes.addVertexWithUV(X + size, Y, Z + size, u, V);
                     }
                 }
             }
