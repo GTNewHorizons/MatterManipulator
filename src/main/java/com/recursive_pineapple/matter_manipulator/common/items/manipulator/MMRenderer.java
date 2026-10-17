@@ -2,7 +2,9 @@ package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -36,6 +38,7 @@ import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.RenderingConfig
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.rendering.BoxRenderer;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
+import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
@@ -524,6 +527,8 @@ public class MMRenderer {
         RenderHints.INSTANCE.start();
         RenderHints.INSTANCE.setDepthTest(!RenderingConfig.hintsOnTop && state.config.placeMode != PlaceMode.EXCHANGING);
 
+        Map<ImmutableBlockSpec, SpecInfo> specInfos = new IdentityHashMap<>();
+
         for (PendingBlock pendingBlock : analysisCache) {
             if (!pendingBlock.isInWorld(world)) continue;
 
@@ -533,10 +538,19 @@ public class MMRenderer {
                 if (dist2 > buildable) continue;
             }
 
-            if (pendingBlock.spec.isAir() && world.isAirBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z)) continue;
+            SpecInfo spec = specInfos.get(pendingBlock.spec);
+
+            if (spec == null) {
+                spec = new SpecInfo(pendingBlock.spec);
+
+                // copied regions have a spec per block, which would make the cache useless and big
+                if (specInfos.size() < MAX_CACHED_SPECS) specInfos.put(pendingBlock.spec, spec);
+            }
+
+            if (spec.isAir && world.isAirBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z)) continue;
 
             Block block = pendingBlock.getBlock();
-            int meta = pendingBlock.spec.getBlockMeta();
+            int meta = spec.blockMeta;
 
             Block previewBlock = pendingBlock.getPreviewBlock();
             if (previewBlock != null) {
@@ -571,7 +585,7 @@ public class MMRenderer {
                 tint = ERROR;
             }
 
-            if (pendingBlock.spec.isAir()) {
+            if (spec.isAir) {
                 RenderHints.INSTANCE.addHint(
                     pendingBlock.x,
                     pendingBlock.y,
@@ -613,6 +627,20 @@ public class MMRenderer {
         }
 
         RenderHints.INSTANCE.finish();
+    }
+
+    private static final int MAX_CACHED_SPECS = 256;
+
+    /** The values {@link #drawHints} needs from a spec (slow to get because each call copies item stacks) */
+    private static class SpecInfo {
+
+        public final boolean isAir;
+        public final int blockMeta;
+
+        public SpecInfo(ImmutableBlockSpec spec) {
+            this.isAir = spec.isAir();
+            this.blockMeta = spec.getBlockMeta();
+        }
     }
 
     private static final short[] WHITE = {
