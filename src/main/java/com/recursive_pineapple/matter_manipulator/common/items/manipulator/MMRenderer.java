@@ -576,12 +576,19 @@ public class MMRenderer {
 
             if (block == null) continue;
 
-            BlockSpec.fromBlock(pooled, world, pendingBlock.x, pendingBlock.y, pendingBlock.z);
+            // air in the world never matches a spec with an item - skip the slow comparison
+            boolean isEmptySpace = !spec.isAir
+                && world.getBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z) == Blocks.air
+                && spec.hasStack();
 
-            if (pendingBlock.mp != null) {
-                if (pooled.getBlock() == pendingBlock.getBlock()) continue;
-            } else {
-                if (pooled.isEquivalent(pendingBlock.spec)) continue;
+            if (!isEmptySpace) {
+                BlockSpec.fromBlock(pooled, world, pendingBlock.x, pendingBlock.y, pendingBlock.z);
+
+                if (pendingBlock.mp != null) {
+                    if (pooled.getBlock() == pendingBlock.getBlock()) continue;
+                } else {
+                    if (pooled.isEquivalent(pendingBlock.spec)) continue;
+                }
             }
 
             if (++i > RenderingConfig.maxHints) break;
@@ -649,12 +656,21 @@ public class MMRenderer {
     /** The values {@link #drawHints} needs from a spec (slow to get because each call copies item stacks) */
     private static class SpecInfo {
 
+        private final ImmutableBlockSpec spec;
         public final boolean isAir;
         public final int blockMeta;
+        private Boolean hasStack;
 
         public SpecInfo(ImmutableBlockSpec spec) {
+            this.spec = spec;
             this.isAir = spec.isAir();
             this.blockMeta = spec.getBlockMeta();
+        }
+
+        public boolean hasStack() {
+            if (hasStack == null) hasStack = spec.toStack(1) != null;
+
+            return hasStack;
         }
     }
 
