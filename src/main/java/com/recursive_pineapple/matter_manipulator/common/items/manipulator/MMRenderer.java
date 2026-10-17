@@ -579,9 +579,7 @@ public class MMRenderer {
             if (block == null) continue;
 
             // air in the world never matches a spec with an item - skip the slow comparison
-            boolean isEmptySpace = !spec.isAir
-                && world.getBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z) == Blocks.air
-                && spec.hasStack();
+            boolean isEmptySpace = !spec.isAir && world.getBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z) == Blocks.air && spec.hasStack();
 
             if (!isEmptySpace) {
                 BlockSpec.fromBlock(pooled, world, pendingBlock.x, pendingBlock.y, pendingBlock.z);

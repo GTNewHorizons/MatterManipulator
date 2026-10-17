@@ -2,9 +2,11 @@ package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
 import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
 
+import java.nio.FloatBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -33,8 +35,11 @@ import com.recursive_pineapple.matter_manipulator.MMMod;
 
 import org.joml.Vector3d;
 import org.joml.Vector3i;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
+
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 
 public class RenderHints {
 
@@ -42,14 +47,19 @@ public class RenderHints {
 
     private static final VertexFormat VBO_FORMAT = DefaultVertexFormat.POSITION_TEXTURE_COLOR;
 
+    private static final int HINT_ALPHA = 166;
+
     private static class RenderState {
 
-        public final ArrayList<Hint> hints;
+        public final ArrayList<Hint> hints = new ArrayList<>();
+        /// The icons of the 6 faces of each block + meta, indexed by [Hint#material]
+        public final ArrayList<IIcon[]> materials = new ArrayList<>();
+        public final Long2IntOpenHashMap materialIds = new Long2IntOpenHashMap();
         public long expiration;
         public boolean depthTest = false;
 
-        public RenderState(ArrayList<Hint> hints) {
-            this.hints = hints;
+        public RenderState() {
+            materialIds.defaultReturnValue(-1);
         }
     }
 
@@ -58,11 +68,14 @@ public class RenderHints {
         public Vector3i vboOffset;
         public long dataPtr;
         public int dataSize;
+        /// Only for instanced hints
+        public FloatBuffer materials;
 
-        public TessellationResult(Vector3i vboOffset, long dataPtr, int dataSize) {
+        public TessellationResult(Vector3i vboOffset, long dataPtr, int dataSize, FloatBuffer materials) {
             this.vboOffset = vboOffset;
             this.dataPtr = dataPtr;
             this.dataSize = dataSize;
+            this.materials = materials;
         }
     }
 
@@ -94,7 +107,7 @@ public class RenderHints {
     }
 
     public void start() {
-        pending = new RenderState(new ArrayList<>());
+        pending = new RenderState();
     }
 
     public void setDepthTest(boolean depthTest) {
@@ -131,20 +144,33 @@ public class RenderHints {
         if (vbo != null) {
             vbo.orphan();
         }
+
+        InstancedHints.clear();
     }
 
     public void addHint(int x, int y, int z, Block block, int meta, short[] tint) {
+        long key = ((long) Block.getIdFromBlock(block) << 32) | (meta & 0xFFFFFFFFL);
+        int material = pending.materialIds.get(key);
+
+        if (material == -1) {
+            IIcon[] icons = new IIcon[6];
+
+            for (int i = 0; i < 6; i++) {
+                icons[i] = block.getIcon(i, meta);
+            }
+
+            material = pending.materials.size();
+            pending.materials.add(icons);
+            pending.materialIds.put(key, material);
+        }
+
         Hint hint = new Hint();
 
         hint.x = x;
         hint.y = y;
         hint.z = z;
-        hint.icons = new IIcon[6];
+        hint.material = material;
         hint.tint = tint;
-
-        for (int i = 0; i < 6; i++) {
-            hint.icons[i] = block.getIcon(i, meta);
-        }
 
         pending.hints.add(hint);
     }
@@ -156,8 +182,12 @@ public class RenderHints {
         }
     }
 
-    private TessellationResult buildVBO(ArrayList<Hint> hints, Vector3d eyes, Vector3i worldPos) {
+    private TessellationResult buildVBO(RenderState state, Vector3d eyes, Vector3i worldPos, boolean instanced) {
+        ArrayList<Hint> hints = state.hints;
+
         hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x, info.y, info.z)));
+
+        if (instanced) return buildInstances(state, worldPos);
 
         final VertexFormat format = VBO_FORMAT;
         final int vertexSize = format.getVertexSize();
@@ -175,7 +205,7 @@ public class RenderHints {
         long endPtr = writePtr + capacity;
 
         for (int i = 0; i < hintCount; i++) {
-            hints.get(i).draw(tes, worldPos.x, worldPos.y, worldPos.z);
+            hints.get(i).draw(tes, state.materials, worldPos.x, worldPos.y, worldPos.z);
 
             if (writePtr + quadSize > endPtr) {
                 capacity = Math.max(capacity + quadSize, (int) (capacity * 1.5));
@@ -195,7 +225,41 @@ public class RenderHints {
 
         final int dataSize = (int) (writePtr - basePtr);
 
-        return new TessellationResult(new Vector3i(worldPos), basePtr, dataSize);
+        return new TessellationResult(new Vector3i(worldPos), basePtr, dataSize, null);
+    }
+
+    private static TessellationResult buildInstances(RenderState state, Vector3i worldPos) {
+        final int dataSize = state.hints.size() * InstancedHints.STRIDE;
+        final long basePtr = nmemAllocChecked(dataSize);
+        long ptr = basePtr;
+
+        for (Hint hint : state.hints) {
+            memPutFloat(ptr, hint.x - worldPos.x);
+            memPutFloat(ptr + 4, hint.y - worldPos.y);
+            memPutFloat(ptr + 8, hint.z - worldPos.z);
+            memPutInt(ptr + 12, hint.material);
+            memPutByte(ptr + 16, (byte) hint.tint[0]);
+            memPutByte(ptr + 17, (byte) hint.tint[1]);
+            memPutByte(ptr + 18, (byte) hint.tint[2]);
+            memPutByte(ptr + 19, (byte) HINT_ALPHA);
+            ptr += InstancedHints.STRIDE;
+        }
+
+        FloatBuffer materials = BufferUtils.createFloatBuffer(state.materials.size() * 6 * 4);
+
+        for (IIcon[] icons : state.materials) {
+            for (IIcon icon : icons) {
+                if (icon == null) {
+                    materials.put(0).put(0).put(0).put(0);
+                } else {
+                    materials.put(icon.getMinU()).put(icon.getMinV()).put(icon.getMaxU()).put(icon.getMaxV());
+                }
+            }
+        }
+
+        materials.flip();
+
+        return new TessellationResult(new Vector3i(worldPos), basePtr, dataSize, materials);
     }
 
     @SubscribeEvent
@@ -224,7 +288,9 @@ public class RenderHints {
             vbo = new StreamingVertexBuffer(VBO_FORMAT, GL11.GL_QUADS);
         }
 
-        if (vbo.getVertexCount() > 0) {
+        final boolean instanced = InstancedHints.isSupported();
+
+        if (instanced ? InstancedHints.count() > 0 : vbo.getVertexCount() > 0) {
             p.startSection("Draw MM Hints");
 
             GL11.glPushMatrix();
@@ -248,7 +314,11 @@ public class RenderHints {
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
             }
 
-            vbo.render();
+            if (instanced) {
+                InstancedHints.draw();
+            } else {
+                vbo.render();
+            }
 
             GL11.glPopAttrib();
             GL11.glPopMatrix();
@@ -270,9 +340,13 @@ public class RenderHints {
             if (lastResult != null) {
                 p.startSection("MM Upload");
 
-                final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
+                if (lastResult.materials != null) {
+                    InstancedHints.upload(lastResult.dataPtr, lastResult.dataSize, lastResult.materials);
+                } else {
+                    final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
 
-                vbo.upload(GL15.GL_DYNAMIC_DRAW, memByteBuffer(lastResult.dataPtr, lastResult.dataSize), vertexCount);
+                    vbo.upload(GL15.GL_DYNAMIC_DRAW, memByteBuffer(lastResult.dataPtr, lastResult.dataSize), vertexCount);
+                }
 
                 nmemFree(lastResult.dataPtr);
 
@@ -282,7 +356,9 @@ public class RenderHints {
             lastPlayerPosition.set(worldPos);
             vboNeedsRebuild = false;
 
-            buildTask = workerThread.submit(() -> buildVBO(this.hints.hints, eyes, worldPos));
+            final RenderState state = hints;
+
+            buildTask = workerThread.submit(() -> buildVBO(state, eyes, worldPos, instanced));
         }
 
         p.endSection();
@@ -291,13 +367,14 @@ public class RenderHints {
     private static class Hint {
 
         public int x, y, z;
-        public IIcon[] icons;
+        public int material;
         public short[] tint;
 
-        public void draw(Tessellator tes, int originX, int originY, int originZ) {
+        public void draw(Tessellator tes, List<IIcon[]> materials, int originX, int originY, int originZ) {
             double size = 0.5;
+            IIcon[] icons = materials.get(material);
 
-            tes.setColorRGBA(tint[0], tint[1], tint[2], 166);
+            tes.setColorRGBA(tint[0], tint[1], tint[2], HINT_ALPHA);
 
             double X = (x - originX) + 0.25;
             double Y = (y - originY) + 0.25;
