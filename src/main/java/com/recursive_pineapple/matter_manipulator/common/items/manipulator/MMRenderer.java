@@ -153,6 +153,8 @@ public class MMRenderer {
                     break;
                 }
             }
+
+            if (hintPass != null) stepHints(player);
         } else {
             if (lastDrawer != null) {
                 lastDrawer = null;
@@ -166,6 +168,7 @@ public class MMRenderer {
         lastAnalyzedConfig = null;
         lastPlayerPosition = null;
         analysisCache = null;
+        hintPass = null;
 
         needsHintDraw = false;
         needsAnalysis = false;
@@ -336,7 +339,7 @@ public class MMRenderer {
                 needsAnalysis ||
                 (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
 
-            boolean busy = RenderHints.INSTANCE.isBuilding();
+            boolean busy = RenderHints.INSTANCE.isBuilding() || hintPass != null;
             if (needsAnalysis && !busy) {
                 lastAnalysisMS = now;
                 lastAnalyzedConfig = state.config;
@@ -465,7 +468,7 @@ public class MMRenderer {
                     needsAnalysis ||
                     (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
 
-                boolean busy = RenderHints.INSTANCE.isBuilding();
+                boolean busy = RenderHints.INSTANCE.isBuilding() || hintPass != null;
                 if (needsAnalysis && !busy) {
                     lastAnalysisMS = now;
                     lastAnalyzedConfig = state.config;
@@ -523,129 +526,169 @@ public class MMRenderer {
         Location playerLocation,
         int maxRange
     ) {
-        Minecraft.getMinecraft().mcProfiler.startSection("MM Hints");
-
-        int buildable = maxRange * maxRange;
-
-        int i = 0;
-
-        BlockSpec pooled = new BlockSpec();
-
-        LongOpenHashSet errors = MMRenderer.errors == null ? null : new LongOpenHashSet(MMRenderer.errors);
-        LongOpenHashSet warnings = MMRenderer.warnings == null ? null : new LongOpenHashSet(MMRenderer.warnings);
-
-        World world = player.worldObj;
-
         RenderHints.INSTANCE.start();
         RenderHints.INSTANCE.setDepthTest(!RenderingConfig.hintsOnTop && state.config.placeMode != PlaceMode.EXCHANGING);
 
-        Map<ImmutableBlockSpec, SpecInfo> specInfos = new IdentityHashMap<>();
+        hintPass = new HintPass(player.worldObj, analysisCache, playerLocation, maxRange);
+    }
 
-        for (PendingBlock pendingBlock : analysisCache) {
-            if (!pendingBlock.isInWorld(world)) continue;
+    /** Runs the hint pass for up to {@link #HINT_BUDGET_NANOS} this frame. */
+    private static void stepHints(EntityPlayer player) {
+        // a world change resets RenderHints
+        if (hintPass.world != player.worldObj) {
+            hintPass = null;
+            needsHintDraw = true;
+            return;
+        }
 
-            if (maxRange != -1) {
-                int dist2 = pendingBlock.distanceTo2(playerLocation);
+        Minecraft.getMinecraft().mcProfiler.startSection("MM Hints");
 
-                if (dist2 > buildable) continue;
-            }
+        if (hintPass.step(System.nanoTime() + HINT_BUDGET_NANOS)) hintPass = null; // successful, null it
 
-            SpecInfo spec = specInfos.get(pendingBlock.spec);
+        Minecraft.getMinecraft().mcProfiler.endSection();
+    }
 
-            if (spec == null) {
-                spec = new SpecInfo(pendingBlock.spec);
+    /** The hint pass in progress, or null. New analyses and passes wait for it. */
+    private static HintPass hintPass;
 
-                // copied regions have a spec per block, which would make the cache useless and big
-                if (specInfos.size() < MAX_CACHED_SPECS) specInfos.put(pendingBlock.spec, spec);
-            }
+    private static final long HINT_BUDGET_NANOS = 3_000_000; // 3ms
 
-            if (spec.isAir && world.isAirBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z)) continue;
+    /** Compares the preview blocks with the world and adds a hint for each one that differs, a slice per frame. */
+    private static class HintPass {
 
-            Block block = pendingBlock.getBlock();
-            int meta = spec.blockMeta;
+        final World world;
+        final List<PendingBlock> blocks;
+        final Location playerLocation;
+        final int maxRange, buildable;
 
-            Block previewBlock = pendingBlock.getPreviewBlock();
-            if (previewBlock != null) {
-                block = previewBlock;
-                meta = pendingBlock.getPreviewMeta();
-            } else if (pendingBlock.mp != null) {
-                block = Blocks.redstone_wire;
-                meta = 0;
-            }
+        final BlockSpec pooled = new BlockSpec();
+        final LongOpenHashSet errors = MMRenderer.errors == null ? null : new LongOpenHashSet(MMRenderer.errors);
+        final LongOpenHashSet warnings = MMRenderer.warnings == null ? null : new LongOpenHashSet(MMRenderer.warnings);
+        final Map<ImmutableBlockSpec, SpecInfo> specInfos = new IdentityHashMap<>();
 
-            if (block == null) continue;
+        int next = 0, hints = 0;
 
-            // air in the world never matches a spec with an item - skip the slow comparison
-            boolean isEmptySpace = !spec.isAir && world.getBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z) == Blocks.air && spec.hasStack();
+        HintPass(World world, List<PendingBlock> blocks, Location playerLocation, int maxRange) {
+            this.world = world;
+            this.blocks = blocks;
+            this.playerLocation = playerLocation;
+            this.maxRange = maxRange;
+            this.buildable = maxRange * maxRange;
+        }
 
-            if (!isEmptySpace) {
-                BlockSpec.fromBlock(pooled, world, pendingBlock.x, pendingBlock.y, pendingBlock.z);
+        /** @return True when the pass is done and the hints were handed to {@link RenderHints} */
+        boolean step(long deadline) {
+            while (next < blocks.size()) {
+                // we are over the deadline for this frame
+                if ((next & 255) == 0 && System.nanoTime() > deadline) return false;
 
-                if (pendingBlock.mp != null) {
-                    if (pooled.getBlock() == pendingBlock.getBlock()) continue;
+                PendingBlock pendingBlock = blocks.get(next++);
+
+                if (!pendingBlock.isInWorld(world)) continue;
+
+                if (maxRange != -1) {
+                    int dist2 = pendingBlock.distanceTo2(playerLocation);
+
+                    if (dist2 > buildable) continue;
+                }
+
+                SpecInfo spec = specInfos.get(pendingBlock.spec);
+
+                if (spec == null) {
+                    spec = new SpecInfo(pendingBlock.spec);
+
+                    // copied regions have a spec per block, which would make the cache useless and big
+                    if (specInfos.size() < MAX_CACHED_SPECS) specInfos.put(pendingBlock.spec, spec);
+                }
+
+                if (spec.isAir && world.isAirBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z)) continue;
+
+                Block block = pendingBlock.getBlock();
+                int meta = spec.blockMeta;
+
+                Block previewBlock = pendingBlock.getPreviewBlock();
+                if (previewBlock != null) {
+                    block = previewBlock;
+                    meta = pendingBlock.getPreviewMeta();
+                } else if (pendingBlock.mp != null) {
+                    block = Blocks.redstone_wire;
+                    meta = 0;
+                }
+
+                if (block == null) continue;
+
+                // air in the world never matches a spec with an item - skip the slow comparison
+                boolean isEmptySpace = !spec.isAir && world.getBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z) == Blocks.air && spec.hasStack();
+
+                if (!isEmptySpace) {
+                    BlockSpec.fromBlock(pooled, world, pendingBlock.x, pendingBlock.y, pendingBlock.z);
+
+                    if (pendingBlock.mp != null) {
+                        if (pooled.getBlock() == pendingBlock.getBlock()) continue;
+                    } else {
+                        if (pooled.isEquivalent(pendingBlock.spec)) continue;
+                    }
+                }
+
+                if (++hints > RenderingConfig.maxHints) break;
+
+                long packed = CoordinatePacker.pack(pendingBlock.x, pendingBlock.y, pendingBlock.z);
+
+                short[] tint = WHITE;
+
+                if (warnings != null && warnings.remove(packed)) {
+                    tint = WARNING;
+                }
+
+                if (errors != null && errors.remove(packed)) {
+                    tint = ERROR;
+                }
+
+                if (spec.isAir) {
+                    RenderHints.INSTANCE.addHint(
+                        pendingBlock.x,
+                        pendingBlock.y,
+                        pendingBlock.z,
+                        StructureLibAPI.getBlockHint(),
+                        StructureLibAPI.HINT_BLOCK_META_ERROR,
+                        tint
+                    );
                 } else {
-                    if (pooled.isEquivalent(pendingBlock.spec)) continue;
+                    RenderHints.INSTANCE.addHint(
+                        pendingBlock.x,
+                        pendingBlock.y,
+                        pendingBlock.z,
+                        block,
+                        meta,
+                        tint
+                    );
                 }
             }
 
-            if (++i > RenderingConfig.maxHints) break;
+            if (warnings != null) {
+                for (long packed : warnings) {
+                    int x = CoordinatePacker.unpackX(packed);
+                    int y = CoordinatePacker.unpackY(packed);
+                    int z = CoordinatePacker.unpackZ(packed);
 
-            long packed = CoordinatePacker.pack(pendingBlock.x, pendingBlock.y, pendingBlock.z);
-
-            short[] tint = WHITE;
-
-            if (warnings != null && warnings.remove(packed)) {
-                tint = WARNING;
+                    RenderHints.INSTANCE.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, WARNING);
+                }
             }
 
-            if (errors != null && errors.remove(packed)) {
-                tint = ERROR;
+            if (errors != null) {
+                for (long packed : errors) {
+                    int x = CoordinatePacker.unpackX(packed);
+                    int y = CoordinatePacker.unpackY(packed);
+                    int z = CoordinatePacker.unpackZ(packed);
+
+                    RenderHints.INSTANCE.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, ERROR);
+                }
             }
 
-            if (spec.isAir) {
-                RenderHints.INSTANCE.addHint(
-                    pendingBlock.x,
-                    pendingBlock.y,
-                    pendingBlock.z,
-                    StructureLibAPI.getBlockHint(),
-                    StructureLibAPI.HINT_BLOCK_META_ERROR,
-                    tint
-                );
-            } else {
-                RenderHints.INSTANCE.addHint(
-                    pendingBlock.x,
-                    pendingBlock.y,
-                    pendingBlock.z,
-                    block,
-                    meta,
-                    tint
-                );
-            }
+            RenderHints.INSTANCE.finish();
+
+            return true;
         }
-
-        if (warnings != null) {
-            for (long packed : warnings) {
-                int x = CoordinatePacker.unpackX(packed);
-                int y = CoordinatePacker.unpackY(packed);
-                int z = CoordinatePacker.unpackZ(packed);
-
-                RenderHints.INSTANCE.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, WARNING);
-            }
-        }
-
-        if (errors != null) {
-            for (long packed : errors) {
-                int x = CoordinatePacker.unpackX(packed);
-                int y = CoordinatePacker.unpackY(packed);
-                int z = CoordinatePacker.unpackZ(packed);
-
-                RenderHints.INSTANCE.addHint(x, y, z, StructureLibAPI.getBlockHint(), StructureLibAPI.HINT_BLOCK_META_AIR, ERROR);
-            }
-        }
-
-        RenderHints.INSTANCE.finish();
-
-        Minecraft.getMinecraft().mcProfiler.endSection();
     }
 
     private static final int MAX_CACHED_SPECS = 256;
