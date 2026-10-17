@@ -337,7 +337,8 @@ public class MMRenderer {
                 needsAnalysis ||
                 (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
 
-            if (needsAnalysis) {
+            boolean busy = RenderHints.INSTANCE.isBuilding();
+            if (needsAnalysis && !busy) {
                 lastAnalysisMS = now;
                 lastAnalyzedConfig = state.config;
                 analysisCache = analyze(state, manipulator, player);
@@ -346,7 +347,7 @@ public class MMRenderer {
                 showHudText(aabb.describe());
             }
 
-            if (needsHintDraw) {
+            if (needsHintDraw && !busy) {
                 lastPlayerPosition = playerLocation;
                 lastDrawer = manipulator;
                 needsHintDraw = false;
@@ -465,14 +466,15 @@ public class MMRenderer {
                     needsAnalysis ||
                     (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
 
-                if (needsAnalysis) {
+                boolean busy = RenderHints.INSTANCE.isBuilding();
+                if (needsAnalysis && !busy) {
                     lastAnalysisMS = now;
                     lastAnalyzedConfig = state.config;
                     analysisCache = analyze(state, manipulator, player);
                     needsAnalysis = false;
                 }
 
-                if (needsHintDraw) {
+                if (needsHintDraw && !busy) {
                     lastPlayerPosition = playerLocation;
                     lastDrawer = manipulator;
                     needsHintDraw = false;

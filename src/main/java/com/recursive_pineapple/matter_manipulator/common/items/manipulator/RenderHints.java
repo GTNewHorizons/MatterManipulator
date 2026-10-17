@@ -114,6 +114,11 @@ public class RenderHints {
         vboNeedsRebuild = true;
     }
 
+    /** True while the worker thread is sorting/building the vertex data; new hints given now would wait for it anyway */
+    public boolean isBuilding() {
+        return buildTask != null;
+    }
+
     public void reset() {
         if (buildTask != null) {
             buildTask.cancel(true);
@@ -285,9 +290,7 @@ public class RenderHints {
 
                 p.endSection();
             }
-        }
-
-        if (buildTask == null && (vboNeedsRebuild || worldPos.distance(lastPlayerPosition) > 1.0)) {
+        } else if (buildTask == null && (vboNeedsRebuild || worldPos.distance(lastPlayerPosition) > 1.0)) {
             lastPlayerPosition.set(worldPos);
             vboNeedsRebuild = false;
 
