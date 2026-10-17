@@ -54,7 +54,7 @@ public class AECableItemConsumer implements IItemConsumer {
     }
 
     /** Every AE part is the same item, so a part is only a cable if it matches one of the cable variants. */
-    private static AEColoredItemDefinition getCableDefinition(ItemStack stack) {
+    public static AEColoredItemDefinition getCableDefinition(ItemStack stack) {
         for (AEColoredItemDefinition definition : AE_CABLES) {
             for (AEColor color : AEColor.values()) {
                 if (definition.sameAs(color, stack)) return definition;

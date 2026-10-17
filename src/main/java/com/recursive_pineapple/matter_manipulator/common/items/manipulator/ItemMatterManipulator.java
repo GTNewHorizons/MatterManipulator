@@ -1211,7 +1211,11 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         if (state.config.placeMode == PlaceMode.CABLES && Mods.GregTech.isModLoaded()) {
             Byte sprayColour = MMUtils.getOffhandSprayColour(player);
 
-            if (sprayColour != null) state.config.cableColour = sprayColour;
+            if (sprayColour != null) {
+                state.config.cableColour = sprayColour;
+
+                if (AppliedEnergistics2.isModLoaded()) MMUtils.recolourAECable(state.config.cables, sprayColour);
+            }
         }
 
         List<PendingBlock> blocks = state.getPendingBlocks(tier, player.getEntityWorld());

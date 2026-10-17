@@ -134,6 +134,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.MMInventory;
 import com.recursive_pineapple.matter_manipulator.common.building.MMItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
+import com.recursive_pineapple.matter_manipulator.common.building.consumers.AECableItemConsumer;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
@@ -1687,6 +1688,15 @@ public class MMUtils {
         }
 
         return false;
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    public static void recolourAECable(BlockSpec spec, byte gtColour) {
+        if (spec == null) return;
+
+        AEColoredItemDefinition definition = AECableItemConsumer.getCableDefinition(spec.toStack(1));
+        if (definition == null) return;
+        spec.setObject(definition.stack(gtColour < 0 ? AEColor.Transparent : AEColor.fromOrdinal(15 - gtColour), 1));
     }
 
     public static boolean isOCCable(ImmutableBlockSpec spec) {

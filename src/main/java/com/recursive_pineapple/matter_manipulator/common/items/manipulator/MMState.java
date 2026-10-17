@@ -954,6 +954,8 @@ public class MMState {
 
                     ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = new AEPartData(cable);
 
+                    ae.mAEColour = cable.getCableColor();
+
                     PendingBlock pendingBlock = cableSpec.instantiate(world, x, y, z);
 
                     pendingBlock.ae = ae;
