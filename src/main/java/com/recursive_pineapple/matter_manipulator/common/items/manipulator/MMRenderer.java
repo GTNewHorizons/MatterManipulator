@@ -1,6 +1,5 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -505,15 +504,13 @@ public class MMRenderer {
         }
     }
 
-    /** Computes the preview blocks sorted by render order. */
+    /** Computes the preview blocks. */
     private static List<PendingBlock> analyze(MMState state, ItemMatterManipulator manipulator, EntityPlayer player) {
         Profiler p = Minecraft.getMinecraft().mcProfiler;
 
         p.startSection("MM Analysis");
         List<PendingBlock> blocks = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
         blocks.removeIf(Objects::isNull);
-        p.endStartSection("MM Sort");
-        blocks.sort(Comparator.comparingInt((PendingBlock b) -> b.renderOrder));
         p.endSection();
 
         return blocks;
