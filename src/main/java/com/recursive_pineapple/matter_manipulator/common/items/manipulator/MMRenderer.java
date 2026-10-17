@@ -555,6 +555,12 @@ public class MMRenderer {
 
     private static final long HINT_BUDGET_NANOS = 3_000_000; // 3ms
 
+    /** Passes estimated to take longer than 5 frame budgets use the max hint distance. */
+    private static final long DISTANCE_LIMIT_NANOS = 5 * HINT_BUDGET_NANOS;
+
+    /** The previous pass's cost without the distance limit. */
+    private static long estimatedFullPassNanos;
+
     /** How far the player can walk before the hints are redrawn. */
     private static final int HINT_REFRESH_DISTANCE = 16;
 
@@ -573,6 +579,13 @@ public class MMRenderer {
 
         int next = 0, hints = 0;
 
+        /// The distance limit only applies when a pass without it would take more than [#DISTANCE_LIMIT_NANOS]. Decided from
+        /// the previous pass's estimate, to stop far hints from flickering.
+        final boolean limitDistance = estimatedFullPassNanos > DISTANCE_LIMIT_NANOS;
+        long workNanos;
+        /// Blocks within the manipulator's range, and how many of them were compared with the world
+        int candidates, compared;
+
         HintPass(World world, List<PendingBlock> blocks, Location playerLocation, int maxRange) {
             this.world = world;
             this.blocks = blocks;
@@ -583,9 +596,14 @@ public class MMRenderer {
 
         /** @return True when the pass is done and the hints were handed to {@link RenderHints} */
         boolean step(long deadline) {
+            long start = System.nanoTime();
+
             while (next < blocks.size()) {
                 // we are over the deadline for this frame
-                if ((next & 255) == 0 && System.nanoTime() > deadline) return false;
+                if ((next & 255) == 0 && System.nanoTime() > deadline) {
+                    workNanos += System.nanoTime() - start;
+                    return false;
+                }
 
                 PendingBlock pendingBlock = blocks.get(next++);
 
@@ -594,8 +612,13 @@ public class MMRenderer {
                 int dist2 = pendingBlock.distanceTo2(playerLocation);
 
                 if (maxRange != -1 && dist2 > buildable) continue;
+
+                candidates++;
+
                 int maxDistance = RenderingConfig.maxHintDistance;
-                if (maxDistance > 0 && dist2 > maxDistance * maxDistance) continue;
+                if (limitDistance && maxDistance > 0 && dist2 > maxDistance * maxDistance) continue;
+
+                compared++;
 
                 SpecInfo spec = specInfos.get(pendingBlock.spec);
 
@@ -691,6 +714,10 @@ public class MMRenderer {
             }
 
             RenderHints.INSTANCE.finish();
+
+            // what this pass would have cost without the distance limit
+            workNanos += System.nanoTime() - start;
+            estimatedFullPassNanos = compared == 0 ? 0 : workNanos * candidates / compared;
 
             return true;
         }
