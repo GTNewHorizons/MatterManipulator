@@ -337,7 +337,8 @@ public class MMRenderer {
 
             needsHintDraw = needsHintDraw ||
                 needsAnalysis ||
-                (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
+                (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1) ||
+                lastPlayerPosition.distanceTo(playerLocation) > HINT_REFRESH_DISTANCE;
 
             boolean busy = RenderHints.INSTANCE.isBuilding() || hintPass != null;
             if (needsAnalysis && !busy) {
@@ -466,7 +467,8 @@ public class MMRenderer {
 
                 needsHintDraw = needsHintDraw ||
                     needsAnalysis ||
-                    (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
+                    (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1) ||
+                    lastPlayerPosition.distanceTo(playerLocation) > HINT_REFRESH_DISTANCE;
 
                 boolean busy = RenderHints.INSTANCE.isBuilding() || hintPass != null;
                 if (needsAnalysis && !busy) {
@@ -553,6 +555,9 @@ public class MMRenderer {
 
     private static final long HINT_BUDGET_NANOS = 3_000_000; // 3ms
 
+    /** How far the player can walk before the hints are redrawn. */
+    private static final int HINT_REFRESH_DISTANCE = 16;
+
     /** Compares the preview blocks with the world and adds a hint for each one that differs, a slice per frame. */
     private static class HintPass {
 
@@ -586,11 +591,11 @@ public class MMRenderer {
 
                 if (!pendingBlock.isInWorld(world)) continue;
 
-                if (maxRange != -1) {
-                    int dist2 = pendingBlock.distanceTo2(playerLocation);
+                int dist2 = pendingBlock.distanceTo2(playerLocation);
 
-                    if (dist2 > buildable) continue;
-                }
+                if (maxRange != -1 && dist2 > buildable) continue;
+                int maxDistance = RenderingConfig.maxHintDistance;
+                if (maxDistance > 0 && dist2 > maxDistance * maxDistance) continue;
 
                 SpecInfo spec = specInfos.get(pendingBlock.spec);
 
