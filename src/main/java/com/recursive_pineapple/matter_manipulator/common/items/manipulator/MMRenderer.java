@@ -15,6 +15,7 @@ import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
+import net.minecraft.profiler.Profiler;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.MathHelper;
@@ -339,9 +340,7 @@ public class MMRenderer {
             if (needsAnalysis) {
                 lastAnalysisMS = now;
                 lastAnalyzedConfig = state.config;
-                analysisCache = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
-                analysisCache.removeIf(Objects::isNull);
-                analysisCache.sort(Comparator.comparingInt((PendingBlock b) -> b.renderOrder));
+                analysisCache = analyze(state, manipulator, player);
                 needsAnalysis = false;
 
                 showHudText(aabb.describe());
@@ -469,9 +468,7 @@ public class MMRenderer {
                 if (needsAnalysis) {
                     lastAnalysisMS = now;
                     lastAnalyzedConfig = state.config;
-                    analysisCache = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
-                    analysisCache.removeIf(Objects::isNull);
-                    analysisCache.sort(Comparator.comparingInt((PendingBlock b) -> b.renderOrder));
+                    analysisCache = analyze(state, manipulator, player);
                     needsAnalysis = false;
                 }
 
@@ -506,6 +503,20 @@ public class MMRenderer {
         }
     }
 
+    /** Computes the preview blocks sorted by render order. */
+    private static List<PendingBlock> analyze(MMState state, ItemMatterManipulator manipulator, EntityPlayer player) {
+        Profiler p = Minecraft.getMinecraft().mcProfiler;
+
+        p.startSection("MM Analysis");
+        List<PendingBlock> blocks = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
+        blocks.removeIf(Objects::isNull);
+        p.endStartSection("MM Sort");
+        blocks.sort(Comparator.comparingInt((PendingBlock b) -> b.renderOrder));
+        p.endSection();
+
+        return blocks;
+    }
+
     private static void drawHints(
         RenderWorldLastEvent event,
         MMState state,
@@ -513,6 +524,8 @@ public class MMRenderer {
         Location playerLocation,
         int maxRange
     ) {
+        Minecraft.getMinecraft().mcProfiler.startSection("MM Hints");
+
         int buildable = maxRange * maxRange;
 
         int i = 0;
@@ -627,6 +640,8 @@ public class MMRenderer {
         }
 
         RenderHints.INSTANCE.finish();
+
+        Minecraft.getMinecraft().mcProfiler.endSection();
     }
 
     private static final int MAX_CACHED_SPECS = 256;
