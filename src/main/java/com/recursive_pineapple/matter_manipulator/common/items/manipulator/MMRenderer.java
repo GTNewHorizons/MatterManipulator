@@ -41,6 +41,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.DistanceFilter;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
@@ -168,6 +169,7 @@ public class MMRenderer {
         lastAnalyzedConfig = null;
         lastPlayerPosition = null;
         analysisCache = null;
+        analysisCenter = null;
         hintPass = null;
 
         needsHintDraw = false;
@@ -333,7 +335,8 @@ public class MMRenderer {
             needsAnalysis = needsAnalysis ||
                 (now - lastAnalysisMS) >= ANALYSIS_INTERVAL_MS ||
                 lastDrawer != manipulator ||
-                !Objects.equals(lastAnalyzedConfig, state.config);
+                !Objects.equals(lastAnalyzedConfig, state.config) ||
+                (analysisCenter != null && analysisCenter.distanceTo(playerLocation) > HINT_REFRESH_DISTANCE);
 
             needsHintDraw = needsHintDraw ||
                 needsAnalysis ||
@@ -344,7 +347,7 @@ public class MMRenderer {
             if (needsAnalysis && !busy) {
                 lastAnalysisMS = now;
                 lastAnalyzedConfig = state.config;
-                analysisCache = analyze(state, manipulator, player);
+                analysisCache = analyze(state, manipulator, player, playerLocation);
                 needsAnalysis = false;
 
                 showHudText(aabb.describe());
@@ -463,7 +466,8 @@ public class MMRenderer {
                 needsAnalysis = needsAnalysis ||
                     (now - lastAnalysisMS) >= ANALYSIS_INTERVAL_MS ||
                     lastDrawer != manipulator ||
-                    !Objects.equals(lastAnalyzedConfig, state.config);
+                    !Objects.equals(lastAnalyzedConfig, state.config) ||
+                    (analysisCenter != null && analysisCenter.distanceTo(playerLocation) > HINT_REFRESH_DISTANCE);
 
                 needsHintDraw = needsHintDraw ||
                     needsAnalysis ||
@@ -474,7 +478,7 @@ public class MMRenderer {
                 if (needsAnalysis && !busy) {
                     lastAnalysisMS = now;
                     lastAnalyzedConfig = state.config;
-                    analysisCache = analyze(state, manipulator, player);
+                    analysisCache = analyze(state, manipulator, player, playerLocation);
                     needsAnalysis = false;
                 }
 
@@ -510,16 +514,38 @@ public class MMRenderer {
     }
 
     /** Computes the preview blocks. */
-    private static List<PendingBlock> analyze(MMState state, ItemMatterManipulator manipulator, EntityPlayer player) {
+    private static List<PendingBlock> analyze(
+        MMState state,
+        ItemMatterManipulator manipulator,
+        EntityPlayer player,
+        Location playerLocation
+    ) {
         Profiler p = Minecraft.getMinecraft().mcProfiler;
 
         p.startSection("MM Analysis");
-        List<PendingBlock> blocks = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
+
+        DistanceFilter filter = null;
+        int maxDistance = RenderingConfig.maxHintDistance;
+
+        if (maxDistance > 0 && estimatedFullPassNanos > DISTANCE_LIMIT_NANOS) {
+            filter = new DistanceFilter(playerLocation.x, playerLocation.y, playerLocation.z, maxDistance + HINT_REFRESH_DISTANCE);
+        }
+
+        List<PendingBlock> blocks = state.getPendingBlocks(manipulator.tier, player.getEntityWorld(), filter);
         blocks.removeIf(Objects::isNull);
+
+        analysisCenter = filter == null ? null : playerLocation;
+        analysisSkipped = filter == null ? 0 : filter.skipped;
+
         p.endSection();
 
         return blocks;
     }
+
+    /** Where the last analysis was centered. */
+    private static Location analysisCenter;
+    /** How many blocks the last analysis skipped because of the distance limit. */
+    private static long analysisSkipped;
 
     private static void drawHints(
         RenderWorldLastEvent event,
@@ -717,7 +743,7 @@ public class MMRenderer {
 
             // what this pass would have cost without the distance limit
             workNanos += System.nanoTime() - start;
-            estimatedFullPassNanos = compared == 0 ? 0 : workNanos * candidates / compared;
+            estimatedFullPassNanos = compared == 0 ? 0 : workNanos * (candidates + analysisSkipped) / compared;
 
             return true;
         }

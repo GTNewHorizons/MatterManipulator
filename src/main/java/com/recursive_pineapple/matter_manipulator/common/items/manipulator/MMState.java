@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -86,6 +87,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
+import org.joml.Vector3f;
 import org.joml.Vector3i;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -367,34 +369,96 @@ public class MMState {
      * Note: moving uses a special algorithm, so its value returned here should only be used for drawing the hints.
      */
     public List<PendingBlock> getPendingBlocks(ManipulatorTier tier, World world) {
+        return getPendingBlocks(tier, world, null);
+    }
+
+    /**
+     * @param filter Previews only: skips the blocks outside it.
+     */
+    public List<PendingBlock> getPendingBlocks(ManipulatorTier tier, World world, DistanceFilter filter) {
         return switch (config.placeMode) {
-            case COPYING, MOVING -> getAnalysis(world);
-            case GEOMETRY -> getGeomPendingBlocks(world);
-            case EXCHANGING -> getExchangeBlocks(tier, world);
+            case COPYING, MOVING -> getAnalysis(world, filter);
+            case GEOMETRY -> getGeomPendingBlocks(world, filter);
+            case EXCHANGING -> getExchangeBlocks(tier, world, filter);
             case CABLES -> getCableBlocks(world);
         };
     }
 
-    private List<PendingBlock> getAnalysis(World world) {
+    /** Keeps the blocks within a distance of a point, and counts the ones it skips. */
+    public static class DistanceFilter {
+
+        private final int x, y, z, maxDistance;
+        private final long maxDistance2;
+        public long skipped;
+
+        public DistanceFilter(int x, int y, int z, int maxDistance) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.maxDistance = maxDistance;
+            this.maxDistance2 = (long) maxDistance * maxDistance;
+        }
+
+        public boolean keep(int bx, int by, int bz) {
+            long dx = bx - x, dy = by - y, dz = bz - z;
+
+            if (dx * dx + dy * dy + dz * dz <= maxDistance2) return true;
+
+            skipped++;
+            return false;
+        }
+    }
+
+    private List<PendingBlock> getAnalysis(World world, DistanceFilter filter) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
         Location coordC = config.coordC;
 
         if (!Location.areCompatible(coordA, coordB, coordC) || !coordA.isInWorld(world)) { return new ArrayList<>(); }
 
+        Transform t = config.placeMode == PlaceMode.COPYING ? getTransform() : null;
+
+        if (t != null) t.cacheRotation();
+
+        Predicate<Vector3i> keepSource = null;
+        Vector3i clipMin = null, clipMax = null;
+
+        if (filter != null && (t == null || config.arraySpan == null)) {
+            Vector3i dest = new Vector3i();
+
+            keepSource = voxel -> {
+                dest.set(voxel).sub(coordA.x, coordA.y, coordA.z);
+                if (t != null) t.apply(dest);
+
+                return filter.keep(dest.x + coordC.x, dest.y + coordC.y, dest.z + coordC.z);
+            };
+
+            int r = filter.maxDistance;
+            Vector3i c1 = toSource(filter.x - r - coordC.x, filter.y - r - coordC.y, filter.z - r - coordC.z, t);
+            Vector3i c2 = toSource(filter.x + r - coordC.x, filter.y + r - coordC.y, filter.z + r - coordC.z, t);
+
+            clipMin = new Vector3i(c1).min(c2)
+                .add(coordA.x, coordA.y, coordA.z)
+                .max(new Vector3i(coordA.x, coordA.y, coordA.z).min(new Vector3i(coordB.x, coordB.y, coordB.z)));
+            clipMax = new Vector3i(c1).max(c2)
+                .add(coordA.x, coordA.y, coordA.z)
+                .min(new Vector3i(coordA.x, coordA.y, coordA.z).max(new Vector3i(coordB.x, coordB.y, coordB.z)));
+
+            Vector3i size = MMUtils.getRegionDeltas(coordA, coordB).absolute().add(1, 1, 1);
+            long looped = (long) Math.max(0, clipMax.x - clipMin.x + 1) * Math.max(0, clipMax.y - clipMin.y + 1) * Math.max(0, clipMax.z - clipMin.z + 1);
+
+            filter.skipped += (long) size.x * size.y * size.z - looped;
+        }
+
         // MOVING's result is only used visually since it has a special build algorithm
         RegionAnalysis analysis = BlockAnalyzer
-            .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING ? true : false);
+            .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING, clipMin, clipMax, keepSource);
 
         if (config.placeMode == PlaceMode.COPYING) {
             applySmartCopySubstitutions(world, analysis.blocks, coordA);
         }
 
         if (config.placeMode == PlaceMode.COPYING) {
-            Transform t = getTransform();
-
-            t.cacheRotation();
-
             // apply rotation
             for (PendingBlock block : analysis.blocks) {
                 Vector3i v = t.apply(block.toVec());
@@ -424,6 +488,8 @@ public class MMState {
                     List<PendingBlock> copy = new ArrayList<>(base.size());
 
                     for (PendingBlock original : base) {
+                        if (filter != null && !filter.keep(original.x + d.x, original.y + d.y, original.z + d.z)) continue;
+
                         PendingBlock dup = original.clone();
                         dup.x += d.x;
                         dup.y += d.y;
@@ -665,13 +731,15 @@ public class MMState {
         return item != null && stack != null && stack.item != null && stack.getItem() == item;
     }
 
-    private List<PendingBlock> getExchangeBlocks(ManipulatorTier tier, World world) {
+    private List<PendingBlock> getExchangeBlocks(ManipulatorTier tier, World world, DistanceFilter filter) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
 
         if (!Location.areCompatible(coordA, coordB) || !coordA.isInWorld(world)) { return new ArrayList<>(); }
 
         if (config.replaceWhitelist == null || config.replaceWhitelist.specs.isEmpty()) { return new ArrayList<>(); }
+
+        if (config.replaceWith.specs.size() > 1) filter = null;
 
         Vector3i deltas = MMUtils.getRegionDeltas(coordA, coordB);
 
@@ -687,6 +755,8 @@ public class MMState {
             int x = voxel.x;
             int y = voxel.y;
             int z = voxel.z;
+
+            if (filter != null && !filter.keep(x, y, z)) continue;
 
             if (!replacingAir) {
                 if (world.isAirBlock(x, y, z)) continue;
@@ -977,7 +1047,7 @@ public class MMState {
         ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = null;
     }
 
-    private List<PendingBlock> getGeomPendingBlocks(World world) {
+    private List<PendingBlock> getGeomPendingBlocks(World world, DistanceFilter filter) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
         Location coordC = config.coordC;
@@ -1010,15 +1080,15 @@ public class MMState {
                 break;
             }
             case CUBE: {
-                iterateCube(pending, minX, minY, minZ, maxX, maxY, maxZ);
+                iterateCube(pending, minX, minY, minZ, maxX, maxY, maxZ, filter);
                 break;
             }
             case SPHERE: {
-                iterateSphere(pending, minX, minY, minZ, maxX, maxY, maxZ);
+                iterateSphere(pending, minX, minY, minZ, maxX, maxY, maxZ, filter);
                 break;
             }
             case CYLINDER: {
-                iterateCylinder(pending, coordA.toVec(), coordB.toVec(), coordC.toVec());
+                iterateCylinder(pending, coordA.toVec(), coordB.toVec(), coordC.toVec(), filter);
                 break;
             }
         }
@@ -1117,13 +1187,32 @@ public class MMState {
         int minZ,
         int maxX,
         int maxY,
-        int maxZ
+        int maxZ,
+        DistanceFilter filter
     ) {
         XSTR rng = new XSTR(config.hashCode());
 
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
+        int x0 = minX, y0 = minY, z0 = minZ, x1 = maxX, y1 = maxY, z1 = maxZ;
+
+        if (filter != null && hasOneSpecEach(config.corners, config.edges, config.faces, config.volumes)) {
+            int r = filter.maxDistance;
+
+            x0 = Math.max(minX, filter.x - r);
+            y0 = Math.max(minY, filter.y - r);
+            z0 = Math.max(minZ, filter.z - r);
+            x1 = Math.min(maxX, filter.x + r);
+            y1 = Math.min(maxY, filter.y + r);
+            z1 = Math.min(maxZ, filter.z + r);
+
+            long total = (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+            long looped = (long) Math.max(0, x1 - x0 + 1) * Math.max(0, y1 - y0 + 1) * Math.max(0, z1 - z0 + 1);
+
+            filter.skipped += total - looped;
+        }
+
+        for (int x = x0; x <= x1; x++) {
+            for (int y = y0; y <= y1; y++) {
+                for (int z = z0; z <= z1; z++) {
                     int insideCount = 0;
 
                     if (x > minX && x < maxX) insideCount++;
@@ -1138,10 +1227,29 @@ public class MMState {
                         default -> BlockSpec.AIR;
                     };
 
+                    if (filter != null && !filter.keep(x, y, z)) continue;
+
                     pending.add(spec.instantiate(config.coordA.worldId, x, y, z).setOrders(insideCount, insideCount));
                 }
             }
         }
+    }
+
+    /** Undoes {@link Transform#apply(Vector3i)}: its matrix is orthogonal, so the inverse of M^T is M. */
+    private static Vector3i toSource(int x, int y, int z, Transform t) {
+        if (t == null) return new Vector3i(x, y, z);
+
+        Vector3f v = new Vector3f(x, y, z).mulDirection(t.getRotation());
+
+        return new Vector3i(Math.round(v.x), Math.round(v.y), Math.round(v.z));
+    }
+
+    private static boolean hasOneSpecEach(WeightedSpecList... lists) {
+        for (WeightedSpecList list : lists) {
+            if (list.specs.size() > 1) return false;
+        }
+
+        return true;
     }
 
     private void iterateSphere(
@@ -1151,7 +1259,8 @@ public class MMState {
         int minZ,
         int maxX,
         int maxY,
-        int maxZ
+        int maxZ,
+        DistanceFilter filter
     ) {
         XSTR rng = new XSTR(config.hashCode());
 
@@ -1179,12 +1288,13 @@ public class MMState {
                     // spotless:on
 
                     if (distance <= 1) {
-                        PendingBlock block = config.volumes.get(rng)
-                            .instantiate(config.coordA.worldId, x + minX, y + minY, z + minZ)
-                            .setOrders(1, 1);
+                        ImmutableBlockSpec spec = config.volumes.get(rng);
 
                         present[x + 1][y + 1][z + 1] = true;
-                        pending.add(block);
+
+                        if (filter != null && !filter.keep(x + minX, y + minY, z + minZ)) continue;
+
+                        pending.add(spec.instantiate(config.coordA.worldId, x + minX, y + minY, z + minZ).setOrders(1, 1));
                     }
                 }
             }
@@ -1207,19 +1317,49 @@ public class MMState {
             directions.add(ForgeDirection.SOUTH);
         }
 
-        for (PendingBlock block : pending) {
-            for (ForgeDirection dir : directions) {
-                if (!present[block.x - minX + 1 + dir.offsetX][block.y - minY + 1 + dir.offsetY][block.z - minZ + 1 + dir.offsetZ]) {
-                    block.setBlock(config.faces.get(rng));
-                    block.buildOrder = 0;
-                    block.renderOrder = 0;
-                    break;
+        int next = 0;
+
+        for (int x = 0; x < sx; x++) {
+            for (int y = 0; y < sy; y++) {
+                for (int z = 0; z < sz; z++) {
+                    if (!present[x + 1][y + 1][z + 1]) continue;
+
+                    PendingBlock block = null;
+
+                    if (next < pending.size()) {
+                        PendingBlock candidate = pending.get(next);
+
+                        if (candidate.x == x + minX && candidate.y == y + minY && candidate.z == z + minZ) {
+                            block = candidate;
+                            next++;
+                        }
+                    }
+
+                    for (ForgeDirection dir : directions) {
+                        if (!present[x + 1 + dir.offsetX][y + 1 + dir.offsetY][z + 1 + dir.offsetZ]) {
+                            ImmutableBlockSpec face = config.faces.get(rng);
+
+                            if (block != null) {
+                                block.setBlock(face);
+                                block.buildOrder = 0;
+                                block.renderOrder = 0;
+                            }
+
+                            break;
+                        }
+                    }
                 }
             }
         }
     }
 
-    private void iterateCylinder(ArrayList<PendingBlock> pending, Vector3i coordA, Vector3i coordB, Vector3i coordC) {
+    private void iterateCylinder(
+        ArrayList<PendingBlock> pending,
+        Vector3i coordA,
+        Vector3i coordB,
+        Vector3i coordC,
+        DistanceFilter filter
+    ) {
         XSTR rng = new XSTR(config.hashCode());
 
         Vector3i b2 = pinToPlanes(coordA, coordB);
@@ -1288,42 +1428,77 @@ public class MMState {
 
                 if (distance <= 1) {
                     for (int h = 0; h < absH; h++) {
-                        PendingBlock block = config.volumes.get(rng)
-                            .instantiate(config.coordA.worldId, a, h, b)
-                            .setOrders(2, 0);
+                        ImmutableBlockSpec spec = config.volumes.get(rng);
 
                         present[a + 1][h + 1][b + 1] = true;
-                        pending.add(block);
+
+                        // filtered by the final position (see the transform at the end)
+                        if (
+                            filter != null && !filter.keep(
+                                a * vecA.x + b * vecB.x + h * vecH.x + coordA.x,
+                                a * vecA.y + b * vecB.y + h * vecH.y + coordA.y,
+                                a * vecA.z + b * vecB.z + h * vecH.z + coordA.z
+                            )
+                        ) continue;
+
+                        pending.add(spec.instantiate(config.coordA.worldId, a, h, b).setOrders(2, 0));
                     }
                 }
             }
         }
 
-        // check the adjacent blocks for each block and determine whether the block should be a volume, edge, or face
-        for (PendingBlock block : pending) {
-            byte adj = 0;
+        // check the adjacent blocks for each block and determine whether the block should be a volume, edge, or face.
+        int next = 0;
 
-            for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
-                if (present[block.x + 1 + dir.offsetX][block.y + 1 + dir.offsetY][block.z + 1 + dir.offsetZ]) {
-                    adj |= dir.flag;
-                }
-            }
+        for (int a = 0; a < absA; a++) {
+            for (int b = 0; b < absB; b++) {
+                for (int h = 0; h < absH; h++) {
+                    if (!present[a + 1][h + 1][b + 1]) continue;
 
-            // I know this looks :ConcerningRead: but this is just an easy way to check which blocks are adjacent to
-            // this one
+                    PendingBlock block = null;
 
-            // if this block is missing an adjacent block, it's not a volume
-            if (adj != 0b111111) {
-                // if this block is missing one of the N/S/E/W blocks, it's an edge (the surface)
-                if ((adj & 0b111100) == 0b111100) {
-                    block.setBlock(config.edges.get(rng));
-                    block.buildOrder = 1;
-                    block.renderOrder = 1;
-                } else {
-                    // otherwise, it's a face (top & bottom)
-                    block.setBlock(config.faces.get(rng));
-                    block.buildOrder = 2;
-                    block.renderOrder = 0;
+                    if (next < pending.size()) {
+                        PendingBlock candidate = pending.get(next);
+
+                        if (candidate.x == a && candidate.y == h && candidate.z == b) {
+                            block = candidate;
+                            next++;
+                        }
+                    }
+
+                    byte adj = 0;
+
+                    for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+                        if (present[a + 1 + dir.offsetX][h + 1 + dir.offsetY][b + 1 + dir.offsetZ]) {
+                            adj |= dir.flag;
+                        }
+                    }
+
+                    // I know this looks :ConcerningRead: but this is just an easy way to check which blocks are adjacent
+                    // to this one
+
+                    // if this block is missing an adjacent block, it's not a volume
+                    if (adj != 0b111111) {
+                        // if this block is missing one of the N/S/E/W blocks, it's an edge (the surface)
+                        if ((adj & 0b111100) == 0b111100) {
+                            ImmutableBlockSpec edge = config.edges.get(rng);
+
+                            if (block != null) {
+                                block.setBlock(edge);
+                                block.buildOrder = 1;
+                                block.renderOrder = 1;
+                            }
+                        } else {
+                            // otherwise, it's a face (top & bottom)
+                            ImmutableBlockSpec face = config.faces.get(rng);
+
+                            if (block != null) {
+                                block.setBlock(face);
+                                block.buildOrder = 2;
+                                block.renderOrder = 0;
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -101,6 +101,7 @@ import appeng.api.storage.ICellWorkbenchItem;
 import appeng.api.storage.data.IAEFluidStack;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
+import appeng.api.util.AECableType;
 import appeng.api.util.AEColor;
 import appeng.api.util.AEColoredItemDefinition;
 import appeng.parts.automation.UpgradeInventory;
@@ -1457,14 +1458,21 @@ public class MMUtils {
                     partItem.createPartFromItemStack(stack) instanceof IPartCable cable
             ) {
                 var parts = AEApi.instance().definitions().parts();
-                AEColoredItemDefinition definition = switch (cable.getCableConnectionType()) {
-                    case GLASS -> parts.cableGlass();
-                    case COVERED -> parts.cableCovered();
-                    case SMART -> parts.cableSmart();
-                    case DENSE -> parts.cableDense();
-                    case DENSE_COVERED -> parts.cableDenseCovered();
-                    default -> null;
-                };
+                var type = cable.getCableConnectionType();
+                AEColoredItemDefinition definition;
+
+                if (type == AECableType.GLASS)
+                    definition = parts.cableGlass();
+                else if (type == AECableType.COVERED)
+                    definition = parts.cableCovered();
+                else if (type == AECableType.SMART)
+                    definition = parts.cableSmart();
+                else if (type == AECableType.DENSE)
+                    definition = parts.cableDense();
+                else if (type == AECableType.DENSE_COVERED)
+                    definition = parts.cableDenseCovered();
+                else
+                    definition = null;
 
                 if (definition != null) stack = definition.stack(AEColor.Transparent, 1);
             }
