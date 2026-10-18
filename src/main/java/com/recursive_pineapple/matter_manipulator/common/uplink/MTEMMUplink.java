@@ -87,8 +87,6 @@ import tectech.thing.metaTileEntity.hatch.MTEHatchEnergyMulti;
 
 public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> implements ISurvivalConstructable, IUplinkMulti, IStructureProvider<MTEMMUplink> {
 
-    private static final String AUTHOR_PINEAPPLE = EnumChatFormatting.BLUE + "Recursive Pineapple";
-
     private static final long BASE_PLASMA_EU_COST = 131_072;
 
     private long pendingPlasmaEU = 0;
@@ -238,7 +236,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
             .addEnergyHatch("1+", "Any iridium casing", 1)
             .addMaintenanceHatch("1+", "Any iridium casing", 1)
             .addInputHatch("1+", "Any iridium casing", 1)
-            .toolTipFinisher(AUTHOR_PINEAPPLE);
+            .toolTipFinisher();
         return tt;
     }
 
