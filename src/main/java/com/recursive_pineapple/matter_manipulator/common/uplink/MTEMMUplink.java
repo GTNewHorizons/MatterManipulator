@@ -3,7 +3,6 @@ package com.recursive_pineapple.matter_manipulator.common.uplink;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.AdvancedIridiumPlatedMachineCasing;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.MatterGenerationCoil;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.RadiantNaquadahAlloyCasing;
-import static gregtech.api.enums.GTAuthors.AuthorPineapple;
 import static gregtech.api.enums.HatchElement.Energy;
 import static gregtech.api.enums.HatchElement.ExoticEnergy;
 import static gregtech.api.enums.HatchElement.InputHatch;
@@ -87,6 +86,8 @@ import mcp.mobius.waila.api.IWailaDataAccessor;
 import tectech.thing.metaTileEntity.hatch.MTEHatchEnergyMulti;
 
 public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> implements ISurvivalConstructable, IUplinkMulti, IStructureProvider<MTEMMUplink> {
+
+    private static final String AUTHOR_PINEAPPLE = EnumChatFormatting.BLUE + "Recursive Pineapple";
 
     private static final long BASE_PLASMA_EU_COST = 131_072;
 
@@ -237,7 +238,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
             .addEnergyHatch("1+", "Any iridium casing", 1)
             .addMaintenanceHatch("1+", "Any iridium casing", 1)
             .addInputHatch("1+", "Any iridium casing", 1)
-            .toolTipFinisher(AuthorPineapple);
+            .toolTipFinisher(AUTHOR_PINEAPPLE);
         return tt;
     }
 
