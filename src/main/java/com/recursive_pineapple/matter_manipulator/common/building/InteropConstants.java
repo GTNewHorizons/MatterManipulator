@@ -29,6 +29,7 @@ public class InteropConstants {
 
     public static final LazyBlock BRIGHT_AIR = new LazyBlock(Mods.GalacticraftCore, "tile.brightAir", OreDictionary.WILDCARD_VALUE);
     public static final LazyBlock ARCANE_LAMP_LIGHT = new LazyBlock(Mods.Thaumcraft, "blockAiry", 2);
+    public static final LazyBlock TC_STONE_DEVICE = new LazyBlock(Mods.Thaumcraft, "blockStoneDevice");
     public static final LazyBlock WIRELESS_CONNECTOR = new LazyBlock(Mods.AppliedEnergistics2, "tile.BlockWirelessConnector");
     public static final LazyBlock WIRELESS_HUB = new LazyBlock(Mods.AppliedEnergistics2, "tile.BlockWirelessHub");
     public static final LazyBlockSpec AE_BLOCK_CABLE = LazyBlockSpec.ofBlock(Mods.AppliedEnergistics2, "tile.BlockCableBus", 0);
@@ -89,6 +90,28 @@ public class InteropConstants {
     @Optional(Names.GREG_TECH_NH)
     private static boolean isGTRenderer(Block block) {
         return GregTechAPI.isGTRenderer(block);
+    }
+
+    /**
+     * A formed infusion altar replaces its arcane stone with pillar blocks (meta 3 and 4) that have no item form. They
+     * drop the arcane stone, and the matrix forms them again when it is activated with a wand.
+     */
+    public static boolean isInfusionPillar(Block block, int meta) {
+        return (meta == 3 || meta == 4) && TC_STONE_DEVICE.matches(block, meta);
+    }
+
+    private static final String MRTJP_INSTANCED_BLOCK = "mrtjp.core.block.InstancedBlock";
+
+    /**
+     * MrTJPCore blocks (ProjectRed lamps, machines, ...) keep part of their item metadata in the tile entity, for
+     * example the inverted flag of a lamp. Only the tile's pick block has the full item metadata.
+     */
+    public static boolean keepsItemMetaInTile(Block block) {
+        for (Class<?> c = block.getClass(); c != null && c != Block.class; c = c.getSuperclass()) {
+            if (c.getName().equals(MRTJP_INSTANCED_BLOCK)) return true;
+        }
+
+        return false;
     }
 
     public static boolean isFree(Block block, int metadata) {

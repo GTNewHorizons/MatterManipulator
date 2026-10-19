@@ -430,6 +430,11 @@ public class BlockSpec implements ImmutableBlockSpec {
     public static BlockSpec fromBlock(BlockSpec pooled, World world, int x, int y, int z, Block block, int blockMeta) {
         BlockSpec spec = pooled != null ? pooled.reset() : new BlockSpec();
 
+        if (InteropConstants.isInfusionPillar(block, blockMeta)) {
+            Block stone = Block.getBlockFromItem(block.getItemDropped(blockMeta, null, 0));
+            if (stone != null && stone != Blocks.air) return spec.setObject(stone, block.damageDropped(blockMeta));
+        }
+
         spec.isBlock = true;
         spec.objectId = GameRegistry.findUniqueIdentifierFor(block);
         spec.block = block;
@@ -446,6 +451,11 @@ public class BlockSpec implements ImmutableBlockSpec {
         }
 
         int itemMeta = block.getDamageValue(world, x, y, z);
+
+        if (item != null && InteropConstants.keepsItemMetaInTile(block)) {
+            ItemStack pick = block.getPickBlock(null, world, x, y, z, null);
+            if (pick != null && pick.getItem() == item) itemMeta = pick.getItemDamage();
+        }
 
         spec.metadata = itemMeta;
         spec.item = Optional.ofNullable(item);

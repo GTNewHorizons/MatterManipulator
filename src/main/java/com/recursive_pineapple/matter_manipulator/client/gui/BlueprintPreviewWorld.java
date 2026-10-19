@@ -58,6 +58,7 @@ import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.StructureBlueprint;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.RegionAnalysis;
+import com.recursive_pineapple.matter_manipulator.common.building.MultipartAnalysisResult;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
 import com.recursive_pineapple.matter_manipulator.common.utils.BigFluidStack;
@@ -66,8 +67,13 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
+import codechicken.multipart.MultiPartRegistry;
+import codechicken.multipart.MultipartGenerator$;
+import codechicken.multipart.TMultiPart;
+import codechicken.multipart.TileMultipart;
 import it.unimi.dsi.fastutil.booleans.BooleanObjectImmutablePair;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import scala.collection.JavaConversions;
 
 /**
  * Detached, in-memory world used only to render a blueprint preview. Blocks are placed and configured through the same
@@ -247,10 +253,35 @@ final class BlueprintPreviewWorld extends World {
     private void configure(PendingBlock block) {
         context.block = block;
         try {
-            block.apply(context, this);
+            if (block.mp != null && Mods.ForgeMultipart.isModLoaded()) {
+                placeMultipart(block);
+            } else {
+                block.apply(context, this);
+            }
         } catch (Throwable t) {
             fail(block, "configure", t);
         }
+    }
+
+    /**
+     * FMP's addPart hands its tile to the chunk, which this world does not use, and builds a server tile that has no
+     * renderer. Build the client tile from the captured parts instead, the way a description packet does.
+     */
+    @Optional(Names.FORGE_MULTIPART)
+    private void placeMultipart(PendingBlock block) {
+        if (!(block.mp instanceof MultipartAnalysisResult result) || result.parts == null) return;
+        List<TMultiPart> parts = new ArrayList<>();
+        for (MultipartAnalysisResult.PartData data : result.parts) {
+            if (data == null || data.typeId == null || data.nbt == null) continue;
+            TMultiPart part = MultiPartRegistry.createPart(data.typeId, true);
+            if (part == null) continue;
+            part.load(data.nbt);
+            parts.add(part);
+        }
+        if (parts.isEmpty()) return;
+        TileMultipart tile = MultipartGenerator$.MODULE$.generateCompositeTile(null, JavaConversions.iterableAsScalaIterable(parts), true);
+        setTileEntity(block.x, block.y, block.z, tile);
+        tile.loadParts(JavaConversions.iterableAsScalaIterable(parts));
     }
 
     /**
