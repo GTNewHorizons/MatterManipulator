@@ -8,8 +8,13 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregT
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.Nullable;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -22,6 +27,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier;
 
+import gregtech.api.GregTechAPI;
 import gregtech.api.enums.ItemList;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -83,6 +89,11 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import org.joml.Vector3i;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import tectech.thing.CustomItemList;
+import tectech.thing.metaTileEntity.hatch.MTEHatchDynamoTunnel;
+import tectech.thing.metaTileEntity.hatch.MTEHatchEnergyTunnel;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
+import tectech.thing.metaTileEntity.pipe.MTEPipeLaserMirror;
 
 /**
  * The NBT state of a manipulator.
@@ -739,15 +750,15 @@ public class MMState {
 
         if (!Location.areCompatible(coordA, coordB) || !coordA.isInWorld(world)) { return new ArrayList<>(); }
 
-        Vector3i a = coordA.toVec();
-        Vector3i b = pinToAxes(a, coordB.toVec());
+        List<Vector3i> path = getCablePath(getCablePoints(coordA.toVec(), config.cableCorners, coordB.toVec()));
+        Set<Vector3i> voxels = new LinkedHashSet<>(path);
 
         ArrayList<PendingBlock> out = new ArrayList<>();
 
         if (config.cables == null) {
             BlockSpec pooled = new BlockSpec();
 
-            for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+            for (Vector3i voxel : voxels) {
                 if (AppliedEnergistics2.isModLoaded()) {
                     if (MMUtils.getAECable(pooled, world, voxel.x, voxel.y, voxel.z)) {
                         PendingBlock pendingBlock = InteropConstants.AE_BLOCK_CABLE.toSpec().instantiate(world, voxel.x, voxel.y, voxel.z);
@@ -768,64 +779,116 @@ public class MMState {
             Block block = Block.getBlockFromItem(config.cables.getItem());
 
             if (GregTech.isModLoaded()) {
-                getGTCables(a, b, out, block, world, config.cables);
+                getGTCables(path, out, block, world, config.cables);
             }
 
             if (AppliedEnergistics2.isModLoaded()) {
-                getAECables(a, b, out, block, world, config.cables);
+                getAECables(voxels, out, block, world, config.cables);
             }
 
             if (Mods.OpenComputers.isModLoaded()) {
-                getOCCables(a, b, out, block, world, config.cables);
+                getOCCables(voxels, out, block, world, config.cables);
             }
         }
 
         return out;
     }
 
+    /**
+     * Gets the points of a cable path: A, every corner inbetween A and B, then B.
+     * Each point is pinned to the axes of the point before it, so that every segment is axis-aligned.
+     */
+    public static List<Vector3i> getCablePoints(Vector3i a, @Nullable List<Vector3i> corners, @Nullable Vector3i b) {
+        List<Vector3i> points = new ArrayList<>();
+
+        points.add(new Vector3i(a));
+
+        if (corners != null) {
+            for (Vector3i corner : corners) {
+                addCablePoint(points, corner);
+            }
+        }
+
+        if (b != null) addCablePoint(points, b);
+
+        return points;
+    }
+
+    private static void addCablePoint(List<Vector3i> points, Vector3i point) {
+        Vector3i last = points.get(points.size() - 1);
+        Vector3i pinned = pinToAxes(last, point);
+
+        if (!pinned.equals(last)) points.add(pinned);
+    }
+
+    /**
+     * Gets every voxel along a cable path, in order. Each voxel is adjacent to the one before it. A voxel may appear
+     * more than once if the path crosses itself.
+     */
+    static List<Vector3i> getCablePath(List<Vector3i> points) {
+        List<Vector3i> path = new ArrayList<>();
+
+        path.add(points.get(0));
+
+        for (int i = 1; i < points.size(); i++) {
+            Vector3i start = points.get(i - 1), end = points.get(i);
+
+            List<Vector3i> segment = getLineVoxels(start.x, start.y, start.z, end.x, end.y, end.z);
+
+            // the first voxel is the previous segment's last voxel
+            path.addAll(segment.subList(1, segment.size()));
+        }
+
+        return path;
+    }
+
     private void getOCCables(
-        Vector3i a,
-        Vector3i b,
+        Set<Vector3i> voxels,
         List<PendingBlock> out,
         Block block,
         World world,
         ImmutableBlockSpec cable
     ) {
         if (InteropConstants.OC_CABLE.matches(block, 0)) {
-            for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+            for (Vector3i voxel : voxels) {
                 out.add(cable.instantiate(world, voxel.x, voxel.y, voxel.z));
             }
         }
     }
 
     @Optional(Names.GREG_TECH_NH)
-    private void getGTCables(Vector3i a, Vector3i b, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
+    private void getGTCables(List<Vector3i> path, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
         if (block instanceof BlockMachines) {
-            int end = 0, start = 0;
+            // connect each voxel to the voxels before and after it in the path, so that corners connect both ways
+            Map<Vector3i, Integer> connections = new LinkedHashMap<>();
 
-            // calculate the start & end mConnections flags
-            switch (new Vector3i(b).sub(a).maxComponent()) {
-                case 0: {
-                    start = b.x < a.x ? ForgeDirection.EAST.flag : ForgeDirection.WEST.flag;
-                    end = b.x > a.x ? ForgeDirection.EAST.flag : ForgeDirection.WEST.flag;
-                    break;
+            for (int i = 0; i < path.size(); i++) {
+                Vector3i voxel = path.get(i);
+
+                int flags = connections.getOrDefault(voxel, 0);
+
+                // the voxels before and after this one
+                for (int j = i - 1; j <= i + 1; j += 2) {
+                    if (j < 0 || j >= path.size()) continue;
+
+                    ForgeDirection dir = getAxisDirection(voxel, path.get(j));
+
+                    // UNKNOWN's flag isn't a side, so it must not end up in the connections
+                    if (dir != ForgeDirection.UNKNOWN) flags |= dir.flag;
                 }
-                case 1: {
-                    start = b.y < a.y ? ForgeDirection.UP.flag : ForgeDirection.DOWN.flag;
-                    end = b.y > a.y ? ForgeDirection.UP.flag : ForgeDirection.DOWN.flag;
-                    break;
-                }
-                case 2: {
-                    start = b.z < a.z ? ForgeDirection.SOUTH.flag : ForgeDirection.NORTH.flag;
-                    end = b.z > a.z ? ForgeDirection.SOUTH.flag : ForgeDirection.NORTH.flag;
-                    break;
-                }
+
+                connections.put(voxel, flags);
             }
 
-            List<Vector3i> voxels = getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z);
+            ImmutableBlockSpec mirror = isBendableLaserPipe(cable) ? getLaserMirrorSpec() : null;
 
-            for (int i = 0; i < voxels.size(); i++) {
-                Vector3i voxel = voxels.get(i);
+            if (isLaserPipe(cable)) {
+                addCableHatch(world, path.get(0), config.cableHatchA, connections, out);
+                addCableHatch(world, path.get(path.size() - 1), config.cableHatchB, connections, out);
+            }
+
+            for (Map.Entry<Vector3i, Integer> entry : connections.entrySet()) {
+                Vector3i voxel = entry.getKey();
 
                 TileEntity te = world.getTileEntity(voxel.x, voxel.y, voxel.z);
 
@@ -833,14 +896,13 @@ public class MMState {
 
                 if (gt == null) gt = new GTAnalysisResult();
 
-                // paint newly placed cables with the picked cable's colour
-                // existing GT tiles keep their own colour, because thats how it already is
-                if (!(te instanceof IGregTechTileEntity)) gt.mGTColour = config.cableColour;
+                gt.mGTColour = config.cableColour;
 
-                if (i > 0) gt.mConnections |= start;
-                if (i < voxels.size() - 1) gt.mConnections |= end;
+                gt.mConnections |= entry.getValue();
 
-                PendingBlock pendingBlock = cable.instantiate(world, voxel.x, voxel.y, voxel.z);
+                ImmutableBlockSpec spec = mirror != null && isTurn(entry.getValue()) ? mirror : cable;
+
+                PendingBlock pendingBlock = spec.instantiate(world, voxel.x, voxel.y, voxel.z);
 
                 pendingBlock.gt = gt;
 
@@ -849,11 +911,80 @@ public class MMState {
         }
     }
 
+    /**
+     * Connects the end of a laser path to the laser hatch that was clicked to place it, and paints the hatch with the
+     * cable's colour. Lasers only travel in straight lines, so a hatch beside the path makes the end a mirror.
+     * Does nothing unless the clicked block is a laser hatch facing the end of the path.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private void addCableHatch(World world, Vector3i end, @Nullable Vector3i hatch, Map<Vector3i, Integer> connections, List<PendingBlock> out) {
+        if (hatch == null) return;
+
+        if (!(world.getTileEntity(hatch.x, hatch.y, hatch.z) instanceof IGregTechTileEntity igte)) return;
+
+        IMetaTileEntity mte = igte.getMetaTileEntity();
+
+        if (!(mte instanceof MTEHatchEnergyTunnel) && !(mte instanceof MTEHatchDynamoTunnel)) return;
+
+        ForgeDirection front = igte.getFrontFacing();
+
+        // the hatch has to face the end of the path, so it doesn't add hatches that aren't facing the cable
+        if (hatch.x + front.offsetX != end.x || hatch.y + front.offsetY != end.y || hatch.z + front.offsetZ != end.z) return;
+
+        connections.merge(end, front.getOpposite().flag, (a, b) -> a | b);
+
+        if (config.cableColour == -1) return;
+
+        GTAnalysisResult gt = new GTAnalysisResult(igte);
+        gt.mGTColour = config.cableColour;
+
+        PendingBlock pendingBlock = PendingBlock.fromBlock(world, hatch.x, hatch.y, hatch.z);
+        pendingBlock.gt = gt;
+        out.add(pendingBlock);
+    }
+
+    /**
+     * @return True if the cable is a laser pipe, including mirrors.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private static boolean isLaserPipe(ImmutableBlockSpec cable) {
+        return MMUtils.getIndexSafe(GregTechAPI.METATILEENTITIES, cable.getItemMeta()) instanceof MTEPipeLaser;
+    }
+
+    /**
+     * @return True if the cable is a laser pipe, which needs mirrors to bend.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private static boolean isBendableLaserPipe(ImmutableBlockSpec cable) {
+        IMetaTileEntity mte = MMUtils.getIndexSafe(GregTechAPI.METATILEENTITIES, cable.getItemMeta());
+
+        return mte instanceof MTEPipeLaser && !(mte instanceof MTEPipeLaserMirror);
+    }
+
+    @Optional(Names.GREG_TECH_NH)
+    private static ImmutableBlockSpec getLaserMirrorSpec() {
+        ItemStack stack = CustomItemList.LASERpipeSmart.get(1);
+
+        return new BlockSpec().setObject(stack.getItem(), stack.getItemDamage());
+    }
+
+    /**
+     * @return True if the connection flags are perpendicular.
+     */
+    private static boolean isTurn(int flags) {
+        if (Integer.bitCount(flags) != 2) return false;
+
+        // straight lines connect to opposite sides: down/up, north/south, west/east
+        return flags != (ForgeDirection.DOWN.flag | ForgeDirection.UP.flag) &&
+            flags != (ForgeDirection.NORTH.flag | ForgeDirection.SOUTH.flag) &&
+            flags != (ForgeDirection.WEST.flag | ForgeDirection.EAST.flag);
+    }
+
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private void getAECables(Vector3i a, Vector3i b, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
+    private void getAECables(Set<Vector3i> voxels, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
         if (cableSpec.getItem() instanceof IPartItem partItem) {
             if (partItem.createPartFromItemStack(cableSpec.toStack(1)) instanceof IPartCable cable) {
-                for (Vector3i voxel : getLineVoxels(a.x, a.y, a.z, b.x, b.y, b.z)) {
+                for (Vector3i voxel : voxels) {
                     int x = voxel.x, y = voxel.y, z = voxel.z;
 
                     AEAnalysisResult ae;
@@ -869,6 +1000,8 @@ public class MMState {
                     }
 
                     ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = new AEPartData(cable);
+
+                    ae.mAEColour = cable.getCableColor();
 
                     PendingBlock pendingBlock = cableSpec.instantiate(world, x, y, z);
 
@@ -1303,6 +1436,20 @@ public class MMState {
             case 2 -> new Vector3i(origin.x, origin.y, point.z);
             default -> throw new AssertionError();
         };
+    }
+
+    /**
+     * @return The direction from one point to another point on one of its axes, or UNKNOWN if the points are equal or
+     *         not on a shared axis.
+     */
+    static ForgeDirection getAxisDirection(Vector3i from, Vector3i to) {
+        int dx = Integer.signum(to.x - from.x), dy = Integer.signum(to.y - from.y), dz = Integer.signum(to.z - from.z);
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (dir.offsetX == dx && dir.offsetY == dy && dir.offsetZ == dz) return dir;
+        }
+
+        return ForgeDirection.UNKNOWN;
     }
 
     public boolean hasUpgrade(MMUpgrades upgrade) {
