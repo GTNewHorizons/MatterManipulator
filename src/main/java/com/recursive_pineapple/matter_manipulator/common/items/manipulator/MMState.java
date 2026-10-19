@@ -92,6 +92,8 @@ import org.joml.Vector3i;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import tectech.thing.CustomItemList;
+import tectech.thing.metaTileEntity.hatch.MTEHatchDynamoTunnel;
+import tectech.thing.metaTileEntity.hatch.MTEHatchEnergyTunnel;
 import tectech.thing.metaTileEntity.pipe.MTEPipeLaser;
 import tectech.thing.metaTileEntity.pipe.MTEPipeLaserMirror;
 
@@ -950,6 +952,11 @@ public class MMState {
 
             ImmutableBlockSpec mirror = isBendableLaserPipe(cable) ? getLaserMirrorSpec() : null;
 
+            if (isLaserPipe(cable)) {
+                addCableHatch(world, path.get(0), config.cableHatchA, connections, out);
+                addCableHatch(world, path.get(path.size() - 1), config.cableHatchB, connections, out);
+            }
+
             for (Map.Entry<Vector3i, Integer> entry : connections.entrySet()) {
                 Vector3i voxel = entry.getKey();
 
@@ -959,9 +966,7 @@ public class MMState {
 
                 if (gt == null) gt = new GTAnalysisResult();
 
-                // paint newly placed cables with the picked cable's colour
-                // existing GT tiles keep their own colour, because thats how it already is
-                if (!(te instanceof IGregTechTileEntity)) gt.mGTColour = config.cableColour;
+                gt.mGTColour = config.cableColour;
 
                 gt.mConnections |= entry.getValue();
 
@@ -974,6 +979,46 @@ public class MMState {
                 out.add(pendingBlock);
             }
         }
+    }
+
+    /**
+     * Connects the end of a laser path to the laser hatch that was clicked to place it, and paints the hatch with the
+     * cable's colour. Lasers only travel in straight lines, so a hatch beside the path makes the end a mirror.
+     * Does nothing unless the clicked block is a laser hatch facing the end of the path.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private void addCableHatch(World world, Vector3i end, @Nullable Vector3i hatch, Map<Vector3i, Integer> connections, List<PendingBlock> out) {
+        if (hatch == null) return;
+
+        if (!(world.getTileEntity(hatch.x, hatch.y, hatch.z) instanceof IGregTechTileEntity igte)) return;
+
+        IMetaTileEntity mte = igte.getMetaTileEntity();
+
+        if (!(mte instanceof MTEHatchEnergyTunnel) && !(mte instanceof MTEHatchDynamoTunnel)) return;
+
+        ForgeDirection front = igte.getFrontFacing();
+
+        // the hatch has to face the end of the path, so it doesn't add hatches that aren't facing the cable
+        if (hatch.x + front.offsetX != end.x || hatch.y + front.offsetY != end.y || hatch.z + front.offsetZ != end.z) return;
+
+        connections.merge(end, front.getOpposite().flag, (a, b) -> a | b);
+
+        if (config.cableColour == -1) return;
+
+        GTAnalysisResult gt = new GTAnalysisResult(igte);
+        gt.mGTColour = config.cableColour;
+
+        PendingBlock pendingBlock = PendingBlock.fromBlock(world, hatch.x, hatch.y, hatch.z);
+        pendingBlock.gt = gt;
+        out.add(pendingBlock);
+    }
+
+    /**
+     * @return True if the cable is a laser pipe, including mirrors.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private static boolean isLaserPipe(ImmutableBlockSpec cable) {
+        return MMUtils.getIndexSafe(GregTechAPI.METATILEENTITIES, cable.getItemMeta()) instanceof MTEPipeLaser;
     }
 
     /**
@@ -1025,6 +1070,8 @@ public class MMState {
                     }
 
                     ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = new AEPartData(cable);
+
+                    ae.mAEColour = cable.getCableColor();
 
                     PendingBlock pendingBlock = cableSpec.instantiate(world, x, y, z);
 

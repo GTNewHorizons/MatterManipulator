@@ -80,13 +80,17 @@ import net.minecraftforge.fluids.IFluidHandler;
 import cpw.mods.fml.relauncher.ReflectionHelper;
 
 import gregtech.api.GregTechAPI;
+import gregtech.api.enums.Dyes;
 import gregtech.api.interfaces.metatileentity.IConnectable;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.IHasInventory;
+import gregtech.api.items.MetaBaseItem;
 import gregtech.api.metatileentity.BaseMetaTileEntity;
 import gregtech.common.blocks.BlockMachines;
+import gregtech.common.items.behaviors.BehaviourSprayColor;
 import gregtech.common.tileentities.machines.MTEHatchInputBusME;
 import gregtech.common.tileentities.machines.MTEHatchInputME;
+import gregtech.crossmod.backhand.Backhand;
 
 import appeng.api.AEApi;
 import appeng.api.config.Upgrades;
@@ -1453,26 +1457,8 @@ public class MMUtils {
         for (var entry : itemAnalysis.requiredItems.entrySet()) {
             ItemStack stack = entry.getKey().getItemStack();
 
-            if (
-                AppliedEnergistics2.isModLoaded() && stack.getItem() instanceof IPartItem partItem &&
-                    partItem.createPartFromItemStack(stack) instanceof IPartCable cable
-            ) {
-                var parts = AEApi.instance().definitions().parts();
-                var type = cable.getCableConnectionType();
-                AEColoredItemDefinition definition;
-
-                if (type == AECableType.GLASS)
-                    definition = parts.cableGlass();
-                else if (type == AECableType.COVERED)
-                    definition = parts.cableCovered();
-                else if (type == AECableType.SMART)
-                    definition = parts.cableSmart();
-                else if (type == AECableType.DENSE)
-                    definition = parts.cableDense();
-                else if (type == AECableType.DENSE_COVERED)
-                    definition = parts.cableDenseCovered();
-                else
-                    definition = null;
+            if (AppliedEnergistics2.isModLoaded()) {
+                AEColoredItemDefinition definition = getAECableDefinition(stack);
 
                 if (definition != null) stack = definition.stack(AEColor.Transparent, 1);
             }
@@ -1693,6 +1679,35 @@ public class MMUtils {
         return false;
     }
 
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    public static void recolourAECable(BlockSpec spec, byte gtColour) {
+        if (spec == null) return;
+
+        AEColoredItemDefinition definition = getAECableDefinition(spec.toStack(1));
+        if (definition == null) return;
+        spec.setObject(definition.stack(gtColour < 0 ? AEColor.Transparent : AEColor.fromOrdinal(15 - gtColour), 1));
+    }
+
+    /**
+     * @return The AE cable typeof the stack, in any colour, or null if it isn't an AE cable.
+     */
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    public static AEColoredItemDefinition getAECableDefinition(ItemStack stack) {
+        if (stack == null || !(stack.getItem() instanceof IPartItem partItem)) return null;
+        if (!(partItem.createPartFromItemStack(stack) instanceof IPartCable cable)) return null;
+
+        var parts = AEApi.instance().definitions().parts();
+
+        return switch (cable.getCableConnectionType()) {
+            case GLASS -> parts.cableGlass();
+            case COVERED -> parts.cableCovered();
+            case SMART -> parts.cableSmart();
+            case DENSE -> parts.cableDense();
+            case DENSE_COVERED -> parts.cableDenseCovered();
+            default -> null;
+        };
+    }
+
     public static boolean isOCCable(ImmutableBlockSpec spec) {
         if (spec == null) return false;
         return InteropConstants.OC_CABLE.matches(spec.getBlock(), 0);
@@ -1727,6 +1742,26 @@ public class MMUtils {
         }
 
         return -1;
+    }
+
+    /**
+     * @return The colour of the GT spray can in the player's offhand,
+     *         -1 if its solvent, or null if there's no spray can in the offhand.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    public static Byte getOffhandSprayColour(EntityPlayer player) {
+        ItemStack offhand = Backhand.getOffhandItem(player);
+
+        if (offhand == null || !(offhand.getItem() instanceof MetaBaseItem item)) return null;
+
+        List<Integer> dyes = item.mapEachBehavior(offhand, b -> b instanceof BehaviourSprayColor spray ? spray.getDye(offhand) : null);
+
+        if (dyes.isEmpty()) return null;
+
+        int dye = dyes.get(0);
+
+        // solvent cans return -1, the infinite can returns 16 when set to solvent (this is stupid)
+        return dye >= 0 && dye < Dyes.VALUES.length ? (byte) dye : -1;
     }
 
     public static String getDirectionDisplayName(ForgeDirection dir) {
