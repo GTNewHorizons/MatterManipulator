@@ -38,6 +38,8 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.GregTechAPI;
+import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
+import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 
 import com.mojang.authlib.GameProfile;
 import com.recursive_pineapple.matter_manipulator.MMMod;
@@ -90,7 +92,7 @@ final class BlueprintPreviewWorld extends World {
     private final List<PendingBlock> pending = new ArrayList<>();
     private final ApplyContext context = new ApplyContext();
     private EntityPlayer placer;
-    private int placed, applied, failures;
+    private int placed, applied, formed, failures, formFailures;
 
     int minX, minY, minZ, maxX, maxY, maxZ;
     /** Blocks above this Y read as air, so a layer cut renders its exposed top faces. */
@@ -160,18 +162,19 @@ final class BlueprintPreviewWorld extends World {
         return failures;
     }
 
-    /** 0..1 over both the placement and the configuration passes. */
+    /** 0..1 over the placement, configuration and multiblock passes. */
     float progress() {
-        return pending.isEmpty() ? 1 : (placed + applied) / (2f * pending.size());
+        return pending.isEmpty() ? 1 : (placed + applied + formed) / (3f * pending.size());
     }
 
     boolean isBuilt() {
-        return applied >= pending.size();
+        return formed >= pending.size();
     }
 
     /**
-     * Places, then configures, as many blocks as fit in the time budget. All blocks are placed before any is
-     * configured, because connections and covers look at neighboring tiles.
+     * Places, then configures, then forms multiblocks, as many blocks as fit in the time budget. All blocks are placed
+     * before any is configured, because connections and covers look at neighboring tiles, and controllers check their
+     * structure only once every block is configured.
      */
     boolean build(long budgetNanos) {
         long deadline = System.nanoTime() + budgetNanos;
@@ -182,6 +185,10 @@ final class BlueprintPreviewWorld extends World {
         }
         while (applied < pending.size()) {
             configure(pending.get(applied++));
+            if (System.nanoTime() > deadline) return false;
+        }
+        while (formed < pending.size()) {
+            form(pending.get(formed++));
             if (System.nanoTime() > deadline) return isBuilt();
         }
         return true;
@@ -231,6 +238,31 @@ final class BlueprintPreviewWorld extends World {
             block.apply(context, this);
         } catch (Throwable t) {
             fail(block, "configure", t);
+        }
+    }
+
+    /** A multiblock that does not form still shows every block; only its hatches keep their default casing. */
+    private void form(PendingBlock block) {
+        if (!Mods.GregTech.isModLoaded()) return;
+        TileEntity tile = getTileEntity(block.x, block.y, block.z);
+        if (tile == null) return;
+        try {
+            formMultiblock(tile);
+        } catch (Throwable t) {
+            if (formFailures++ < 5) {
+                MMMod.LOG.warn("Blueprint preview could not check the multiblock {} at {} {} {}", block.spec, block.x, block.y, block.z, t);
+            }
+        }
+    }
+
+    /**
+     * Runs the controller's own structure check, the same one a placed machine runs. It is what assigns each hatch its
+     * casing texture, which blueprints do not store.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    private static void formMultiblock(TileEntity tile) {
+        if (tile instanceof IGregTechTileEntity gte && gte.getMetaTileEntity() instanceof MTEMultiBlockBase multiblock) {
+            multiblock.checkStructure(true, gte);
         }
     }
 
