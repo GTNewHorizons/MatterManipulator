@@ -1,8 +1,10 @@
 package com.recursive_pineapple.matter_manipulator.client.gui;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 
 import net.minecraft.block.Block;
@@ -39,7 +41,16 @@ import cpw.mods.fml.relauncher.SideOnly;
 
 import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
+import gregtech.api.metatileentity.BaseMetaPipeEntity;
+import gregtech.api.metatileentity.MetaPipeEntity;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
+
+import appeng.api.implementations.parts.IPartCable;
+import appeng.api.networking.IGridHost;
+import appeng.api.parts.IPartHost;
+import appeng.api.util.AECableType;
+import appeng.api.util.AEColor;
+import appeng.parts.networking.PartCable;
 
 import com.mojang.authlib.GameProfile;
 import com.recursive_pineapple.matter_manipulator.MMMod;
@@ -70,6 +81,7 @@ final class BlueprintPreviewWorld extends World {
     /** Lowest Y used for the structure, so most mods' 0..255 height checks pass. */
     private static final int BASE_Y = 64;
     private static boolean registeredWithGT;
+    private static Method setCableConnections;
 
     static final class Entry {
 
@@ -241,29 +253,67 @@ final class BlueprintPreviewWorld extends World {
         }
     }
 
-    /** A multiblock that does not form still shows every block; only its hatches keep their default casing. */
+    /**
+     * Finishes the state that a placed block would normally only reach while ticking or on a live network. A block
+     * that cannot be finished is still shown, only with its default look.
+     */
     private void form(PendingBlock block) {
-        if (!Mods.GregTech.isModLoaded()) return;
         TileEntity tile = getTileEntity(block.x, block.y, block.z);
         if (tile == null) return;
         try {
-            formMultiblock(tile);
+            if (Mods.GregTech.isModLoaded()) formGT(tile);
+            if (Mods.AppliedEnergistics2.isModLoaded()) connectAECable(tile);
         } catch (Throwable t) {
             if (formFailures++ < 5) {
-                MMMod.LOG.warn("Blueprint preview could not check the multiblock {} at {} {} {}", block.spec, block.x, block.y, block.z, t);
+                MMMod.LOG.warn("Blueprint preview could not finish {} at {} {} {}", block.spec, block.x, block.y, block.z, t);
             }
         }
     }
 
     /**
-     * Runs the controller's own structure check, the same one a placed machine runs. It is what assigns each hatch its
-     * casing texture, which blueprints do not store.
+     * Runs a controller's own structure check, the same one a placed machine runs. It is what assigns each hatch its
+     * casing texture, which blueprints do not store. Pipes and cables render from the tile's copy of their
+     * connections, which GT only syncs from the meta tile entity while ticking.
      */
     @Optional(Names.GREG_TECH_NH)
-    private static void formMultiblock(TileEntity tile) {
+    private static void formGT(TileEntity tile) {
         if (tile instanceof IGregTechTileEntity gte && gte.getMetaTileEntity() instanceof MTEMultiBlockBase multiblock) {
             multiblock.checkStructure(true, gte);
         }
+        if (tile instanceof BaseMetaPipeEntity base && base.getMetaTileEntity() instanceof MetaPipeEntity pipe) {
+            base.mConnections = pipe.mConnections;
+        }
+    }
+
+    /**
+     * AE cables render the connections their grid node reports, and there is no grid here. Mirror AE's rules instead:
+     * a free side joins a color-compatible cable or a grid host that accepts cables on that side.
+     */
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private void connectAECable(TileEntity tile) throws ReflectiveOperationException {
+        if (!(tile instanceof IPartHost host) || !(host.getPart(ForgeDirection.UNKNOWN) instanceof PartCable cable)) return;
+        EnumSet<ForgeDirection> connections = EnumSet.noneOf(ForgeDirection.class);
+        for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
+            if (host.getPart(side) != null) continue;
+            TileEntity neighbor = getTileEntity(tile.xCoord + side.offsetX, tile.yCoord + side.offsetY, tile.zCoord + side.offsetZ);
+            if (acceptsAECable(neighbor, side.getOpposite(), cable.getCableColor())) connections.add(side);
+        }
+        if (setCableConnections == null) {
+            setCableConnections = PartCable.class.getDeclaredMethod("setConnections", EnumSet.class);
+            setCableConnections.setAccessible(true);
+        }
+        setCableConnections.invoke(cable, connections);
+    }
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    private static boolean acceptsAECable(TileEntity neighbor, ForgeDirection side, AEColor color) {
+        if (neighbor instanceof IPartHost host) {
+            if (host.getPart(side) != null) return false;
+            if (!(host.getPart(ForgeDirection.UNKNOWN) instanceof IPartCable other)) return false;
+            AEColor otherColor = other.getCableColor();
+            return color == otherColor || color == AEColor.Transparent || otherColor == AEColor.Transparent;
+        }
+        return neighbor instanceof IGridHost grid && grid.getCableConnectionType(side) != AECableType.NONE;
     }
 
     private void fail(PendingBlock block, String phase, Throwable t) {
