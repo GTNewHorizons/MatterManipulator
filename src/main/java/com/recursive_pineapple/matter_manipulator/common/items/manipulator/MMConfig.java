@@ -44,6 +44,8 @@ public class MMConfig {
     // The GT colour (-1 = unpainted)
     public byte cableColour = -1;
 
+    public Vector3i cableHatchA, cableHatchB;
+
     /** These blocks are what gets removed when exchanging */
     public WeightedSpecList replaceWhitelist = new WeightedSpecList(BlockSpec.air());
     /** These blocks are what gets placed when exchanging */
@@ -282,6 +284,8 @@ public class MMConfig {
         result = prime * result + ((cables == null) ? 0 : cables.hashCode());
         result = prime * result + ((cableCorners == null) ? 0 : cableCorners.hashCode());
         result = prime * result + Byte.hashCode(cableColour);
+        result = prime * result + ((cableHatchA == null) ? 0 : cableHatchA.hashCode());
+        result = prime * result + ((cableHatchB == null) ? 0 : cableHatchB.hashCode());
         result = prime * result + ((replaceWhitelist == null) ? 0 : replaceWhitelist.hashCode());
         result = prime * result + ((replaceWith == null) ? 0 : replaceWith.hashCode());
         result = prime * result + ((transform == null) ? 0 : transform.hashCode());
@@ -343,6 +347,12 @@ public class MMConfig {
             if (other.cableCorners != null) return false;
         } else if (!cableCorners.equals(other.cableCorners)) return false;
         if (cableColour != other.cableColour) return false;
+        if (cableHatchA == null) {
+            if (other.cableHatchA != null) return false;
+        } else if (!cableHatchA.equals(other.cableHatchA)) return false;
+        if (cableHatchB == null) {
+            if (other.cableHatchB != null) return false;
+        } else if (!cableHatchB.equals(other.cableHatchB)) return false;
         if (replaceWhitelist == null) {
             if (other.replaceWhitelist != null) return false;
         } else if (!replaceWhitelist.equals(other.replaceWhitelist)) return false;
