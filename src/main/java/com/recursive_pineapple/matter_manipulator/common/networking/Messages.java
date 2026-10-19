@@ -47,6 +47,7 @@ import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.client.gui.BlueprintLibraryScreen;
+import com.recursive_pineapple.matter_manipulator.client.gui.BlueprintPreviewScreen;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintClientCache;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintCodec;
 import com.recursive_pineapple.matter_manipulator.common.blueprint.BlueprintMaterialExport;
@@ -530,6 +531,7 @@ public enum Messages {
             BlueprintTasks.enqueueClient(() -> {
                 BlueprintClientCache.onResult(packet.request, packet.result == BlueprintStatus.OK);
                 BlueprintLibraryScreen.onResult(packet.request, packet.result, packet.detail);
+                BlueprintPreviewScreen.onResult(packet.request, packet.result);
             });
         }
 

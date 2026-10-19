@@ -41,7 +41,7 @@ import org.lwjgl.opengl.GL11;
 public class BlueprintLibraryScreen extends GuiScreen {
 
     private static final int SAVE = 1, SELECT = 2, RENAME = 3, DELETE = 4, REFRESH = 6, DONE = 7, PREV = 8, NEXT = 9, INFO = 10, COMPONENTS = 11,
-        BOOKMARKS = 12;
+        BOOKMARKS = 12, PREVIEW = 13;
     private static final int TEXT = 0xCCCCCC, MUTED_TEXT = 0x999999, PANEL_BACKGROUND = 0x80333333;
     private static final IDrawable TEXT_FIELD_BACKGROUND = AdaptableUITexture.of("modularui2:gui/background/display_small", 18, 18, 1);
     private final List<BlueprintEntry> entries = new ArrayList<>();
@@ -90,9 +90,10 @@ public class BlueprintLibraryScreen extends GuiScreen {
         add(SELECT, layout.buttonLeft(1, 4), layout.actionsY, layout.buttonWidth(1, 4), "select");
         add(RENAME, layout.buttonLeft(2, 4), layout.actionsY, layout.buttonWidth(2, 4), "rename");
         add(DELETE, layout.buttonLeft(3, 4), layout.actionsY, layout.buttonWidth(3, 4), "delete");
-        add(REFRESH, layout.buttonLeft(0, 3), layout.footerY, layout.buttonWidth(0, 3), "refresh");
-        add(COMPONENTS, layout.buttonLeft(1, 3), layout.footerY, layout.buttonWidth(1, 3), "materials");
-        add(DONE, layout.buttonLeft(2, 3), layout.footerY, layout.buttonWidth(2, 3), "done");
+        add(REFRESH, layout.buttonLeft(0, 4), layout.footerY, layout.buttonWidth(0, 4), "refresh");
+        add(COMPONENTS, layout.buttonLeft(1, 4), layout.footerY, layout.buttonWidth(1, 4), "materials");
+        add(PREVIEW, layout.buttonLeft(2, 4), layout.footerY, layout.buttonWidth(2, 4), "preview");
+        add(DONE, layout.buttonLeft(3, 4), layout.footerY, layout.buttonWidth(3, 4), "done");
         add(BOOKMARKS, layout.buttonLeft(1, 3), layout.footerY, layout.buttonWidth(1, 3), "bookmarks.add");
         buttonList.add(new LibraryButton(PREV, layout.contentLeft, layout.pageY, 24, "<"));
         buttonList.add(new LibraryButton(NEXT, layout.contentLeft + layout.contentWidth - 24, layout.pageY, 24, ">"));
@@ -190,6 +191,13 @@ public class BlueprintLibraryScreen extends GuiScreen {
         requestMaterials(0);
     }
 
+    private void openPreview() {
+        BlueprintEntry entry = selected();
+        if (entry == null || operation != null || listRequest != -1) return;
+        showInfo = false;
+        mc.displayGuiScreen(new BlueprintPreviewScreen(this, entry.id, entry.name));
+    }
+
     private void backToLibrary() {
         materialsRequest = -1;
         bookmarksRequest = -1;
@@ -265,14 +273,14 @@ public class BlueprintLibraryScreen extends GuiScreen {
         for (Object object : buttonList) {
             GuiButton button = (GuiButton) object;
             button.visible = button.id == BOOKMARKS ? viewingMaterials : !viewingMaterials || switch (button.id) {
-                case SAVE, SELECT, RENAME, DELETE, COMPONENTS -> false;
+                case SAVE, SELECT, RENAME, DELETE, COMPONENTS, PREVIEW -> false;
                 default -> true;
             };
             button.enabled = button.visible && switch (button.id) {
                 case SAVE -> !busy && canSave && validName();
                 case SELECT, DELETE -> !busy && hasSelection;
                 case RENAME -> !busy && hasSelection && validName();
-                case COMPONENTS -> !busy && hasSelection;
+                case COMPONENTS, PREVIEW -> !busy && hasSelection;
                 case BOOKMARKS -> !busy && materialsLoaded && materialsTotalTypes > 0 && !bookmarksAdded && neiAvailable;
                 case REFRESH -> !busy;
                 case PREV -> viewingMaterials ? !busy && materialsPage > 0 : page > 0;
@@ -283,7 +291,8 @@ public class BlueprintLibraryScreen extends GuiScreen {
             if (button.id == DONE) button.displayString = text(viewingMaterials ? "back" : "done");
             if (button.id == BOOKMARKS) button.displayString = text(bookmarksAdded ? "bookmarks.added_button" : "bookmarks.add");
             if (button.id == REFRESH || button.id == DONE) {
-                int columns = 3;
+                // The library footer also holds Components and Preview; the materials footer only Add to NEI.
+                int columns = viewingMaterials ? 3 : 4;
                 int column = button.id == REFRESH ? 0 : columns - 1;
                 button.xPosition = layout.buttonLeft(column, columns);
                 button.width = layout.buttonWidth(column, columns);
@@ -326,6 +335,7 @@ public class BlueprintLibraryScreen extends GuiScreen {
             }
             case REFRESH -> refresh();
             case COMPONENTS -> openMaterials();
+            case PREVIEW -> openPreview();
             case DONE -> mc.displayGuiScreen(null);
             case PREV -> page--;
             case NEXT -> page++;
@@ -669,7 +679,7 @@ public class BlueprintLibraryScreen extends GuiScreen {
         field.drawTextBox();
     }
 
-    private static class LibraryButton extends GuiButton {
+    static class LibraryButton extends GuiButton {
 
         LibraryButton(int id, int x, int y, int width, String label) {
             super(id, x, y, width, BlueprintLibraryLayout.BUTTON_HEIGHT, label);

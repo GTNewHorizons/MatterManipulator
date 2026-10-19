@@ -16,6 +16,7 @@ import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
 import com.recursive_pineapple.matter_manipulator.client.gui.BlueprintLibraryScreen;
+import com.recursive_pineapple.matter_manipulator.client.gui.BlueprintPreviewScreen;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMRenderer;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
@@ -67,6 +68,23 @@ public final class BlueprintClientCache {
             request(owner, id, BlueprintOperation.FETCH);
         }
         return null;
+    }
+
+    /** Library preview path: any blueprint the authenticated player owns; the server re-checks ownership on FETCH. */
+    public static synchronized StructureBlueprint preview(String id) {
+        Minecraft mc = Minecraft.getMinecraft();
+        checkWorld(mc.theWorld);
+        if (mc.thePlayer == null || mc.theWorld == null || id == null) return null;
+        Cached cached = CACHE.get(mc.thePlayer.getUniqueID().toString() + "/" + id);
+        return cached == null ? null : cached.blueprint;
+    }
+
+    /** Explicit preview download; returns the request token, or -1 without a session. */
+    public static synchronized int fetchPreview(String id) {
+        Minecraft mc = Minecraft.getMinecraft();
+        checkWorld(mc.theWorld);
+        if (mc.thePlayer == null || mc.theWorld == null || id == null) return -1;
+        return request(mc.thePlayer.getUniqueID().toString(), id, BlueprintOperation.FETCH);
     }
 
     public static synchronized int nextRequestId() {
@@ -139,13 +157,18 @@ public final class BlueprintClientCache {
             }
             MMRenderer.markNeedsReanalysis();
         } catch (IllegalArgumentException | CharacterCodingException e) {
-            BlueprintLibraryScreen.onError(request, BlueprintStatus.INVALID.translationKey());
+            notifyError(request, BlueprintStatus.INVALID.translationKey());
         }
     }
 
     private static void fail(int request) {
         PENDING.remove(request);
-        BlueprintLibraryScreen.onError(request, BlueprintStatus.INVALID.translationKey());
+        notifyError(request, BlueprintStatus.INVALID.translationKey());
+    }
+
+    private static void notifyError(int request, String translationKey) {
+        BlueprintLibraryScreen.onError(request, translationKey);
+        BlueprintPreviewScreen.onError(request, translationKey);
     }
 
     public static synchronized void onResult(int request, boolean success) {
