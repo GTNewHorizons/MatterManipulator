@@ -367,7 +367,7 @@ class AEBlueprintRegressionTest {
             assertNotSame(source, captured.blocks.get(0));
             String encoded = BlueprintCodec.encode(captured);
             System.out.println("Captured AE JSON: " + encoded);
-            JsonObject block = new JsonParser().parse(encoded).getAsJsonObject().getAsJsonArray("blocks").get(0).getAsJsonObject();
+            JsonObject block = new JsonParser().parse(encoded).getAsJsonObject().getAsJsonArray("palette").get(0).getAsJsonObject();
             assertEquals(spec.getObjectId().toString(), block.getAsJsonObject("spec").get("id").getAsString());
             assertEquals("ae", block.getAsJsonObject("ae").get("type").getAsString());
             UUID owner = UUID.randomUUID();
@@ -473,10 +473,10 @@ class AEBlueprintRegressionTest {
                 // Serialize as an ordinary block to construct a pre-fix payload, then restore the legacy quantum ID.
                 source.blocks.get(0).spec = new BlockSpec().setObject(BootstrapFixture.multiPart, 3);
                 JsonObject legacy = new JsonParser().parse(BlueprintCodec.encode(source)).getAsJsonObject();
-                JsonObject spec = legacy.getAsJsonArray("blocks").get(0).getAsJsonObject().getAsJsonObject("spec");
+                JsonObject spec = legacy.getAsJsonArray("palette").get(0).getAsJsonObject().getAsJsonObject("spec");
                 spec.addProperty("b", true);
                 spec.addProperty("id", GameRegistry.findUniqueIdentifierFor(block).toString());
-                assertTrue(legacy.getAsJsonArray("blocks").get(0).getAsJsonObject().has("inventory"));
+                assertTrue(legacy.getAsJsonArray("palette").get(0).getAsJsonObject().has("inventory"));
                 String json = legacy.toString();
                 assertNoQuantumItemData(BlueprintCodec.decode(json));
                 UUID owner = UUID.randomUUID();

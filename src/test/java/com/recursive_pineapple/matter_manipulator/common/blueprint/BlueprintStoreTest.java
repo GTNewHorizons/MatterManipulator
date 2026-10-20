@@ -122,7 +122,7 @@ class BlueprintStoreTest {
         }
         assertThrows(IllegalArgumentException.class, () -> BlueprintStore.list(root, null));
         StructureBlueprint blueprint = BlueprintCodecTest.emptyBlueprint();
-        blueprint.deltas.set(32, 31, 31);
+        blueprint.deltas.set(256, 255, 255);
         assertThrows(IllegalArgumentException.class, () -> BlueprintStore.save(root, owner, blueprint));
         assertTrue(!Files.exists(root.resolve("matter_manipulator")));
     }

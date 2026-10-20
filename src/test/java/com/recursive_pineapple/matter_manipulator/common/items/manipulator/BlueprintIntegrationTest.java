@@ -111,16 +111,6 @@ class BlueprintIntegrationTest {
     }
 
     @Test
-    void expansionAcceptsTheLimitAndRejectsOversizedProducts() throws Exception {
-        run("expansionAcceptsTheLimitAndRejectsOversizedProducts");
-    }
-
-    @Test
-    void expansionRejectsExtremeSignedSpansWithoutOverflow() throws Exception {
-        run("expansionRejectsExtremeSignedSpansWithoutOverflow");
-    }
-
-    @Test
     void onlyCopyCapableTiersCanUseBlueprintsAndUnsupportedTiersNeverReadTheWorld() throws Exception {
         run("onlyCopyCapableTiersCanUseBlueprintsAndUnsupportedTiersNeverReadTheWorld");
     }
@@ -274,32 +264,6 @@ class BlueprintIntegrationTest {
             assertEquals(config.coordB.toVec(), source.b);
             config.clearBlueprint();
             assertEquals(expected, config, "Clearing an already cleared reference is idempotent");
-        }
-
-        public static void expansionAcceptsTheLimitAndRejectsOversizedProducts() {
-            assertTrue(MMState.canExpandBlueprint(262144, null));
-            assertFalse(MMState.canExpandBlueprint(262145, null));
-            assertTrue(MMState.canExpandBlueprint(262144, new Vector3i()));
-            assertTrue(MMState.canExpandBlueprint(1, new Vector3i(63, 63, 63)));
-            assertFalse(MMState.canExpandBlueprint(1, new Vector3i(63, 63, 64)));
-            assertTrue(MMState.canExpandBlueprint(1024, new Vector3i(3, 7, 7)));
-            assertFalse(MMState.canExpandBlueprint(1025, new Vector3i(3, 7, 7)));
-            assertTrue(MMState.canExpandBlueprint(0, null));
-            assertFalse(MMState.canExpandBlueprint(0, new Vector3i(Integer.MAX_VALUE, 0, 0)));
-        }
-
-        public static void expansionRejectsExtremeSignedSpansWithoutOverflow() {
-            for (int axis = 0; axis < 3; axis++) {
-                for (int extreme : new int[] { Integer.MIN_VALUE, Integer.MAX_VALUE }) {
-                    Vector3i span = new Vector3i();
-                    span.setComponent(axis, extreme);
-                    assertFalse(MMState.canExpandBlueprint(1, span), span.toString());
-                    assertFalse(MMState.canExpandBlueprint(262144, span), span.toString());
-                }
-            }
-            assertFalse(MMState.canExpandBlueprint(1, new Vector3i(Integer.MIN_VALUE)));
-            assertFalse(MMState.canExpandBlueprint(Integer.MAX_VALUE, new Vector3i(Integer.MAX_VALUE)));
-            assertFalse(MMState.canExpandBlueprint(1, new Vector3i(-65536, 65535, 65535)));
         }
 
         public static void onlyCopyCapableTiersCanUseBlueprintsAndUnsupportedTiersNeverReadTheWorld() {

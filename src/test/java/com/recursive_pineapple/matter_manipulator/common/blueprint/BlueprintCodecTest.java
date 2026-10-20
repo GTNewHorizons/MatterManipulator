@@ -34,7 +34,7 @@ class BlueprintCodecTest {
         assertEquals(source.id, copy.id);
         assertEquals(source.name, copy.name);
         assertEquals(source.deltas, copy.deltas);
-        assertEquals(1, copy.formatVersion);
+        assertEquals(BlueprintCodec.FORMAT_VERSION, copy.formatVersion);
         assertNotSame(source.deltas, copy.deltas);
         assertNotSame(source.blocks, copy.blocks);
     }
@@ -60,15 +60,15 @@ class BlueprintCodecTest {
     @Test
     void rejectsMissingNullAndUnknownVersionFields() {
         String json = BlueprintCodec.encode(emptyBlueprint());
-        for (String key : new String[] { "id", "name", "deltas", "blocks", "formatVersion" }) {
+        for (String key : new String[] { "id", "name", "deltas", "palette", "voxels", "formatVersion" }) {
             JsonObject tree = new JsonParser().parse(json).getAsJsonObject();
             tree.remove(key);
             assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(tree.toString()));
             tree.add(key, com.google.gson.JsonNull.INSTANCE);
             assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(tree.toString()));
         }
-        assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(json.replace("\"formatVersion\":1", "\"formatVersion\":2")));
-        assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(json.replace("\"formatVersion\":1", "\"formatVersion\":1.5")));
+        assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(json.replace("\"formatVersion\":2", "\"formatVersion\":3")));
+        assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(json.replace("\"formatVersion\":2", "\"formatVersion\":2.5")));
         assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(null));
         assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.encode(null));
         assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode("null"));
@@ -90,9 +90,9 @@ class BlueprintCodecTest {
 
     @Test
     void volumeIsInclusiveSignedAndOverflowSafe() {
-        assertEquals(32768, BlueprintCodec.volume(-31, 31, -31));
+        assertEquals(BlueprintCodec.MAX_BLOCKS, BlueprintCodec.volume(-255, 255, -255));
         assertEquals(1, BlueprintCodec.volume(0, 0, 0));
-        assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.volume(32, 31, 31));
+        assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.volume(256, 255, 255));
         assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.volume(Integer.MIN_VALUE, 0, 0));
         assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.volume(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE));
     }
@@ -249,7 +249,7 @@ class BlueprintCodecTest {
         JsonArray entries = new JsonArray();
         for (JsonObject block : blocks) entries.add(block);
         JsonObject tree = new JsonObject();
-        tree.add("blocks", entries);
+        tree.add("palette", entries);
         return tree;
     }
 
@@ -258,9 +258,9 @@ class BlueprintCodecTest {
         JsonObject tree = new JsonParser().parse(BlueprintCodec.encode(emptyBlueprint())).getAsJsonObject();
         for (String tag : new String[] { "java.lang.Runtime", "ae" }) {
             JsonObject block = new JsonParser().parse("{\"x\":0,\"y\":0,\"z\":0,\"spec\":{},\"gt\":{\"type\":\"" + tag + "\",\"data\":{}}}").getAsJsonObject();
-            tree.getAsJsonArray("blocks").add(block);
+            tree.getAsJsonArray("palette").add(block);
             assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(tree.toString()));
-            tree.add("blocks", new com.google.gson.JsonArray());
+            tree.add("palette", new com.google.gson.JsonArray());
         }
     }
 }

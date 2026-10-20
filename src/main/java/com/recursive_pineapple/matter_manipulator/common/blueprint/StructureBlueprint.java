@@ -1,5 +1,6 @@
 package com.recursive_pineapple.matter_manipulator.common.blueprint;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,7 +19,7 @@ public class StructureBlueprint {
     public List<PendingBlock> blocks;
     /** Actual snapshot block count, retained when blocks are omitted from library metadata. */
     public int blockCount;
-    public int formatVersion = 1;
+    public int formatVersion = BlueprintCodec.FORMAT_VERSION;
 
     /**
      * Call immediately after BlockAnalyzer.analyzeRegion, BEFORE any SmartCopy, rotation, array or offset processing.
@@ -48,12 +49,14 @@ public class StructureBlueprint {
 
     // Also permits testing target-dimension rebinding without constructing a live Minecraft world.
     RegionAnalysis instantiate(int dimension) {
-        StructureBlueprint copy = BlueprintCodec.copy(this);
+        // Decoded snapshots are already validated. Cloning avoids a JSON round trip on every replan of a large region.
         RegionAnalysis analysis = new RegionAnalysis();
-        analysis.deltas = copy.deltas;
-        analysis.blocks = copy.blocks;
-        for (PendingBlock block : analysis.blocks) {
-            block.worldId = dimension;
+        analysis.deltas = new Vector3i(deltas);
+        analysis.blocks = new ArrayList<>(blocks.size());
+        for (PendingBlock block : blocks) {
+            PendingBlock copy = block.clone();
+            copy.worldId = dimension;
+            analysis.blocks.add(copy);
         }
         return analysis;
     }

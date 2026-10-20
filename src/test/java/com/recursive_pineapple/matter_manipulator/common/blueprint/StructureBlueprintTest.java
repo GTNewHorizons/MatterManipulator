@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
 import net.minecraft.init.Bootstrap;
@@ -106,6 +107,26 @@ class StructureBlueprintTest {
     }
 
     @Test
+    void compactFormatDeduplicatesBlocksAndKeepsRegionOrder() throws Exception {
+        run("compactFormatDeduplicatesBlocksAndKeepsRegionOrder");
+    }
+
+    @Test
+    void regionsBeyondTheOldLimitsStayCompact() throws Exception {
+        run("regionsBeyondTheOldLimitsStayCompact");
+    }
+
+    @Test
+    void readsVersionOneBlueprints() throws Exception {
+        run("readsVersionOneBlueprints");
+    }
+
+    @Test
+    void rejectsCorruptVoxelData() throws Exception {
+        run("rejectsCorruptVoxelData");
+    }
+
+    @Test
     void captureRoundTripsEmptyNbtValues() throws Exception {
         run("captureRoundTripsEmptyNbtValues");
     }
@@ -148,6 +169,94 @@ class StructureBlueprintTest {
             return blueprint;
         }
 
+        public static void compactFormatDeduplicatesBlocksAndKeepsRegionOrder() {
+            StructureBlueprint blueprint = snapshot();
+            blueprint.deltas = new Vector3i(2, 1, -1);
+            blueprint.blocks.get(0).x = 1;
+            blueprint.blocks.get(0).y = 1;
+            blueprint.blocks.get(0).z = -1;
+            // Visit cells like BlockAnalyzer.analyzeRegion and leave two of them empty (e.g. skipped liquids).
+            List<PendingBlock> expected = new ArrayList<>();
+            for (int y = 0; y <= 1; y++) {
+                for (int z = -1; z <= 0; z++) {
+                    for (int x = 0; x <= 2; x++) {
+                        if ((x == 2 && z == 0 && y == 0) || (x == 0 && z == -1 && y == 1)) continue;
+                        if (x == 1 && y == 1 && z == -1) {
+                            expected.add(blueprint.blocks.get(0));
+                        } else {
+                            expected.add(new PendingBlock(3, x, y, z, new BlockSpec()));
+                        }
+                    }
+                }
+            }
+            blueprint.blocks = expected;
+            String encoded = BlueprintCodec.encode(blueprint);
+            com.google.gson.JsonObject tree = new com.google.gson.JsonParser().parse(encoded).getAsJsonObject();
+            assertEquals(2, tree.getAsJsonArray("palette").size());
+            assertTrue(!tree.getAsJsonArray("palette").get(0).getAsJsonObject().has("x"));
+            StructureBlueprint decoded = BlueprintCodec.decode(encoded);
+            assertEquals(expected.size(), decoded.blocks.size());
+            assertEquals(expected.size(), decoded.blockCount);
+            for (int i = 0; i < expected.size(); i++) {
+                PendingBlock a = expected.get(i), b = decoded.blocks.get(i);
+                assertEquals(a.x + "," + a.y + "," + a.z, b.x + "," + b.y + "," + b.z);
+                assertEquals(0, b.worldId);
+                assertEquals(a.inventory != null, b.inventory != null);
+            }
+            assertEquals(encoded, BlueprintCodec.encode(decoded));
+        }
+
+        public static void regionsBeyondTheOldLimitsStayCompact() {
+            StructureBlueprint blueprint = snapshot();
+            blueprint.deltas = new Vector3i(127, 15, -127);
+            blueprint.blocks.clear();
+            for (int y = 0; y <= 15; y++) {
+                for (int z = -127; z <= 0; z++) {
+                    for (int x = 0; x <= 127; x++) blueprint.blocks.add(new PendingBlock(0, x, y, z, new BlockSpec()));
+                }
+            }
+            String encoded = BlueprintCodec.encode(blueprint);
+            assertTrue(encoded.length() < 1024, "encoded length " + encoded.length());
+            StructureBlueprint decoded = BlueprintCodec.decode(encoded);
+            assertEquals(128 * 16 * 128, decoded.blocks.size());
+            assertEquals(128 * 16 * 128, decoded.instantiate(0).blocks.size());
+        }
+
+        public static void readsVersionOneBlueprints() {
+            String id = UUID.randomUUID().toString();
+            String legacy = "{\"id\":\"" + id + "\",\"name\":\"Legacy\",\"deltas\":{\"x\":1,\"y\":0,\"z\":0},"
+                + "\"blocks\":[{\"spec\":{\"b\":true,\"id\":\"minecraft:air\",\"m\":0},\"renderOrder\":0,\"buildOrder\":7,"
+                + "\"x\":1,\"y\":0,\"z\":0,\"worldId\":5}],\"formatVersion\":1}";
+            StructureBlueprint decoded = BlueprintCodec.decode(legacy);
+            assertEquals(id, decoded.id);
+            assertEquals(BlueprintCodec.FORMAT_VERSION, decoded.formatVersion);
+            assertEquals(1, decoded.blockCount);
+            assertEquals(1, decoded.blocks.get(0).x);
+            assertEquals(7, decoded.blocks.get(0).buildOrder);
+            assertEquals(0, decoded.blocks.get(0).worldId);
+            assertTrue(BlueprintCodec.encode(decoded).contains("\"palette\""));
+        }
+
+        public static void rejectsCorruptVoxelData() {
+            String encoded = BlueprintCodec.encode(snapshot());
+            com.google.gson.JsonObject tree = new com.google.gson.JsonParser().parse(encoded).getAsJsonObject();
+            // Region is 3x2x1 = 6 cells, with one palette entry.
+            for (byte[] cells : new byte[][] {
+                {}, // covers nothing
+                { 1, 5 }, // too short
+                { 1, 7 }, // too long
+                { 2, 6 }, // unknown palette entry
+                { 1, 0, 1, 6 }, // empty run
+                { 1, (byte) 0x86 }, // truncated varint
+                { (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0x7f, 6 }, // varint overflow
+            }) {
+                tree.addProperty("voxels", java.util.Base64.getEncoder().encodeToString(cells));
+                assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(tree.toString()));
+            }
+            tree.addProperty("voxels", "!not base64!");
+            assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(tree.toString()));
+        }
+
         public static void captureRoundTripsEmptyNbtValues() {
             StructureBlueprint source = snapshot();
             PortableItemStack original = (PortableItemStack) source.blocks.get(0).inventory.mItems[0];
@@ -184,7 +293,8 @@ class StructureBlueprintTest {
             assertEquals(100, block.buildOrder);
             assertNotSame(source.blocks.get(0), captured.blocks.get(0));
             assertNotSame(block, other);
-            assertNotSame(block.spec, other.spec);
+            // Block specs are immutable and shared by clones, like PendingBlock.clone does.
+            assertEquals(block.spec, other.spec);
             assertNotSame(block.inventory.mItems, other.inventory.mItems);
             PortableItemStack item = (PortableItemStack) block.inventory.mItems[0];
             PortableItemStack otherItem = (PortableItemStack) other.inventory.mItems[0];
@@ -298,7 +408,7 @@ class StructureBlueprintTest {
                 com.google.gson.JsonObject integration = new com.google.gson.JsonObject();
                 integration.addProperty("type", tag);
                 integration.add("data", new com.google.gson.JsonObject());
-                tree.getAsJsonArray("blocks").get(0).getAsJsonObject().add(tag, integration);
+                tree.getAsJsonArray("palette").get(0).getAsJsonObject().add(tag, integration);
                 IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> BlueprintCodec.decode(tree.toString()));
                 assertTrue(error.getMessage().contains("requires mod"));
             }

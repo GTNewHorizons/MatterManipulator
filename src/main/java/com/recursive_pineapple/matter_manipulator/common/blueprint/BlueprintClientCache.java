@@ -30,7 +30,8 @@ import com.recursive_pineapple.matter_manipulator.common.networking.Messages.Blu
 public final class BlueprintClientCache {
 
     private static final int CHUNK_BYTES = 16 * 1024;
-    private static final int MAX_CACHED_BYTES = 8 * 1024 * 1024;
+    // Must hold at least one maximum-size snapshot, or eviction would drop it as soon as it is received.
+    private static final int MAX_CACHED_BYTES = 2 * BlueprintCodec.MAX_BYTES;
     private static final long RETRY_MS = 5000, TRANSFER_MS = 15000;
     private static final Map<String, Cached> CACHE = new LinkedHashMap<>(8, 0.75f, true);
     private static final Map<Integer, Transfer> PENDING = new LinkedHashMap<>();

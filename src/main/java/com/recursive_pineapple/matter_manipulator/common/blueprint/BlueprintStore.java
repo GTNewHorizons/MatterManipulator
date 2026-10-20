@@ -44,7 +44,7 @@ public final class BlueprintStore {
     public static final int MAX_ENTRIES = 128;
     public static final int MAX_VOLUME = BlueprintCodec.MAX_BLOCKS;
     private static final String SUFFIX = ".json.gz";
-    private static final int CACHE_BYTES = 16 * 1024 * 1024;
+    private static final int CACHE_BYTES = 2 * BlueprintCodec.MAX_BYTES;
     private static final int CACHE_ENTRIES = 64;
     private static final int CACHE_OWNERS = 32;
 

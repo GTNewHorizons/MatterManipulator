@@ -21,10 +21,10 @@ class BlueprintProtocolTest {
     @Test
     void inclusiveVolumeAcceptsReversedAndMaximumSizedRegions() {
         assertEquals(1, BlueprintProtocol.checkedVolume(0, 0, 0));
-        assertEquals(32768, BlueprintProtocol.checkedVolume(-31, 31, -31));
-        assertEquals(32768, BlueprintProtocol.checkedVolume(32767, 0, 0));
-        assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.checkedVolume(32, 31, 31));
-        assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.checkedVolume(32768, 0, 0));
+        assertEquals(BlueprintCodec.MAX_BLOCKS, BlueprintProtocol.checkedVolume(-255, 255, -255));
+        assertEquals(BlueprintCodec.MAX_BLOCKS, BlueprintProtocol.checkedVolume(BlueprintCodec.MAX_BLOCKS - 1, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.checkedVolume(256, 255, 255));
+        assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.checkedVolume(BlueprintCodec.MAX_BLOCKS, 0, 0));
     }
 
     @Test
@@ -37,7 +37,7 @@ class BlueprintProtocolTest {
 
     @Test
     void chunksAcceptExactMaximumAndShortFinalChunk() {
-        int chunk = 16 * 1024, max = 2 * 1024 * 1024;
+        int chunk = BlueprintProtocol.CHUNK_BYTES, max = BlueprintCodec.MAX_BYTES;
         for (int offset = 0; offset < max; offset += chunk) BlueprintProtocol.validateChunk(max, offset, chunk);
         assertDoesNotThrow(() -> BlueprintProtocol.validateChunk(chunk + 7, chunk, 7));
         assertDoesNotThrow(() -> BlueprintProtocol.validateChunk(1, 0, 1));
@@ -45,7 +45,7 @@ class BlueprintProtocolTest {
 
     @Test
     void chunksRejectOversizedMisalignedAndInconsistentBounds() {
-        int chunk = 16 * 1024, max = 2 * 1024 * 1024;
+        int chunk = BlueprintProtocol.CHUNK_BYTES, max = BlueprintCodec.MAX_BYTES;
         assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.validateChunk(max + 1, 0, chunk));
         assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.validateChunk(max, 0, chunk + 1));
         assertThrows(IllegalArgumentException.class, () -> BlueprintProtocol.validateChunk(max, 1, chunk));
@@ -242,9 +242,10 @@ class BlueprintProtocolTest {
     }
 
     @Test
-    void materialExportAndBlueprintChunksShareTheExactTwoMiBBound() {
-        assertEquals(BlueprintMaterialExport.MAX_BYTES, BlueprintCodec.MAX_BYTES);
+    void materialExportAndBlueprintBoundsAreWholeChunks() {
         assertEquals(128, BlueprintMaterialExport.MAX_BYTES / BlueprintProtocol.CHUNK_BYTES);
+        assertEquals(2048, BlueprintCodec.MAX_BYTES / BlueprintProtocol.CHUNK_BYTES);
+        assertEquals(0, BlueprintCodec.MAX_BYTES % BlueprintProtocol.CHUNK_BYTES);
     }
 
     @Test

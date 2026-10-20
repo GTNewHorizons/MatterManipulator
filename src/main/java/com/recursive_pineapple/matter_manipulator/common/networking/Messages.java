@@ -1196,8 +1196,8 @@ public enum Messages {
         private static final BlueprintQueue SERVER = new BlueprintQueue(256);
         // Rejections must not depend on work-queue capacity or send shared-channel packets from Netty callbacks.
         private static final BlueprintQueue FEEDBACK = new BlueprintQueue(128);
-        // Two full 128-chunk transfers plus their result/list packets must fit before the next client tick.
-        private static final BlueprintQueue CLIENT = new BlueprintQueue(512);
+        // Two maximum-size transfers plus their result/list packets must fit before the next client tick.
+        private static final BlueprintQueue CLIENT = new BlueprintQueue(2 * (BlueprintCodec.MAX_BYTES / BlueprintProtocol.CHUNK_BYTES) + 256);
         private static final Map<EntityPlayerMP, BlueprintRate> RATES = new WeakHashMap<>();
 
         private static synchronized void submit(EntityPlayerMP player, BlueprintRequestPacket packet) {

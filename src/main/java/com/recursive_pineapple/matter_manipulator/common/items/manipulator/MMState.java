@@ -405,10 +405,6 @@ public class MMState {
             StructureBlueprint snapshot = getBlueprint(world);
             if (snapshot == null) return new ArrayList<>();
             analysis = snapshot.instantiate(world);
-            if (!canExpandBlueprint(analysis.blocks.size(), config.arraySpan)) {
-                if (world.isRemote) return new ArrayList<>();
-                throw new IllegalArgumentException("Blueprint array exceeds 262144 blocks");
-            }
         } else {
             if (!Location.areCompatible(coordA, coordB, coordC) || !coordA.isInWorld(world)) return new ArrayList<>();
             // MOVING's result is only used visually since it has a special build algorithm.
@@ -479,20 +475,6 @@ public class MMState {
         }
 
         return analysis.blocks;
-    }
-
-    static boolean canExpandBlueprint(int blockCount, Vector3i span) {
-        long count = Math.max(1, blockCount);
-        if (span != null) {
-            for (int axis : new int[] {
-                span.x, span.y, span.z
-            }) {
-                long repetitions = axis >= 0 ? (long) axis + 1 : -(long) axis;
-                if (repetitions > 262144L / count) return false;
-                count *= repetitions;
-            }
-        }
-        return count <= 262144;
     }
 
     private void applySmartCopySubstitutions(World world, List<PendingBlock> blocks, Location coordA) {
