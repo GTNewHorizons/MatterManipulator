@@ -17,6 +17,7 @@ import codechicken.nei.guihook.GuiContainerManager;
 
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMKeyInputs;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
@@ -63,12 +64,21 @@ public abstract class MixinGuiContainer_PickBlock {
         }
         final boolean isSneak = Keyboard.isKeyDown(Minecraft.getMinecraft().gameSettings.keyBindSneak.getKeyCode());
 
-        // call onMMBPressed on the client and the server
         MMState state = ItemMatterManipulator.getState(cursorStack);
-        ItemMatterManipulator.onMMBPressedInGUI(player, cursorStack, state, isSneak, hoveredStack);
+        boolean addToWhitelist = state.config.placeMode == MMState.PlaceMode.EXCHANGING
+            && MMKeyInputs.isAddWhitelistModifierDown();
+        if (addToWhitelist) {
+            ItemMatterManipulator.onMMBAddWhitelistInGUI(player, cursorStack, state, hoveredStack);
+        } else {
+            ItemMatterManipulator.onMMBPressedInGUI(player, cursorStack, state, isSneak, hoveredStack);
+        }
         ItemMatterManipulator.setState(cursorStack, state);
 
-        Messages.MMBPressedInGUI.sendToServer(new Messages.CursorItemStackData(hoveredStack, isSneak));
+        if (addToWhitelist) {
+            Messages.MMBAddWhitelistInGUI.sendToServer(new Messages.CursorItemStackData(hoveredStack, isSneak));
+        } else {
+            Messages.MMBPressedInGUI.sendToServer(new Messages.CursorItemStackData(hoveredStack, isSneak));
+        }
     }
 
     @Invoker("getSlotAtPosition")
