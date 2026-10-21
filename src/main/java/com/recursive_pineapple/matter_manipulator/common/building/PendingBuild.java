@@ -332,15 +332,19 @@ public class PendingBuild extends AbstractBuildable {
                 break;
             }
 
+            // When swapping blocks, only notify the neighbours once the new block is in place, so that things
+            // attached to the old block (torches, wires, ...) don't pop off because they briefly see air
+            boolean replacing = !existing.isAir() && !pending.spec.isAir();
+
             if (!existing.isAir()) {
-                removeBlock(world, x, y, z, existing);
+                removeBlock(world, x, y, z, existing, !replacing);
             }
 
             if (!pending.spec.isAir()) {
                 Block block = pending.getBlock();
 
                 if (pending.getItem() instanceof ItemBlock itemBlock && Block.getBlockFromItem(itemBlock) == block) {
-                    itemBlock.placeBlockAt(
+                    boolean placed = itemBlock.placeBlockAt(
                         perBlock,
                         player,
                         player.worldObj,
@@ -353,8 +357,16 @@ public class PendingBuild extends AbstractBuildable {
                         0,
                         metadata
                     );
+
+                    if (!placed && replacing) {
+                        world.notifyBlocksOfNeighborChange(x, y, z, existing.getBlock());
+                    }
                 } else {
                     if (!world.setBlock(x, y, z, block, metadata, 3)) {
+                        if (replacing) {
+                            world.notifyBlocksOfNeighborChange(x, y, z, existing.getBlock());
+                        }
+
                         continue;
                     }
 
