@@ -41,6 +41,12 @@ public enum Mixin implements IMixins {
             .addClientMixins("MixinGuiContainer_PickBlock")
             .setPhase(Phase.EARLY)
     ),
+    EnderIOConduitSettings(
+        new MixinBuilder("Expose conduit probe settings for disconnected faces")
+            .addCommonMixins("MixinAbstractConduit", "MixinRedstoneSwitch", "MixinInsulatedRedstoneConduit")
+            .addRequiredMod(Mods.EnderIO)
+            .setPhase(Phase.LATE)
+    ),
     //
     ;
 
