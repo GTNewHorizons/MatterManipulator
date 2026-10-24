@@ -1,8 +1,10 @@
 package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
@@ -198,6 +200,8 @@ public class MMRenderer {
         Location coordB = state.config.getCoordB(player.worldObj, lookingAt);
         Location coordC = state.config.getCoordC(player.worldObj, lookingAt);
 
+        if (state.config.placeMode == PlaceMode.CABLES) ItemMatterManipulator.moveCableCornersWithCoordA(state, coordA);
+
         state.config.coordA = coordA;
         state.config.coordB = coordB;
         state.config.coordC = coordC;
@@ -207,6 +211,8 @@ public class MMRenderer {
         boolean isCValid = coordC != null && coordC.isInWorld(player.worldObj);
 
         boolean isValid = isAValid && isBValid;
+
+        List<Vector3i> cablePoints = null;
 
         // For cylinders, coord B must be pinned to one of the axis planes and coord C must be on the normal of that plane
         if (state.config.placeMode == PlaceMode.GEOMETRY && state.config.shape == Shape.CYLINDER) {
@@ -246,7 +252,9 @@ public class MMRenderer {
             Objects.requireNonNull(coordA);
             Objects.requireNonNull(coordB);
 
-            Vector3i b = MMState.pinToAxes(coordA.toVec(), coordB.toVec());
+            cablePoints = MMState.getCablePoints(coordA.toVec(), state.config.cableCorners, coordB.toVec());
+
+            Vector3i b = cablePoints.get(cablePoints.size() - 1);
 
             coordB.x = b.x;
             coordB.y = b.y;
@@ -295,7 +303,15 @@ public class MMRenderer {
 
             BoxRenderer.INSTANCE.start(event.partialTicks);
 
-            BoxRenderer.INSTANCE.drawAround(aabb.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+            if (cablePoints != null && cablePoints.size() > 2) {
+                drawCablePath(cablePoints, new Vector3f(0.15f, 0.6f, 0.75f));
+
+                for (Vector3i point : cablePoints) {
+                    aabb.union(point);
+                }
+            } else {
+                BoxRenderer.INSTANCE.drawAround(aabb.toBoundingBox(), new Vector3f(0.15f, 0.6f, 0.75f));
+            }
 
             BoxRenderer.INSTANCE.finish();
 
@@ -615,6 +631,81 @@ public class MMRenderer {
     }
 
     private static final int RULER_LENGTH = 128;
+
+    /**
+     * Draws a bent cable path as one continuous shape.
+     * Straight runs of voxels whose sides match are merged into a single box.
+     */
+    private static void drawCablePath(List<Vector3i> points, Vector3f colour) {
+        List<Vector3i> path = MMState.getCablePath(points);
+        Set<Vector3i> voxels = new HashSet<>(path);
+        Set<Vector3i> drawn = new HashSet<>();
+
+        Vector3i start = null, end = null;
+        ForgeDirection dir = ForgeDirection.UNKNOWN;
+        int startSides = 0, endSides = 0;
+
+        for (Vector3i voxel : path) {
+            // check if this is already part of the path, if yes then don't render it again
+            if (!drawn.add(voxel)) {
+                if (start != null) drawCableRun(start, end, dir, startSides, endSides, colour);
+
+                start = null;
+                continue;
+            }
+
+            int sides = getCableNeighbours(voxels, voxel);
+
+            if (start != null) {
+                ForgeDirection step = MMState.getAxisDirection(end, voxel);
+                int axis = step.flag | step.getOpposite().flag;
+
+                if ((dir == ForgeDirection.UNKNOWN || dir == step) && (startSides & ~axis) == (sides & ~axis)) {
+                    end = voxel;
+                    endSides = sides;
+                    dir = step;
+                    continue;
+                }
+
+                drawCableRun(start, end, dir, startSides, endSides, colour);
+            }
+
+            // this is the first voxel of a straight segment
+            start = end = voxel;
+            startSides = endSides = sides;
+            dir = ForgeDirection.UNKNOWN;
+        }
+
+        if (start != null) drawCableRun(start, end, dir, startSides, endSides, colour);
+    }
+
+    /**
+     * Draws a straight run of cable voxels as one box. The sides along the run are shared by every voxel, the back
+     * side comes from the first voxel and the front side comes from the last voxel.
+     */
+    private static void drawCableRun(Vector3i start, Vector3i end, ForgeDirection dir, int startSides, int endSides, Vector3f colour) {
+        int openSides = (startSides & ~dir.flag) | (endSides & ~dir.getOpposite().flag);
+
+        BoxRenderer.INSTANCE.drawAround(new VoxelAABB(start, end).toBoundingBox(), colour, openSides);
+    }
+
+    /**
+     * @return The {@link ForgeDirection} flags of the sides of a voxel that touch another voxel of the cable.
+     */
+    private static int getCableNeighbours(Set<Vector3i> voxels, Vector3i voxel) {
+        int sides = 0;
+
+        Vector3i neighbour = new Vector3i();
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            neighbour.set(voxel)
+                .add(dir.offsetX, dir.offsetY, dir.offsetZ);
+
+            if (voxels.contains(neighbour)) sides |= dir.flag;
+        }
+
+        return sides;
+    }
 
     private static void drawRulers(EntityPlayer player, Location l, boolean fromSurface, float partialTickTime) {
         GL11.glEnable(GL11.GL_BLEND);

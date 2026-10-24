@@ -3,7 +3,6 @@ package com.recursive_pineapple.matter_manipulator.common.uplink;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.AdvancedIridiumPlatedMachineCasing;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.MatterGenerationCoil;
 import static com.recursive_pineapple.matter_manipulator.common.structure.MMCasings.RadiantNaquadahAlloyCasing;
-import static gregtech.api.enums.GTAuthors.AuthorPineapple;
 import static gregtech.api.enums.HatchElement.Energy;
 import static gregtech.api.enums.HatchElement.ExoticEnergy;
 import static gregtech.api.enums.HatchElement.InputHatch;
@@ -194,7 +193,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
 
                 uplink.uplinkHatches.add(uplinkHatch);
                 uplinkHatch.updateTexture(aBaseCasingIndex);
-                uplinkHatch.updateCraftingIcon(uplink.getMachineCraftingIcon());
+                uplinkHatch.updateCraftingIcon(uplink.getMachineCraftingIcon(), hatchTE);
 
                 return true;
             };
@@ -237,7 +236,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
             .addEnergyHatch("1+", "Any iridium casing", 1)
             .addMaintenanceHatch("1+", "Any iridium casing", 1)
             .addInputHatch("1+", "Any iridium casing", 1)
-            .toolTipFinisher(AuthorPineapple);
+            .toolTipFinisher();
         return tt;
     }
 

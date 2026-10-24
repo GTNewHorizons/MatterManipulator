@@ -98,6 +98,7 @@ public enum Messages {
     }))),
     SetA(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordA = new Location(player.worldObj, location);
+        state.config.cableCorners = null;
     }))),
     MoveA(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
@@ -107,6 +108,7 @@ public enum Messages {
     }))),
     SetB(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordB = new Location(player.worldObj, location);
+        state.config.cableCorners = null;
     }))),
     MoveB(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
@@ -116,6 +118,7 @@ public enum Messages {
     }))),
     SetC(server(locationPacket((player, stack, manipulator, state, location) -> {
         state.config.coordC = new Location(player.worldObj, location);
+        state.config.cableCorners = null;
     }))),
     MoveC(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
@@ -142,6 +145,7 @@ public enum Messages {
         state.config.coordA = new Location(player.worldObj, voxel.a);
         state.config.coordB = new Location(player.worldObj, voxel.b);
         state.config.coordC = coordA;
+        state.config.cableCorners = null;
     }))),
     MoveAll(server(simple((player, stack, manipulator, state) -> {
         state.config.action = PendingAction.MOVING_COORDS;
@@ -182,6 +186,8 @@ public enum Messages {
                 Vector3i newB = new Vector3i(newA).add(offsetB);
                 Vector3i newC = new Vector3i(newA).add(offsetC);
 
+                ItemMatterManipulator.moveCableCorners(state, new Vector3i(newA).sub(state.config.coordA.toVec()));
+
                 state.config.coordA = new Location(player.getEntityWorld(), newA);
                 state.config.coordB = new Location(player.getEntityWorld(), newB);
                 state.config.coordC = new Location(player.getEntityWorld(), newC);
@@ -193,6 +199,8 @@ public enum Messages {
 
                 Vector3i newA = MMUtils.getLookingAtLocation(player);
                 Vector3i newB = new Vector3i(newA).add(offsetB);
+
+                ItemMatterManipulator.moveCableCorners(state, new Vector3i(newA).sub(state.config.coordA.toVec()));
 
                 state.config.coordA = new Location(player.getEntityWorld(), newA);
                 state.config.coordB = new Location(player.getEntityWorld(), newB);
@@ -207,6 +215,16 @@ public enum Messages {
         state.config.coordAOffset = null;
         state.config.coordBOffset = null;
         state.config.coordCOffset = null;
+        state.config.cableCorners = null;
+    }))),
+    AddCableCorner(server(locationPacket((player, stack, manipulator, state, location) -> {
+        ItemMatterManipulator.addCableCorner(state, location);
+    }))),
+    MoveCablePath(server(locationPacket((player, stack, manipulator, state, offset) -> {
+        if (state.config.coordA != null) state.config.coordA.offset(offset.x, offset.y, offset.z);
+        if (state.config.coordB != null) state.config.coordB.offset(offset.x, offset.y, offset.z);
+
+        ItemMatterManipulator.moveCableCorners(state, offset);
     }))),
     ClearTransform(server(simple((player, stack, manipulator, state) -> {
         state.config.transform = new Transform();
