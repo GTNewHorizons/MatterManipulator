@@ -713,6 +713,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 state.config.coordB = null;
                 state.config.coordC = null;
                 state.config.coordBOffset = new Vector3i();
+                state.config.cableCorners = null;
+                state.config.cableHatchA = getClickedCableHatch(player, hit);
+                state.config.cableHatchB = null;
                 state.config.action = PendingAction.MOVING_COORDS;
             }
 
@@ -746,20 +749,34 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             case MOVING_COORDS: {
                 Vector3i lookingAt = MMUtils.getLookingAtLocation(player);
 
+                Location movedA = state.config.getCoordA(world, lookingAt);
+
+                if (state.config.placeMode == PlaceMode.CABLES) {
+                    moveCableCornersWithCoordA(state, movedA);
+
+                    if (state.config.coordAOffset != null && state.config.coordBOffset == null) {
+                        state.config.cableHatchA = getClickedCableHatch(player, hit);
+                    }
+
+                    if (state.config.coordAOffset == null && state.config.coordBOffset != null) {
+                        state.config.cableHatchB = getClickedCableHatch(player, hit);
+                    }
+                }
+
                 if (
                     state.config.placeMode == PlaceMode.GEOMETRY && state.config.coordAOffset == null &&
                         state.config.coordBOffset != null &&
                         state.config.coordCOffset == null &&
                         state.config.shape.requiresC()
                 ) {
-                    state.config.coordA = state.config.getCoordA(world, lookingAt);
+                    state.config.coordA = movedA;
                     state.config.coordB = state.config.getCoordB(world, lookingAt);
                     state.config.coordC = null;
                     state.config.coordAOffset = null;
                     state.config.coordBOffset = null;
                     state.config.coordCOffset = new Vector3i();
                 } else {
-                    state.config.coordA = state.config.getCoordA(world, lookingAt);
+                    state.config.coordA = movedA;
                     state.config.coordB = state.config.getCoordB(world, lookingAt);
                     state.config.coordC = state.config.getCoordC(world, lookingAt);
                     state.config.coordAOffset = null;
@@ -830,6 +847,84 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         return false;
+    }
+
+    /**
+     * @return The block that was clicked to place a cable path's end, which might be a laser hatch.
+     */
+    private static Vector3i getClickedCableHatch(EntityPlayer player, MovingObjectPosition hit) {
+        if (hit == null || player.isSneaking()) return null;
+
+        return new Vector3i(hit.blockX, hit.blockY, hit.blockZ);
+    }
+
+    /**
+     * @return true when the player is picking the end of a cable path, which is when left clicking adds a corner.
+     */
+    public static boolean canAddCableCorner(MMState state) {
+        return state.config.placeMode == PlaceMode.CABLES && state.config.action == PendingAction.MOVING_COORDS &&
+            state.config.coordA != null &&
+            state.config.coordAOffset == null &&
+            state.config.coordBOffset != null &&
+            state.config.coordCOffset == null;
+    }
+
+    /**
+     * Adds a corner to the cable path, pinned to the axes of the previous point.
+     *
+     * @return True if the corner was added, false if it can't be added or wouldn't move from the previous point.
+     */
+    public static boolean addCableCorner(MMState state, Vector3i point) {
+        if (!canAddCableCorner(state)) return false;
+
+        List<Vector3i> points = MMState.getCablePoints(state.config.coordA.toVec(), state.config.cableCorners, null);
+        Vector3i last = points.get(points.size() - 1);
+
+        Vector3i corner = MMState.pinToAxes(last, point);
+
+        if (corner.equals(last)) return false;
+
+        if (state.config.cableCorners == null) state.config.cableCorners = new ArrayList<>();
+
+        state.config.cableCorners.add(corner);
+
+        return true;
+    }
+
+    /**
+     * Moves every cable corner by an offset.
+     * Bent cable paths keep their shape.
+     */
+    public static void moveCableCorners(MMState state, Vector3i offset) {
+        if (state.config.cableCorners == null) return;
+
+        for (Vector3i corner : state.config.cableCorners) {
+            corner.add(offset);
+        }
+    }
+
+    /**
+     * Keeps a bent cable path together while coord A is being moved.
+     * When every coord is moving, the corners move along with them.
+     * When only coord A is moving, it's pinned to the axes of the first corner.
+     */
+    public static void moveCableCornersWithCoordA(MMState state, Location movedA) {
+        MMConfig config = state.config;
+
+        if (config.cableCorners == null || config.cableCorners.isEmpty()) return;
+        if (movedA == null || config.coordAOffset == null) return;
+
+        if (config.coordBOffset != null) {
+            if (config.coordA == null) return;
+
+            moveCableCorners(state, movedA.toVec().sub(config.coordA.toVec()));
+        } else {
+            Vector3i pinned = MMState.pinToAxes(config.cableCorners.get(0), movedA.toVec());
+
+            movedA.x = pinned.x;
+            movedA.y = pinned.y;
+            movedA.z = pinned.z;
+        }
     }
 
     public void onMMBPressed(EntityPlayer player, ItemStack stack, MMState state) {
@@ -1001,9 +1096,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     static private void onPickCable(World world, EntityPlayer player, ItemStack stack, MMState state, MovingObjectPosition hit, BlockSpec cable) {
         if (cable == null) cable = new BlockSpec();
 
+        byte colour = -1;
+
         if (hit != null) {
             if (Mods.GregTech.isModLoaded()) {
-                MMUtils.getGTCable(cable, world, hit.blockX, hit.blockY, hit.blockZ);
+                if (MMUtils.getGTCable(cable, world, hit.blockX, hit.blockY, hit.blockZ)) {
+                    colour = MMUtils.getGTCableColour(world, hit.blockX, hit.blockY, hit.blockZ);
+                }
             }
 
             if (cable.isAir() && Mods.AppliedEnergistics2.isModLoaded()) {
@@ -1016,6 +1115,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         state.config.cables = cable.isAir() ? null : cable;
+        state.config.cableColour = colour;
 
         sendInfoToPlayer(
             player,
@@ -1128,6 +1228,17 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private IBuildable getPendingBuild(EntityPlayer player, ItemStack stack, MMState state) {
+        // the color from the offhand spray can isn't saved intentionally
+        if (state.config.placeMode == PlaceMode.CABLES && Mods.GregTech.isModLoaded()) {
+            Byte sprayColour = MMUtils.getOffhandSprayColour(player);
+
+            if (sprayColour != null) {
+                state.config.cableColour = sprayColour;
+
+                if (AppliedEnergistics2.isModLoaded()) MMUtils.recolourAECable(state.config.cables, sprayColour);
+            }
+        }
+
         List<PendingBlock> blocks = state.getPendingBlocks(tier, player.getEntityWorld());
 
         if (tier.maxRange != -1) {
@@ -1314,6 +1425,10 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .onClicked((menu, option, mouseButton, doubleClicked) -> {
                     UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
                     TransformWindow transformWindow = new TransformWindow(buildContext2);
+
+                    if (state.config.placeMode != PlaceMode.COPYING) {
+                        transformWindow.buildDirectionWidget();
+                    }
 
                     switch (state.config.placeMode) {
                         case CABLES -> transformWindow.buildCableMode();
@@ -1853,6 +1968,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
             component.set(loc, i);
 
+            if (coord == Coord.Copy) {
+                moveCableCorners(currState, loc);
+            } else if (coord != Coord.Stack) {
+                currState.config.cableCorners = null;
+            }
+
             // Cylinder shape coords handling
             if (currState.config.placeMode == PlaceMode.GEOMETRY && currState.config.shape == Shape.CYLINDER) {
                 switch (coord) {
@@ -1942,12 +2063,16 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
                 switch (coord) {
                     case Copy -> {
-                        if (currState.config.coordA != null) {
-                            Messages.SetA.sendToServer(currState.config.coordA.toVec());
-                        }
+                        if (currState.config.cableCorners != null) {
+                            Messages.MoveCablePath.sendToServer(loc);
+                        } else {
+                            if (currState.config.coordA != null) {
+                                Messages.SetA.sendToServer(currState.config.coordA.toVec());
+                            }
 
-                        if (currState.config.coordB != null) {
-                            Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                            if (currState.config.coordB != null) {
+                                Messages.SetB.sendToServer(currState.config.coordB.toVec());
+                            }
                         }
                     }
                     case CopyA -> {
@@ -2037,6 +2162,28 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             buildContext.setShowNEI(false);
             builder = ModularWindow.builderFullScreen();
             builder.bindPlayerInventory(buildContext.getPlayer(), 0, -9001);
+        }
+
+        public void buildDirectionWidget() {
+            Widget widget = new MultiChildWidget()
+                .addChild(
+                    new DirectionDrawable()
+                        .asWidget()
+                        .setSize(30, 30)
+                        .setPos(3, 3))
+                .addChild(
+                    new TextWidget(new Text(RED + "X+ " + GREEN + "Y+ " + BLUE + "Z+").shadow())
+                        .setSize(50, 20)
+                        .setPos(34, 6))
+                .setBackground(LABEL_BACKGROUND)
+                .setSize(88, 30);
+
+            builder.widget(
+                new Row().widgets(
+                    padding(10, 10),
+                    new Column()
+                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
+                        .widgets(widget)).fillParent());
         }
 
         public void buildCopyMode() {
@@ -2459,7 +2606,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             ArrayList<Widget> widgets = new ArrayList<>();
             MMState state = getState(getStack());
 
-            if (state.config.coordA != null && state.config.coordB != null) {
+            if (state.config.coordA != null && state.config.coordB != null && state.config.cableCorners == null) {
                 CoordComponent component;
 
                 Location coordA = state.config.coordA;
@@ -2667,6 +2814,27 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 setState(heldItem, state);
 
                 Messages.MMBPressed.sendToServer();
+            }
+
+            if (
+                event.button == 0 /* LMB */ && event.buttonstate &&
+                    heldItem.getItem() == ItemMatterManipulator.this &&
+                    Minecraft.getMinecraft().currentScreen == null
+            ) {
+                MMState state = getState(heldItem);
+
+                if (!canAddCableCorner(state)) return;
+
+                // don't attack or break blocks, especially important in creative mode
+                event.setCanceled(true);
+
+                Vector3i corner = new Vector3i(MMUtils.getLookingAtLocation(player)).add(state.config.coordBOffset);
+
+                if (addCableCorner(state, corner)) {
+                    setState(heldItem, state);
+
+                    Messages.AddCableCorner.sendToServer(corner);
+                }
             }
         }
 

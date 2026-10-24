@@ -52,7 +52,7 @@ public class MMItemConsumer {
         if ((flags & IPseudoInventory.CONSUME_SIMULATED) == 1) {
             actualFlags |= IPseudoInventory.CONSUME_SIMULATED;
         }
-        if ((flags & IPseudoInventory.CONSUME_IGNORE_CREATIVE) == 1) {
+        if ((flags & IPseudoInventory.CONSUME_IGNORE_CREATIVE) != 0) {
             actualFlags |= IPseudoInventory.CONSUME_IGNORE_CREATIVE;
         }
 
