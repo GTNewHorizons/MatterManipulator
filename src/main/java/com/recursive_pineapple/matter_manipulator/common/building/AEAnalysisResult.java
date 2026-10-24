@@ -505,6 +505,16 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
 
             mAEParts = partsOut;
         }
+
+        if (mAEFacades != null) {
+            PortableItemStack[] facadesOut = new PortableItemStack[ForgeDirection.VALID_DIRECTIONS.length];
+
+            for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+                facadesOut[transform.apply(dir).ordinal()] = mAEFacades[dir.ordinal()];
+            }
+
+            mAEFacades = facadesOut;
+        }
     }
 
     @Override

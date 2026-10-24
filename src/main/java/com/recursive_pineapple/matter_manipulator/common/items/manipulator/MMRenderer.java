@@ -349,7 +349,7 @@ public class MMRenderer {
                 lastDrawer = manipulator;
                 needsHintDraw = false;
 
-                drawHints(event, state, player, playerLocation, manipulator.tier.maxRange);
+                drawHints(event, state, player, playerLocation, manipulator.tier.maxRange, true);
             }
         }
     }
@@ -437,7 +437,7 @@ public class MMRenderer {
             if (isPasteValid) {
                 Objects.requireNonNull(paste);
 
-                pasteDeltas = state.config.getPasteVisualDeltas(player.worldObj, state.config.placeMode == PlaceMode.COPYING);
+                pasteDeltas = state.config.getPasteVisualDeltas(player.worldObj, true);
 
                 if (pasteDeltas == null) {
                     pasteDeltas = new VoxelAABB(paste.toVec(), paste.toVec());
@@ -477,7 +477,7 @@ public class MMRenderer {
                     lastDrawer = manipulator;
                     needsHintDraw = false;
 
-                    drawHints(event, state, player, playerLocation, manipulator.tier.maxRange);
+                    drawHints(event, state, player, playerLocation, manipulator.tier.maxRange, state.config.placeMode != PlaceMode.MOVING);
                 }
             }
 
@@ -508,7 +508,8 @@ public class MMRenderer {
         MMState state,
         EntityPlayer player,
         Location playerLocation,
-        int maxRange
+        int maxRange,
+        boolean drawAirHint
     ) {
         int buildable = maxRange * maxRange;
 
@@ -571,7 +572,7 @@ public class MMRenderer {
                 tint = ERROR;
             }
 
-            if (pendingBlock.spec.isAir()) {
+            if (pendingBlock.spec.isAir() && drawAirHint) {
                 RenderHints.INSTANCE.addHint(
                     pendingBlock.x,
                     pendingBlock.y,
