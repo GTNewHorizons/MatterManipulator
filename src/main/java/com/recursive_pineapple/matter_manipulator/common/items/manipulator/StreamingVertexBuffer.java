@@ -95,6 +95,8 @@ public class StreamingVertexBuffer implements AutoCloseable {
     public void upload(int usage, ByteBuffer buffer, int vertexCount) {
         if (this.id > 0) {
             this.vertexCount = vertexCount;
+            this.allocatedBytes = buffer.remaining();
+            this.bufferFlags = usage;
             this.bind();
             GL15.glBufferData(GL15.GL_ARRAY_BUFFER, buffer, usage);
             this.unbind();
