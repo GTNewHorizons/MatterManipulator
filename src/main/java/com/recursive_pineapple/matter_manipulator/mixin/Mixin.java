@@ -24,12 +24,6 @@ public enum Mixin implements IMixins {
             .addClientMixins("MixinKeyBinding")
             .setPhase(Phase.EARLY)
     ),
-    FrameBoxTECreation(
-        new MixinBuilder("Expose BlockFrameBox.spawnFrameEntity")
-            .addCommonMixins("MixinBlockFrameBox")
-            .addRequiredMod(Mods.GregTech)
-            .setPhase(Phase.LATE)
-    ),
     LinkedInputBusAccessors(
         new MixinBuilder("Expose various internals of MTELinkedInputBus")
             .addCommonMixins("MixinMTELinkedInputBus", "MixinSharedInventory")
