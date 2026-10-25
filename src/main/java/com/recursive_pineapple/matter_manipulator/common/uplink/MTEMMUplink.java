@@ -193,7 +193,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
 
                 uplink.uplinkHatches.add(uplinkHatch);
                 uplinkHatch.updateTexture(aBaseCasingIndex);
-                uplinkHatch.updateCraftingIcon(uplink.getMachineCraftingIcon());
+                uplinkHatch.updateCraftingIcon(uplink.getMachineCraftingIcon(), hatchTE);
 
                 return true;
             };
