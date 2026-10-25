@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.function.BooleanSupplier;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -450,11 +451,13 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
     protected boolean isEditable(World world, int x, int y, int z, boolean isPlacement) {
         boolean isBlocked;
         if (isPlacement) {
-            isBlocked = ForgeEventFactory.onPlayerBlockPlace(
+            BooleanSupplier postPlaceEvent = () -> ForgeEventFactory.onPlayerBlockPlace(
                 player,
                 new BlockSnapshot(world, x, y, z, world.getBlock(x, y, z), world.getBlockMetadata(x, y, z)),
                 ForgeDirection.UNKNOWN
             ).isCanceled();
+
+            isBlocked = Mods.GregTech.isModLoaded() ? MMUtils.withoutOffhand(player, postPlaceEvent) : postPlaceEvent.getAsBoolean();
         } else {
             isBlocked = MinecraftForge.EVENT_BUS
                 .post(new BlockEvent.BreakEvent(x, y, z, world, world.getBlock(x, y, z), world.getBlockMetadata(x, y, z), player));
