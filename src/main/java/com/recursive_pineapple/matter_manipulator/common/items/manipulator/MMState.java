@@ -66,6 +66,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.AEPartData;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.RegionAnalysis;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
+import com.recursive_pineapple.matter_manipulator.common.building.EnderIOAnalysisResult;
 import com.recursive_pineapple.matter_manipulator.common.building.GTAnalysisResult;
 import com.recursive_pineapple.matter_manipulator.common.building.ImmutableBlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.InteropConstants;
@@ -788,6 +789,14 @@ public class MMState {
 
             if (Mods.OpenComputers.isModLoaded()) {
                 getOCCables(voxels, out, block, world, config.cables);
+            }
+            if (Mods.EnderIO.isModLoaded() && MMUtils.isEnderIOConduit(config.cables.getItem())) {
+                for (Vector3i voxel : voxels) {
+                    PendingBlock pending = new BlockSpec().setObject(InteropConstants.EIO_CONDUIT.getBlock(), 0)
+                        .instantiate(world, voxel.x, voxel.y, voxel.z);
+                    pending.eio = EnderIOAnalysisResult.forCablePlacement(config.cables.toStack(1));
+                    out.add(pending);
+                }
             }
         }
 
