@@ -33,6 +33,7 @@ import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.RenderingConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.rendering.BoxRenderer;
+import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.RegionAnalysis;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
@@ -66,6 +67,7 @@ public class MMRenderer {
     private static boolean wasValid = false;
 
     private static final long ANALYSIS_INTERVAL_MS = 10_000;
+    private static final long CHUNK_CHECK_INTERVAL_MS = 1_000;
 
     private static long lastExceptionPrint = 0;
 
@@ -76,55 +78,55 @@ public class MMRenderer {
     private static long statusExpiration = 0;
 
     private static boolean wasInUse = false;
-    private static boolean copyAnalysisDeferred = false;
-    private static boolean sourceWasAvailable = false;
-    private static boolean sourceAvailability = false;
-    private static long nextSourceCheckMS = 0;
-    private static final long SOURCE_CHECK_INTERVAL_MS = 1_000;
 
-    // Keep the last COMPLETE copy analysis across held-item changes. The ordinary render
-    // cache is cleared when the manipulator is unequipped, but its source chunks might
-    // be unloaded when the player equips it again near the paste destination.
-    private static List<PendingBlock> cachedCopyBlocks;
+    private static boolean sourceWasAvailable = false;
+    private static boolean copyChunksLoaded = false;
+    private static long nextSourceCheckMS = 0;
+
+    // Keep the source relative to Copy A; the rendered blocks depend on Paste.
+    private static RegionAnalysis cachedCopySource;
     private static MMConfig cachedCopyConfig;
     private static World cachedCopyWorld;
+    private static boolean cachedSmartCopy;
 
-    // Minecraft creates a new client World when joining a server, even if the
-    // selected Copy/Paste coordinates still point to the same dimension.
-    // Never reuse the previous connection's renderer state in the new World.
     private static World lastRenderWorld;
 
-    // A saved item selection does not reactivate a snapshot on reconnect. Use the
-    // original client-side preview until the player explicitly marks Copy again.
     private static boolean copySnapshotEnabled;
     private static boolean copySelectionInProgress;
 
-    // Detect when the destination becomes available again without scanning the
-    // entire Paste region on every frame.
     private static long nextPasteChunkCheckMS;
     private static int lastPasteChunkX = Integer.MIN_VALUE;
     private static int lastPasteChunkZ = Integer.MIN_VALUE;
     private static boolean lastPasteChunkLoaded;
 
-    private static void rememberCopyAnalysis(MMState state, World world) {
-        cachedCopyBlocks = analysisCache;
+    private static void clearCopySnapshot() {
+        cachedCopySource = null;
+        cachedCopyConfig = null;
+        cachedCopyWorld = null;
+    }
+
+    private static boolean hasCopySnapshot(MMState state, World world) {
+        if (!copySnapshotEnabled || cachedCopySource == null || cachedCopyConfig == null || cachedCopyWorld != world) return false;
+
+        MMConfig config = state.config;
+        return config.placeMode == PlaceMode.COPYING && Objects.equals(cachedCopyConfig.coordA, config.coordA) &&
+            Objects.equals(cachedCopyConfig.coordB, config.coordB) &&
+            cachedCopyConfig.replaceCribsWithProxies == config.replaceCribsWithProxies &&
+            cachedCopyConfig.interfaceCopyMode == config.interfaceCopyMode &&
+            cachedCopyConfig.p2pInterfaceCopyMode == config.p2pInterfaceCopyMode &&
+            cachedSmartCopy == state.hasCap(ItemMatterManipulator.ALLOW_SMART_COPY);
+    }
+
+    private static void rememberCopySource(MMState state, World world) {
+        RegionAnalysis source = state.getCopySource(world);
+        if (source == null) return;
+
+        cachedCopySource = source;
         cachedCopyConfig = state.clone().config;
         cachedCopyWorld = world;
+        cachedSmartCopy = state.hasCap(ItemMatterManipulator.ALLOW_SMART_COPY);
     }
 
-    private static boolean restoreCopyAnalysis(MMState state, World world) {
-        if (!copySnapshotEnabled || cachedCopyBlocks == null || cachedCopyWorld != world || !Objects.equals(cachedCopyConfig, state.config)) return false;
-
-        analysisCache = cachedCopyBlocks;
-        return true;
-    }
-
-    /**
-     * Drop only client-side preview data on a world change. The selection lives
-     * in the MM item's NBT and is intentionally untouched. After reconnecting,
-     * preview falls back to ordinary source reads; only a new Mark Copy enables
-     * snapshot caching for the current client World.
-     */
     private static void resetOnWorldChange(EntityPlayer player, World world) {
         if (lastRenderWorld == world) return;
 
@@ -132,13 +134,12 @@ public class MMRenderer {
         clear(player);
         lastDrawer = null;
         wasValid = false;
-        cachedCopyBlocks = null;
-        cachedCopyConfig = null;
-        cachedCopyWorld = null;
+        clearCopySnapshot();
+        // Coordinates survive reconnects in item NBT, but the client snapshot does not.
         copySnapshotEnabled = false;
         copySelectionInProgress = false;
         sourceWasAvailable = false;
-        sourceAvailability = false;
+        copyChunksLoaded = false;
         nextSourceCheckMS = 0;
         errors = null;
         warnings = null;
@@ -175,14 +176,18 @@ public class MMRenderer {
         }
     }
 
-    /** Checks client source availability without loading any chunks. */
+    private static boolean isChunkLoaded(World world, int chunkX, int chunkZ) {
+        return !world.getChunkFromChunkCoords(chunkX, chunkZ).isEmpty();
+    }
+
     private static boolean areCopyChunksLoaded(World world, Location a, Location b) {
         if (a == null || b == null || !a.isInWorld(world) || !b.isInWorld(world)) return false;
+
         int minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
         int minZ = Math.min(a.z, b.z), maxZ = Math.max(a.z, b.z);
         for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
             for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
-                if (world.getChunkFromChunkCoords(cx, cz).isEmpty()) return false;
+                if (!isChunkLoaded(world, cx, cz)) return false;
             }
         }
         return true;
@@ -244,16 +249,9 @@ public class MMRenderer {
 
     private static void clear(EntityPlayer player) {
         lastAnalysisMS = 0;
-        // The render cache belongs to the currently held item. Clear it whenever
-        // the preview is hidden, but NEVER discard the independent Copy snapshot:
-        // it may be the only accurate source while Copy chunks are unloaded.
         lastAnalyzedConfig = null;
         analysisCache = null;
         lastPlayerPosition = null;
-        copyAnalysisDeferred = false;
-        // Keep sourceWasAvailable across hotbar switches. If the Copy chunks
-        // become available again, their next availability check still triggers
-        // the normal snapshot refresh (without rebuilding it just for re-equipping).
         nextSourceCheckMS = 0;
         nextPasteChunkCheckMS = 0;
         lastPasteChunkX = Integer.MIN_VALUE;
@@ -441,16 +439,12 @@ public class MMRenderer {
             (state.config.action == PendingAction.MARK_COPY_A || state.config.action == PendingAction.MARK_COPY_B);
 
         if (markingCopy && !copySelectionInProgress) {
-            // This is a NEW Copy selection, not coordinates restored from item NBT.
-            // Enable snapshots only now, and discard any previous source data.
             copySnapshotEnabled = true;
-            cachedCopyBlocks = null;
-            cachedCopyConfig = null;
-            cachedCopyWorld = null;
+            clearCopySnapshot();
             analysisCache = null;
             lastAnalyzedConfig = null;
             sourceWasAvailable = false;
-            sourceAvailability = false;
+            copyChunksLoaded = false;
             nextSourceCheckMS = 0;
             needsAnalysis = true;
             RenderHints.INSTANCE.reset();
@@ -505,9 +499,7 @@ public class MMRenderer {
         state.config.coordB = sourceB;
         state.config.coordC = paste;
 
-        // getPendingBlocks() lazily creates the default Copy transform. Normalize
-        // it before comparing configs, otherwise an MM with a null NBT transform
-        // invalidates its snapshot on every frame (null != default transform).
+        // getPendingBlocks() creates the default transform lazily.
         if (state.config.placeMode == PlaceMode.COPYING) {
             state.getTransform();
         }
@@ -543,6 +535,25 @@ public class MMRenderer {
 
             VoxelAABB pasteDeltas = null;
 
+            long now = System.currentTimeMillis();
+            boolean copyMode = state.config.placeMode == PlaceMode.COPYING;
+            boolean snapshotMode = copyMode && copySnapshotEnabled;
+
+            if (copyMode && !markingCopy && now >= nextSourceCheckMS) {
+                copyChunksLoaded = areCopyChunksLoaded(player.worldObj, sourceA, sourceB);
+                nextSourceCheckMS = now + CHUNK_CHECK_INTERVAL_MS;
+            }
+
+            boolean sourceAvailable = !copyMode || (copyChunksLoaded && !markingCopy);
+            boolean sourceReturned = copyMode && sourceAvailable && !sourceWasAvailable;
+
+            if (snapshotMode && sourceAvailable && (sourceReturned || !hasCopySnapshot(state, player.worldObj) || (needsAnalysis && isPasteValid))) {
+                rememberCopySource(state, player.worldObj);
+            }
+            sourceWasAvailable = sourceAvailable;
+
+            boolean snapshotAvailable = snapshotMode && hasCopySnapshot(state, player.worldObj);
+
             if (isPasteValid) {
                 Objects.requireNonNull(paste);
 
@@ -561,107 +572,64 @@ public class MMRenderer {
                     MathHelper.floor_double(player.posZ)
                 );
 
-                long now = System.currentTimeMillis();
-
-                // The source is read from the client world, which returns incomplete data
-                // if the Copy selection is outside the client's loaded chunks.
-                boolean copyMode = state.config.placeMode == PlaceMode.COPYING;
-                // Avoid scanning a temporary region while Copy A/B are being marked.
-                // Check availability at most once per second outside selection mode.
-                if (copyMode && !markingCopy && (now >= nextSourceCheckMS || nextSourceCheckMS == 0)) {
-                    sourceAvailability = areCopyChunksLoaded(player.worldObj, sourceA, sourceB);
-                    nextSourceCheckMS = now + SOURCE_CHECK_INTERVAL_MS;
-                }
-                boolean sourceAvailable = !copyMode || (sourceAvailability && !markingCopy);
-                boolean snapshotMode = copyMode && copySnapshotEnabled;
                 boolean viewChanged = lastDrawer != manipulator;
-
-                // Re-equipping the MM always starts with an empty render cache.
-                // Only restore a snapshot if a NEW Copy was marked in this world,
-                // before the normal reanalysis checks. Do not require object identity with the old
-                // render list: other modes and clear() legitimately replace it.
-                if (snapshotMode && !markingCopy && (viewChanged || analysisCache == null) && restoreCopyAnalysis(state, player.worldObj)) {
-                    lastAnalyzedConfig = state.clone().config;
-                    needsHintDraw = true;
-                }
-
-                boolean sourceReturned = copyMode && sourceAvailable && !sourceWasAvailable;
                 boolean selectionChanged = !Objects.equals(lastAnalyzedConfig, state.config);
                 boolean positionChanged = lastPlayerPosition == null || (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
 
-                // A Paste chunk may finish loading while the player stands still.
-                // Probe only the player's current chunk once per second; other
-                // destination chunks are revisited by the normal timed refresh.
                 if (now >= nextPasteChunkCheckMS) {
                     int cx = playerLocation.x >> 4;
                     int cz = playerLocation.z >> 4;
-                    boolean loaded = !player.worldObj.getChunkFromChunkCoords(cx, cz).isEmpty();
+                    boolean loaded = isChunkLoaded(player.worldObj, cx, cz);
                     if (cx != lastPasteChunkX || cz != lastPasteChunkZ || loaded != lastPasteChunkLoaded) {
                         needsHintDraw = true;
                     }
                     lastPasteChunkX = cx;
                     lastPasteChunkZ = cz;
                     lastPasteChunkLoaded = loaded;
-                    nextPasteChunkCheckMS = now + SOURCE_CHECK_INTERVAL_MS;
+                    nextPasteChunkCheckMS = now + CHUNK_CHECK_INTERVAL_MS;
                 }
 
-                // Snapshot mode reads Copy only when needed; the ten-second timer
-                // updates Paste. Fallback mode rereads Copy normally when loaded.
                 boolean refreshDue = (now - lastAnalysisMS) >= ANALYSIS_INTERVAL_MS;
+                boolean canAnalyze = sourceAvailable || snapshotAvailable;
                 boolean reanalyze = needsAnalysis || selectionChanged ||
+                    viewChanged ||
                     sourceReturned ||
-                    (copyAnalysisDeferred && sourceAvailable) ||
-                    (analysisCache == null && sourceAvailable)
-                    // With snapshots disabled, use the normal periodic source read.
-                    ||
-                    (copyMode && !snapshotMode && refreshDue && sourceAvailable);
-                if (viewChanged && analysisCache == null) {
-                    // No valid snapshot exists: wait for source chunks rather
-                    // than reading unloaded Copy data as air.
-                    reanalyze = sourceAvailable;
-                }
+                    (analysisCache == null && canAnalyze) ||
+                    (!snapshotAvailable && refreshDue && sourceAvailable);
 
                 if (reanalyze) {
-                    if (!sourceAvailable) {
-                        copyAnalysisDeferred = true;
-                        if (!snapshotMode || !restoreCopyAnalysis(state, player.worldObj)) {
-                            analysisCache = null;
-                            RenderHints.INSTANCE.reset();
-                        }
-                        // Do not mark this as a fresh analysis: no world blocks were read.
-                        // A later render can retry immediately when the chunks arrive.
+                    if (!canAnalyze) {
+                        analysisCache = null;
+                        RenderHints.INSTANCE.reset();
                     } else {
-                        List<PendingBlock> fresh = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
+                        List<PendingBlock> fresh = snapshotAvailable ?
+                            state.getCopyPreview(cachedCopySource) :
+                            state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
                         if (fresh != null) {
                             fresh.removeIf(Objects::isNull);
                             fresh.sort(Comparator.comparingInt((PendingBlock block) -> block.renderOrder));
                             analysisCache = fresh;
-                            if (snapshotMode) rememberCopyAnalysis(state, player.worldObj);
                         }
                         lastAnalysisMS = now;
-                        copyAnalysisDeferred = false;
                     }
                     lastAnalyzedConfig = state.clone().config;
                     needsAnalysis = false;
                     needsHintDraw = true;
                 }
-                sourceWasAvailable = sourceAvailable;
-                // In fallback mode there is NO Copy snapshot to show after the
-                // source unloads. Hide stale hints until the source is available.
-                if (copyMode && !snapshotMode && !sourceAvailable && analysisCache != null) {
+
+                if (copyMode && !canAnalyze && analysisCache != null) {
                     analysisCache = null;
                     RenderHints.INSTANCE.reset();
                     needsHintDraw = false;
                 }
-                // Recheck destination blocks only when the renderer is visible. This
-                // never touches Copy and never forces chunks to load.
+
+                // Destination blocks can change while the Copy snapshot stays valid.
                 if (refreshDue) {
                     lastAnalysisMS = now;
                     needsHintDraw = true;
                 }
 
                 needsHintDraw = needsHintDraw || positionChanged;
-                // Never try to draw stale hints from a different configuration.
                 if (analysisCache == null) {
                     RenderHints.INSTANCE.reset();
                     needsHintDraw = false;
@@ -717,7 +685,7 @@ public class MMRenderer {
         LongOpenHashSet warnings = MMRenderer.warnings == null ? null : new LongOpenHashSet(MMRenderer.warnings);
 
         World world = player.worldObj;
-        // One chunk availability lookup per destination chunk, not per block.
+        // Check each destination chunk only once per redraw.
         Long2BooleanOpenHashMap loadedPasteChunks = new Long2BooleanOpenHashMap();
 
         RenderHints.INSTANCE.start();
@@ -732,13 +700,11 @@ public class MMRenderer {
                 if (dist2 > buildable) continue;
             }
 
-            // Never compare an unloaded destination against the expected block: the
-            // client reports incomplete world state and can generate phantom X hints.
             int chunkX = pendingBlock.x >> 4;
             int chunkZ = pendingBlock.z >> 4;
             long chunkKey = (((long) chunkX) << 32) | (chunkZ & 0xffffffffL);
             if (!loadedPasteChunks.containsKey(chunkKey)) {
-                loadedPasteChunks.put(chunkKey, !world.getChunkFromChunkCoords(chunkX, chunkZ).isEmpty());
+                loadedPasteChunks.put(chunkKey, isChunkLoaded(world, chunkX, chunkZ));
             }
             if (!loadedPasteChunks.get(chunkKey)) continue;
 
