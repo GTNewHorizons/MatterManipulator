@@ -74,11 +74,8 @@ public abstract class MixinGuiContainer_PickBlock {
         }
         ItemMatterManipulator.setState(cursorStack, state);
 
-        if (addToWhitelist) {
-            Messages.MMBAddWhitelistInGUI.sendToServer(new Messages.CursorItemStackData(hoveredStack, isSneak));
-        } else {
-            Messages.MMBPressedInGUI.sendToServer(new Messages.CursorItemStackData(hoveredStack, isSneak));
-        }
+        (addToWhitelist ? Messages.MMBAddWhitelistInGUI : Messages.MMBPressedInGUI)
+            .sendToServer(new Messages.CursorItemStackData(hoveredStack, isSneak));
     }
 
     @Invoker("getSlotAtPosition")

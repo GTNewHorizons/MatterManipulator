@@ -953,9 +953,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         onExchangeAddWhitelist(player.worldObj, player, stack, state, hit, null);
     }
 
-    /** Same additive operation for inventory and NEI stacks. */
-    public static void onMMBAddWhitelistInGUI(EntityPlayer player, ItemStack stack, MMState state, ItemStack hoveredStack) {
-        if (state.config.placeMode != PlaceMode.EXCHANGING || hoveredStack == null || hoveredStack.getItem() == null) return;
+    public static void onMMBAddWhitelistInGUI(
+        EntityPlayer player,
+        ItemStack stack,
+        MMState state,
+        ItemStack hoveredStack
+    ) {
+        if (state.config.placeMode != PlaceMode.EXCHANGING || hoveredStack == null || hoveredStack.getItem() == null) { return; }
 
         onExchangeAddWhitelist(player.worldObj, player, stack, state, null, BlockSpec.fromStack(null, hoveredStack));
     }
@@ -2826,8 +2830,6 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (event.button == 2 /* MMB */ && event.buttonstate && heldItem.getItem() == ItemMatterManipulator.this) {
                 event.setCanceled(true);
 
-                // The configurable modifier adds to the Exchange whitelist;
-                // ordinary middle click and Shift+middle click are unchanged.
                 MMState state = getState(heldItem);
                 boolean addToWhitelist = state.config.placeMode == PlaceMode.EXCHANGING && MMKeyInputs.isAddWhitelistModifierDown();
                 if (addToWhitelist) {
@@ -2837,11 +2839,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 }
                 setState(heldItem, state);
 
-                if (addToWhitelist) {
-                    Messages.MMBAddWhitelist.sendToServer();
-                } else {
-                    Messages.MMBPressed.sendToServer();
-                }
+                (addToWhitelist ? Messages.MMBAddWhitelist : Messages.MMBPressed).sendToServer();
             }
 
             if (
