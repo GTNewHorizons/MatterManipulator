@@ -455,6 +455,14 @@ public enum Messages {
         }
     })),
 
+    // Append new packet IDs; don't renumber pre-existing Messages ordinals.
+    MMBAddWhitelist(server(simple((player, stack, manipulator, state) -> {
+        manipulator.onMMBAddWhitelist(player, stack, state);
+    }))),
+    MMBAddWhitelistInGUI(server(cursorItemStackPacket((player, pickedStack, manipulator, state, isSneak, hoveredStack) -> {
+        ItemMatterManipulator.onMMBAddWhitelistInGUI(player, pickedStack, state, hoveredStack);
+    }))),
+
     ;
 
     private ISimplePacketHandler<? extends SimplePacket> handler;
