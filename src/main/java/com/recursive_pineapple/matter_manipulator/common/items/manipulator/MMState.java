@@ -385,12 +385,41 @@ public class MMState {
         if (!Location.areCompatible(coordA, coordB, coordC) || !coordA.isInWorld(world)) { return new ArrayList<>(); }
 
         // MOVING's result is only used visually since it has a special build algorithm
-        RegionAnalysis analysis = BlockAnalyzer
-            .analyzeRegion(world, coordA, coordB, config.placeMode == PlaceMode.COPYING ? true : false);
+        RegionAnalysis analysis = config.placeMode == PlaceMode.COPYING ? getCopySource(world) : BlockAnalyzer.analyzeRegion(world, coordA, coordB, false);
 
-        if (config.placeMode == PlaceMode.COPYING) {
-            applySmartCopySubstitutions(world, analysis.blocks, coordA);
+        return positionAnalysis(analysis, coordC);
+    }
+
+    /** The source is relative to Copy A and does not depend on the Paste position. */
+    public RegionAnalysis getCopySource(World world) {
+        Location coordA = config.coordA;
+        Location coordB = config.coordB;
+
+        if (config.placeMode != PlaceMode.COPYING || !Location.areCompatible(coordA, coordB) || !coordA.isInWorld(world)) return null;
+
+        RegionAnalysis analysis = BlockAnalyzer.analyzeRegion(world, coordA, coordB, true);
+        if (analysis != null) applySmartCopySubstitutions(world, analysis.blocks, coordA);
+        return analysis;
+    }
+
+    /** Builds a fresh preview from a saved source without changing the source blocks. */
+    public List<PendingBlock> getCopyPreview(RegionAnalysis source) {
+        if (
+            config.placeMode != PlaceMode.COPYING || source == null || !Location.areCompatible(config.coordA, config.coordB, config.coordC)
+        ) return new ArrayList<>();
+
+        RegionAnalysis analysis = new RegionAnalysis();
+        analysis.deltas = new Vector3i(source.deltas);
+        analysis.blocks = new ArrayList<>(source.blocks.size());
+        for (PendingBlock block : source.blocks) {
+            analysis.blocks.add(block.clone());
         }
+
+        return positionAnalysis(analysis, config.coordC);
+    }
+
+    private List<PendingBlock> positionAnalysis(RegionAnalysis analysis, Location coordC) {
+        if (analysis == null) return new ArrayList<>();
 
         if (config.placeMode == PlaceMode.COPYING) {
             Transform t = getTransform();
