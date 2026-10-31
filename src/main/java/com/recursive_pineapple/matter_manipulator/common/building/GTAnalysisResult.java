@@ -100,6 +100,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
     private static final int GT_ME_CONNECT_ALL_SIDES = 0b1 << counter++;
     private static final int GT_MAX_PARALLELS = 0b1 << counter++;
     private static final int GT_POWERFAIL_EVENTS = 0b1 << counter++;
+    private static final int GT_MACHINE_MUFFLED = 0b1 << counter++;
 
     private static final GTAnalysisResult NO_OP = new GTAnalysisResult();
 
@@ -122,6 +123,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
         if (igte.getColorization() != -1) mGTColour = igte.getColorization();
 
         if (igte.isAllowedToWork()) mGTFlags |= GT_MACHINE_ENABLED;
+        if (igte.isMuffled()) mGTFlags |= GT_MACHINE_MUFFLED;
 
         // if the machine is a singleblock, store its data
         if (mte instanceof MTEBasicMachine basicMachine) {
@@ -306,6 +308,7 @@ public class GTAnalysisResult implements ITileAnalysisIntegration {
             } else {
                 gte.disableWorking();
             }
+            gte.setMuffler((mGTFlags & GT_MACHINE_MUFFLED) != 0);
 
             if (mte instanceof MTEBasicMachine basicMachine) {
                 if (mGTMainFacing != null) {
