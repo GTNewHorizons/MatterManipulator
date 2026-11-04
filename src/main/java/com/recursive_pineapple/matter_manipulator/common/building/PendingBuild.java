@@ -27,6 +27,7 @@ import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.IChunkProvider;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
@@ -44,6 +45,7 @@ import appeng.util.SettingsFrom;
 
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
+import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.BuildingConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
@@ -72,6 +74,8 @@ import it.unimi.dsi.fastutil.longs.LongList;
 public class PendingBuild extends AbstractBuildable {
 
     private final Deque<PendingBlock> pendingBlocks;
+    private final long airFilterBudgetNanos;
+    private int airFilterRemaining;
     private long shuffledWithoutProgress;
     private final HashSet<Long> visited = new HashSet<>();
 
@@ -92,20 +96,27 @@ public class PendingBuild extends AbstractBuildable {
         super(player, state, tier);
         this.pendingBlocks = new ArrayDeque<>(pendingBlocks);
         this.wirelessLinkFixer = new WirelessLinkFixer(state);
+        this.airFilterBudgetNanos = BuildingConfig.airFilterBudgetMicros * 1_000L;
+        this.airFilterRemaining = airFilterBudgetNanos > 0 ? pendingBlocks.size() : 0;
     }
 
     @Override
     public void tryPlaceBlocks(ItemStack stack, EntityPlayer player) {
         resetWarnings();
+
+        World world = player.worldObj;
+        wirelessLinkFixer.tryInit(world);
+        filterAirToAir(world);
+        if (airFilterRemaining > 0) {
+            sendInfoToPlayer(player, "mm.info.placed_remaining", 0, pendingBlocks.size());
+            return;
+        }
+
         refillPower(stack);
 
         List<PendingBlock> toPlace = new ArrayList<>(tier.placeSpeed);
 
         Integer lastChunkX = null, lastChunkZ = null;
-
-        World world = player.worldObj;
-
-        wirelessLinkFixer.tryInit(world);
 
         ProxiedWorld proxiedWorld = new ProxiedWorld(world);
 
@@ -430,6 +441,23 @@ public class PendingBuild extends AbstractBuildable {
 
         actuallyGivePlayerStuff();
         playSounds();
+    }
+
+    private void filterAirToAir(World world) {
+        if (airFilterRemaining == 0) return;
+
+        IChunkProvider chunkProvider = world.getChunkProvider();
+        long start = System.nanoTime();
+        do {
+            PendingBlock block = pendingBlocks.getFirst();
+            boolean airToAir = block.spec.isAir() &&
+                chunkProvider.chunkExists(block.x >> 4, block.z >> 4) &&
+                world.isAirBlock(block.x, block.y, block.z);
+
+            pendingBlocks.removeFirst();
+            if (!airToAir) pendingBlocks.addLast(block);
+            airFilterRemaining--;
+        } while (airFilterRemaining > 0 && System.nanoTime() - start < airFilterBudgetNanos);
     }
 
     private PendingBlock takePendingBlock() {
