@@ -49,6 +49,8 @@ public class RenderHints {
         public final ArrayList<Hint> hints;
         public long expiration;
         public boolean depthTest = false;
+        public int bufferSize = -1; // Set by client-thread preparation before handing the hint list to the worker.
+        public boolean depthWrite = true;
 
         public RenderState(ArrayList<Hint> hints) {
             this.hints = hints;
@@ -72,10 +74,8 @@ public class RenderHints {
     /// [#finish()]. This must only be accessed by the client thread.
     private RenderState pending = null;
 
-    /// The latest batch of hints. This is not sorted in any way and can only be accessed by the client thread. The contents
-    /// of this object's hint list can only be accessed by the worker thread, but the list reference itself and the
-    /// RenderState object can only be accessed by the client. The worker thread receives a reference to the hint list, but
-    /// this field can be replaced arbitrarily.
+    /// The current batch, prepared by the client before the worker receives its hint list. Once submitted, only the worker
+    /// may access the list contents; the client may replace this RenderState.
     private RenderState hints = null;
 
     /// The player position for the most recent buffer. If the player moves too far, it will cause the quads to
@@ -131,19 +131,27 @@ public class RenderHints {
     }
 
     public void addHint(int x, int y, int z, Block block, int meta, short[] tint) {
-        Hint hint = new Hint();
+        addHint(new Hint(x, y, z, block, meta, tint));
+    }
 
-        hint.x = x;
-        hint.y = y;
-        hint.z = z;
-        hint.icons = new IIcon[6];
-        hint.tint = tint;
-
-        for (int i = 0; i < 6; i++) {
-            hint.icons[i] = block.getIcon(i, meta);
-        }
-
+    /** Adds a hint, prepared on the client thread before its immutable geometry reaches the worker. */
+    public void addHint(Hint hint) {
         pending.hints.add(hint);
+    }
+
+    private int prepareHints() {
+        int bytes = 0;
+        int kept = 0;
+        for (Hint hint : hints.hints) {
+            hint.prepare();
+            long size = (long) hint.vertexCount() * VBO_FORMAT.getVertexSize();
+            if (size == 0 || size > Integer.MAX_VALUE - bytes) continue;
+            bytes += (int) size;
+            hints.depthWrite &= hint.depthWrite;
+            hints.hints.set(kept++, hint);
+        }
+        hints.hints.subList(kept, hints.hints.size()).clear();
+        return bytes;
     }
 
     @SubscribeEvent
@@ -153,37 +161,21 @@ public class RenderHints {
         }
     }
 
-    private TessellationResult buildVBO(ArrayList<Hint> hints, Vector3d eyes, Vector3i worldPos) {
+    private TessellationResult buildVBO(ArrayList<Hint> hints, Vector3d eyes, Vector3i worldPos, int capacity) {
         hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x, info.y, info.z)));
 
         final VertexFormat format = VBO_FORMAT;
-        final int vertexSize = format.getVertexSize();
 
         final LocalTessellator tes = TessellatorManager.enterLocalMode();
         tes.startDrawing(GL11.GL_QUADS);
 
         final int hintCount = hints.size();
 
-        int capacity = hintCount * 6 * 4 * format.getVertexSize();
-        final int quadSize = tes.getDataSize(vertexSize);
-
         long basePtr = nmemAllocChecked(capacity);
         long writePtr = basePtr;
-        long endPtr = writePtr + capacity;
 
         for (int i = 0; i < hintCount; i++) {
             hints.get(i).draw(tes, eyes.x, eyes.y, eyes.z, worldPos.x, worldPos.y, worldPos.z);
-
-            if (writePtr + quadSize > endPtr) {
-                capacity = Math.max(capacity + quadSize, (int) (capacity * 1.5));
-
-                long offset = writePtr - basePtr;
-
-                basePtr = nmemReallocChecked(basePtr, capacity);
-
-                writePtr = basePtr + offset;
-                endPtr = writePtr + capacity;
-            }
 
             writePtr = tes.writeToBuffer0(writePtr, format);
         }
@@ -201,6 +193,7 @@ public class RenderHints {
             hints = null;
         }
 
+        if (hints != null && hints.bufferSize < 0) hints.bufferSize = prepareHints();
         if (hints == null || hints.hints.isEmpty()) return;
 
         Profiler p = Minecraft.getMinecraft().mcProfiler;
@@ -225,7 +218,7 @@ public class RenderHints {
             p.startSection("Draw MM Hints");
 
             GL11.glPushMatrix();
-            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT);
+            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | (!hints.depthWrite ? GL11.GL_DEPTH_BUFFER_BIT : 0));
 
             Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.locationBlocksTexture);
 
@@ -237,6 +230,7 @@ public class RenderHints {
             GL11.glDisable(GL11.GL_ALPHA_TEST);
             GL11.glEnable(GL11.GL_BLEND); // enable blend so it is transparent
             GL11.glBlendFunc(GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_SRC_ALPHA);
+            if (!hints.depthWrite) GL11.glDepthMask(false);
 
             if (!hints.depthTest) {
                 GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -286,17 +280,39 @@ public class RenderHints {
             lastPlayerPosition.set(worldPos);
             vboNeedsRebuild = false;
 
-            buildTask = workerThread.submit(() -> buildVBO(this.hints.hints, eyes, worldPos));
+            ArrayList<Hint> snapshot = hints.hints;
+            int capacity = hints.bufferSize;
+            buildTask = workerThread.submit(() -> buildVBO(snapshot, eyes, worldPos, capacity));
         }
 
         p.endSection();
     }
 
-    private static class Hint {
+    /** Geometry must remain unchanged after client-thread preparation, while the worker sizes and draws it. */
+    public static class Hint {
 
         public int x, y, z;
         public IIcon[] icons;
         public short[] tint;
+        public boolean depthWrite = true;
+
+        protected Hint(int x, int y, int z, Block block, int meta, short[] tint) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.tint = tint;
+            this.icons = new IIcon[6];
+            for (int side = 0; side < 6; side++) {
+                icons[side] = block.getIcon(side, meta);
+            }
+        }
+
+        public void prepare() {}
+
+        /** Maximum number of vertices emitted by draw, used to reserve buffer space. */
+        public int vertexCount() {
+            return 24;
+        }
 
         public void draw(
             Tessellator tes,
