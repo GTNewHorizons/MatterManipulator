@@ -516,7 +516,6 @@ public class MMRenderer {
         int i = 0;
 
         BlockSpec pooled = new BlockSpec();
-        MultipartPreview multipartPreview = null;
 
         LongOpenHashSet errors = MMRenderer.errors == null ? null : new LongOpenHashSet(MMRenderer.errors);
         LongOpenHashSet warnings = MMRenderer.warnings == null ? null : new LongOpenHashSet(MMRenderer.warnings);
@@ -584,8 +583,7 @@ public class MMRenderer {
                 );
             } else {
                 if (pendingBlock.mp != null) {
-                    if (multipartPreview == null) multipartPreview = new MultipartPreview();
-                    var hint = multipartPreview.createHint(pendingBlock, block, meta, tint, tint != WHITE);
+                    var hint = MultipartPreview.createHint(pendingBlock, block, meta, tint, tint != WHITE);
                     if (hint != null) {
                         RenderHints.INSTANCE.addHint(hint);
                         continue;
