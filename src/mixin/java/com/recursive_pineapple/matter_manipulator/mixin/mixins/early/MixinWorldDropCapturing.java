@@ -6,6 +6,7 @@ import java.util.List;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.world.World;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,6 +23,9 @@ public class MixinWorldDropCapturing implements BlockCaptureDrops {
     @Unique
     private List<ItemStack> mm$capturedDrops;
 
+    @Unique
+    private List<AxisAlignedBB> mm$ignoredAreaForDrops;
+
     @Override
     public void captureDrops() {
         if (mm$capturedDrops == null) {
@@ -30,16 +34,48 @@ public class MixinWorldDropCapturing implements BlockCaptureDrops {
     }
 
     @Override
+    public void ignoreDropsInArea(AxisAlignedBB area) {
+        if (mm$ignoredAreaForDrops == null) {
+            mm$ignoredAreaForDrops = new ArrayList<>();
+        }
+
+        mm$ignoredAreaForDrops.add(area);
+    }
+
+    @Override
     public List<ItemStack> stopCapturingDrops() {
         List<ItemStack> drops = mm$capturedDrops;
+
         mm$capturedDrops = null;
+        mm$ignoredAreaForDrops = null;
+
         return drops;
     }
 
     @Inject(method = "spawnEntityInWorld", cancellable = true, at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;chunkExists(II)Z"))
     public void mm$captureEntityItems(Entity entity, CallbackInfoReturnable<Boolean> cir) {
         if (entity instanceof EntityItem entityItem && mm$capturedDrops != null) {
-            mm$capturedDrops.add(entityItem.getEntityItem());
+            boolean shouldAddDrops = true;
+
+            if (mm$ignoredAreaForDrops != null && !mm$ignoredAreaForDrops.isEmpty()) {
+                double x = entity.posX;
+                double y = entity.posY;
+                double z = entity.posZ;
+
+                for (AxisAlignedBB area : mm$ignoredAreaForDrops) {
+                    if (
+                        area.minX <= x && x <= area.maxX
+                        && area.minY <= y && y <= area.maxY
+                        && area.minZ <= z && z <= area.maxZ
+                    ) {
+                        shouldAddDrops = false;
+                        break;
+                    }
+                }
+            }
+
+            if (shouldAddDrops) mm$capturedDrops.add(entityItem.getEntityItem());
+
             cir.setReturnValue(true);
         }
     }

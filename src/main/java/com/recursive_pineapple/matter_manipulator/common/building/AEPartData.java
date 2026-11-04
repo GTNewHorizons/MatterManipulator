@@ -145,7 +145,7 @@ public class AEPartData {
             tunnel.onTunnelConfigChange();
         }
 
-        if (part instanceof ISegmentedInventory segmentedInventory) {
+        if (part instanceof ISegmentedInventory segmentedInventory && mAEUpgrades != null) {
             if (segmentedInventory.getInventoryByName("upgrades") instanceof UpgradeInventory upgradeInv) {
                 if (!MMUtils.installUpgrades(context, upgradeInv, mAEUpgrades, true, false)) {
                     success = false;

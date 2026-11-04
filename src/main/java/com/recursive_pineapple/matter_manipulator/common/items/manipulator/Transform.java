@@ -30,6 +30,7 @@ public class Transform {
 
     public static final int FLIP_X = 0b1, FLIP_Y = 0b10, FLIP_Z = 0b100, FORWARD_MASK = 0b111000, FORWARD_SHIFT = 3,
         UP_MASK = 0b111000000, UP_SHIFT = 6;
+    public static Transform DEFAULT_TRANSFORM = new Transform();
 
     public static void sendRotate(ForgeDirection dir, boolean positive) {
         Messages.RotateTransform.sendToServer((dir.ordinal() & 0xFF) | (positive ? 1 : 0) << 8);
@@ -119,6 +120,33 @@ public class Transform {
         forward = transform(forward, rot);
     }
 
+    /**
+     * Invert this transform
+     */
+    public void invert() {
+        rotation = null;
+
+        Matrix4f flip = new Matrix4f();
+        flip.scale(flipX ? -1 : 1, flipY ? -1 : 1, flipZ ? -1 : 1);
+
+        Matrix4f rot = new Matrix4f().lookAlong(v(forward), v(up));
+        Matrix4f rotPrime = new Matrix4f(rot).invert();
+        Matrix4f prime = new Matrix4f(flip).mul(rotPrime);
+
+        for (ForgeDirection dForward : ForgeDirection.VALID_DIRECTIONS) {
+            forward = dForward;
+
+            for (ForgeDirection dUp : ForgeDirection.VALID_DIRECTIONS) {
+                if (v(dUp).dot(v(dForward)) != 0) continue;
+
+                up = dUp;
+                Matrix4f candidate = getRotation();
+
+                if (prime.equals(candidate, 1e-6f)) return;
+            }
+        }
+    }
+
     @Override
     public String toString() {
         return "Transform [flipX=" + flipX
@@ -163,11 +191,11 @@ public class Transform {
         return true;
     }
 
-    private static Vector3f v(ForgeDirection dir) {
+    public static Vector3f v(ForgeDirection dir) {
         return new Vector3f(dir.offsetX, dir.offsetY, dir.offsetZ);
     }
 
-    private static ForgeDirection vprime(Vector3f dir) {
+    public static ForgeDirection vprime(Vector3f dir) {
         return switch (dir.maxComponent()) {
             case 0 -> dir.x > 0 ? EAST : WEST;
             case 1 -> dir.y > 0 ? UP : DOWN;

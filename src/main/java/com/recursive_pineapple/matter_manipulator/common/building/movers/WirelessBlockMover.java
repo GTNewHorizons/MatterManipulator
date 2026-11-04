@@ -27,21 +27,21 @@ public class WirelessBlockMover extends StandardBlockMover {
     }
 
     @Override
-    public StandardBlock remove(PendingMove pendingMove, World world, int x, int y, int z) {
-        if (pendingMove != null && Mods.AppliedEnergistics2.isModLoaded()) { return removeWireless(pendingMove, world, x, y, z); }
+    public StandardBlock snapshot(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z) {
+        if (ctx != null && Mods.AppliedEnergistics2.isModLoaded()) { return removeWireless(ctx, world, x, y, z); }
 
-        return super.remove(pendingMove, world, x, y, z);
+        return super.snapshot(ctx, world, x, y, z);
     }
 
     @Override
-    public void place(PendingMove pendingMove, World world, int x, int y, int z, StandardBlock standardBlock) {
-        if (pendingMove != null) {
-            adjustWirelessLinkNbt(standardBlock, pendingMove);
+    public void place(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z, StandardBlock standardBlock) {
+        if (ctx != null) {
+            adjustWirelessLinkNbt(standardBlock, ctx);
         }
 
-        super.place(pendingMove, world, x, y, z, standardBlock);
+        super.place(ctx, world, x, y, z, standardBlock);
 
-        if (pendingMove != null && Mods.AppliedEnergistics2.isModLoaded()) {
+        if (ctx != null && Mods.AppliedEnergistics2.isModLoaded()) {
             linkPartnersToNewLocation(world, x, y, z);
         }
     }
@@ -52,19 +52,19 @@ public class WirelessBlockMover extends StandardBlockMover {
      * {@link #linkPartnersToNewLocation}.
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private StandardBlock removeWireless(PendingMove pendingMove, World world, int x, int y, int z) {
-        if (!(world.getTileEntity(x, y, z) instanceof TileWirelessBase wireless)) { return super.remove(pendingMove, world, x, y, z); }
+    private StandardBlock removeWireless(PendingMove.PendingMoveApplyContext ctx, World world, int x, int y, int z) {
+        if (!(world.getTileEntity(x, y, z) instanceof TileWirelessBase wireless)) { return super.snapshot(ctx, world, x, y, z); }
 
         List<DimensionalCoord> links = wireless.getConnectedCoords();
 
         for (DimensionalCoord link : links) {
-            if (pendingMove.isInSourceRegion(link.x, link.y, link.z)) continue;
+            if (ctx.pendingMove.isInSourceRegion(link.x, link.y, link.z)) continue;
 
             TileWirelessBase partner = getWirelessTile(world, link);
             if (partner != null) partner.unlink(wireless);
         }
 
-        StandardBlock standardBlock = super.remove(pendingMove, world, x, y, z);
+        StandardBlock standardBlock = super.snapshot(ctx, world, x, y, z);
 
         // unlinking also removed the external partners from this tile, so put the saved links back
         if (standardBlock.tileData() != null) {
@@ -99,7 +99,7 @@ public class WirelessBlockMover extends StandardBlockMover {
         return world.getTileEntity(coord.x, coord.y, coord.z) instanceof TileWirelessBase tile ? tile : null;
     }
 
-    private void adjustWirelessLinkNbt(StandardBlock standardBlock, PendingMove pendingMove) {
+    private void adjustWirelessLinkNbt(StandardBlock standardBlock, PendingMove.PendingMoveApplyContext ctx) {
         NBTTagCompound tileData = standardBlock.tileData();
         if (tileData == null || !tileData.hasKey("connectedTargets")) return;
 
@@ -112,10 +112,10 @@ public class WirelessBlockMover extends StandardBlockMover {
             int ly = coord.getInteger("y");
             int lz = coord.getInteger("z");
 
-            if (pendingMove.isInSourceRegion(lx, ly, lz)) {
-                coord.setInteger("x", lx + pendingMove.getMoveOffsetX());
-                coord.setInteger("y", ly + pendingMove.getMoveOffsetY());
-                coord.setInteger("z", lz + pendingMove.getMoveOffsetZ());
+            if (ctx.pendingMove.isInSourceRegion(lx, ly, lz)) {
+                coord.setInteger("x", lx + ctx.pendingMove.getMoveOffsetX());
+                coord.setInteger("y", ly + ctx.pendingMove.getMoveOffsetY());
+                coord.setInteger("z", lz + ctx.pendingMove.getMoveOffsetZ());
             }
 
             i++;
