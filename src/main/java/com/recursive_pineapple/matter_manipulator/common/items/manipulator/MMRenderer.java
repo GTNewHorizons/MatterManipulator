@@ -294,7 +294,7 @@ public class MMRenderer {
             VoxelAABB aabb = new VoxelAABB(vA, vB);
 
             // expand the AABB if the shape uses coord C
-            if ((state.config.placeMode != PlaceMode.GEOMETRY || state.config.shape.requiresC()) && isCValid) {
+            if (state.config.placeMode == PlaceMode.GEOMETRY && state.config.shape.requiresC() && isCValid) {
                 Objects.requireNonNull(coordC);
                 vC = coordC.toVec();
 
