@@ -138,8 +138,7 @@ public class PendingBuild extends AbstractBuildable {
                 continue;
             }
 
-            // if this block is protected, ignore it completely and print a warning
-            if (!isEditable(world, x, y, z, true)) {
+            if (next.spec.isAir() && world.isAirBlock(x, y, z)) {
                 pendingBlocks.removeFirst();
                 continue;
             }
@@ -148,6 +147,12 @@ public class PendingBuild extends AbstractBuildable {
             // since the pending blocks are sorted by their contained block, this is usually true
             if (!toPlace.isEmpty() && !next.spec.isEquivalent(toPlace.get(0).spec)) {
                 break;
+            }
+
+            // if this block is protected, ignore it completely and print a warning
+            if (!isEditable(world, x, y, z, true)) {
+                pendingBlocks.removeFirst();
+                continue;
             }
 
             PendingBlock existing = PendingBlock.fromBlock(world, x, y, z);
