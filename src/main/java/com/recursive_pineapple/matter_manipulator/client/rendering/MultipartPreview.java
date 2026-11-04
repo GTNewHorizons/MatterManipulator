@@ -33,7 +33,6 @@ import scala.collection.JavaConversions;
 /** Captures native multipart geometry on the client thread for a single render hint. */
 public final class MultipartPreview extends Hint {
 
-    private static final ThreadLocal<long[]> QUAD_ORDER = ThreadLocal.withInitial(() -> new long[0]);
     private MultipartAnalysisResult multipart;
     private ModelQuadView[] quads;
     private final boolean statusTint;
@@ -80,29 +79,11 @@ public final class MultipartPreview extends Hint {
             super.draw(tes, eyeX, eyeY, eyeZ, originX, originY, originZ);
             return;
         }
-        long[] order = QUAD_ORDER.get();
-        if (order.length < quads.length) {
-            order = new long[quads.length];
-            QUAD_ORDER.set(order);
-        }
+        QuadViewComparator comparator = new QuadViewComparator();
         // The legacy cube path offsets the eye position by half a block; native meshes use world coordinates.
-        for (int q = 0; q < quads.length; q++) {
-            ModelQuadView quad = quads[q];
-            double cx = 0, cy = 0, cz = 0;
-            for (int v = 0; v < 4; v++) {
-                cx += quad.getX(v);
-                cy += quad.getY(v);
-                cz += quad.getZ(v);
-            }
-            double dx = x + cx * 0.25 - (eyeX + 0.5);
-            double dy = y + cy * 0.25 - (eyeY + 0.5);
-            double dz = z + cz * 0.25 - (eyeZ + 0.5);
-            float distance = (float) (dx * dx + dy * dy + dz * dz);
-            order[q] = (long) ~Float.floatToIntBits(distance) << 32 | q & 0xFFFFFFFFL;
-        }
-        Arrays.sort(order, 0, quads.length);
-        for (int q = 0; q < quads.length; q++) {
-            ModelQuadView quad = quads[(int) order[q]];
+        comparator.setOrigin((float) (eyeX + 0.5 - x), (float) (eyeY + 0.5 - y), (float) (eyeZ + 0.5 - z));
+        Arrays.sort(quads, comparator);
+        for (ModelQuadView quad : quads) {
             for (int v = 0; v < 4; v++) {
                 int color = quad.getColor(v);
                 tes.setColorRGBA(
