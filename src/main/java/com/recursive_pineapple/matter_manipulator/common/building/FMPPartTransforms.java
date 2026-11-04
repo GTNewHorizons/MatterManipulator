@@ -33,6 +33,7 @@ public class FMPPartTransforms {
             case "mcr_face", "mcr_hllw" -> transformFaceSlot(slot, transform);
             case "mcr_edge" -> transformEdgeSlot(slot, transform);
             case "mcr_cnr" -> transformCornerSlot(slot, transform);
+            case "mcr_post" -> transformPostAxis(slot, transform);
             default -> -1;
         };
 
@@ -47,6 +48,11 @@ public class FMPPartTransforms {
 
     private static int transformFaceSlot(int slot, Transform transform) {
         return slot < 6 ? rotateFace(slot, transform) : slot;
+    }
+
+    private static int transformPostAxis(int axis, Transform transform) {
+        // FMP posts encode the axis as side >> 1: 0=Y, 1=Z, 2=X.
+        return axis < 3 ? rotateFace(axis << 1, transform) >> 1 : axis;
     }
 
     // Edge slot -> two defining faces. From codechicken.multipart.PartMap.
