@@ -445,7 +445,8 @@ public class BlockSpec implements ImmutableBlockSpec {
             }
         }
 
-        int itemMeta = block.getDamageValue(world, x, y, z);
+        // Ender IO reports the facade metadata here, not the bundle metadata.
+        int itemMeta = InteropConstants.EIO_CONDUIT.matches(block, blockMeta) ? 0 : block.getDamageValue(world, x, y, z);
 
         spec.metadata = itemMeta;
         spec.item = Optional.ofNullable(item);
