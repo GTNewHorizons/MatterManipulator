@@ -113,8 +113,8 @@ public class PendingBuild extends AbstractBuildable {
 
         BlockSpec pooled = new BlockSpec();
 
-        // check every pending block that's left
-        while (toPlace.size() < tier.placeSpeed && !pendingBlocks.isEmpty()) {
+        int attemptsRemaining = Math.min(tier.placeSpeed, pendingBlocks.size());
+        for (; attemptsRemaining > 0 && !pendingBlocks.isEmpty(); attemptsRemaining--) {
             PendingBlock next = pendingBlocks.getFirst();
 
             int x = next.x, y = next.y, z = next.z;
@@ -194,12 +194,7 @@ public class PendingBuild extends AbstractBuildable {
             if (!canPlace) {
                 pendingBlocks.addLast(pendingBlocks.removeFirst());
                 shuffleCount++;
-
-                if (shuffleCount > pendingBlocks.size()) {
-                    break;
-                } else {
-                    continue;
-                }
+                continue;
             }
 
             // if there's an existing block then remove it if possible
@@ -224,13 +219,7 @@ public class PendingBuild extends AbstractBuildable {
             if (!next.getBlock().canPlaceBlockAt(proxiedWorld, next.x, next.y, next.z)) {
                 pendingBlocks.addLast(pendingBlocks.removeFirst());
                 shuffleCount++;
-
-                // if we've shuffled every block, then we'll never be able to place any of them
-                if (shuffleCount > pendingBlocks.size()) {
-                    break;
-                } else {
-                    continue;
-                }
+                continue;
             }
 
             if (!tryConsumePower(stack, world, x, y, z, next.spec)) {
@@ -251,14 +240,16 @@ public class PendingBuild extends AbstractBuildable {
 
         // check if we could place any blocks
         if (toPlace.isEmpty()) {
-            if (!pendingBlocks.isEmpty()) {
+            if (pendingBlocks.isEmpty()) {
+                sendInfoToPlayer(player, "mm.info.finished_placing");
+            } else if (attemptsRemaining == 0 && shuffleCount < pendingBlocks.size()) {
+                sendInfoToPlayer(player, "mm.info.placed_remaining", 0, pendingBlocks.size());
+            } else {
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.could_not_place",
                     pendingBlocks.size()
                 );
-            } else {
-                sendInfoToPlayer(player, "mm.info.finished_placing");
             }
 
             if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
