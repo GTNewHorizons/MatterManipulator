@@ -22,6 +22,8 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Trans
 import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 
 import codechicken.lib.vec.BlockCoord;
+import codechicken.microblock.BlockMicroMaterial;
+import codechicken.microblock.MicroMaterialRegistry;
 import codechicken.multipart.MultiPartRegistry;
 import codechicken.multipart.TMultiPart;
 import codechicken.multipart.TileMultipart;
@@ -321,57 +323,31 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
         }
     }
 
-    // Material names are "modid:blockname" or "modid:blockname_meta".
-    private String getFirstMicroblockMaterialName() {
+    private BlockMicroMaterial getFirstMicroblockMaterial() {
         if (parts == null) return null;
 
         for (PartData data : parts) {
             if (data == null || data.nbt == null || data.typeId == null) continue;
             if (!data.typeId.startsWith("mcr_")) continue;
 
-            String materialName = data.nbt.getString("material");
-            if (!materialName.isEmpty()) return materialName;
+            // Material registry keys can differ from block IDs, including legacy remaps.
+            var material = MicroMaterialRegistry.getMaterial(data.nbt.getString("material"));
+            if (material instanceof BlockMicroMaterial blockMaterial) return blockMaterial;
         }
 
         return null;
     }
 
-    private static Block parseMaterialBlock(String materialName) {
-        Block block = Block.getBlockFromName(materialName);
-        if (block != null) return block;
-
-        int i = materialName.lastIndexOf('_');
-        if (i > 0) {
-            block = Block.getBlockFromName(materialName.substring(0, i));
-        }
-        return block;
-    }
-
-    private static int parseMaterialMeta(String materialName) {
-        int i = materialName.lastIndexOf('_');
-        if (i > 0) {
-            Block base = Block.getBlockFromName(materialName.substring(0, i));
-            if (base != null) {
-                try {
-                    return Integer.parseInt(materialName.substring(i + 1));
-                } catch (NumberFormatException e) {
-                    return 0;
-                }
-            }
-        }
-        return 0;
-    }
-
     @Override
     public Block getPreviewBlock() {
-        String name = getFirstMicroblockMaterialName();
-        return name != null ? parseMaterialBlock(name) : null;
+        BlockMicroMaterial material = getFirstMicroblockMaterial();
+        return material != null ? material.block() : null;
     }
 
     @Override
     public int getPreviewMeta() {
-        String name = getFirstMicroblockMaterialName();
-        return name != null ? parseMaterialMeta(name) : 0;
+        BlockMicroMaterial material = getFirstMicroblockMaterial();
+        return material != null ? material.meta() : 0;
     }
 
     @Override

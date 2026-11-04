@@ -35,6 +35,7 @@ import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.RenderingConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.rendering.BoxRenderer;
+import com.recursive_pineapple.matter_manipulator.client.rendering.MultipartPreview;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
@@ -515,6 +516,7 @@ public class MMRenderer {
         int i = 0;
 
         BlockSpec pooled = new BlockSpec();
+        MultipartPreview multipartPreview = null;
 
         LongOpenHashSet errors = MMRenderer.errors == null ? null : new LongOpenHashSet(MMRenderer.errors);
         LongOpenHashSet warnings = MMRenderer.warnings == null ? null : new LongOpenHashSet(MMRenderer.warnings);
@@ -581,6 +583,15 @@ public class MMRenderer {
                     tint
                 );
             } else {
+                if (pendingBlock.mp != null) {
+                    if (multipartPreview == null) multipartPreview = new MultipartPreview();
+                    var hint = multipartPreview.createHint(pendingBlock, block, meta, tint, tint != WHITE);
+                    if (hint != null) {
+                        RenderHints.INSTANCE.addHint(hint);
+                        continue;
+                    }
+                }
+
                 RenderHints.INSTANCE.addHint(
                     pendingBlock.x,
                     pendingBlock.y,
