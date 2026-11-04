@@ -119,6 +119,11 @@ public class PendingMove extends AbstractBuildable {
             Location s = move.left();
             Location d = move.right();
 
+            if (world.isAirBlock(s.x, s.y, s.z)) {
+                iter.remove();
+                continue;
+            }
+
             // if either block is protected, ignore them completely and print a warning
             if (!isEditable(world, s.x, s.y, s.z, false) || !isEditable(world, d.x, d.y, d.z, true)) {
                 sendErrorToPlayer(
