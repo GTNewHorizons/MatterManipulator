@@ -525,7 +525,7 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
                     if (match.getStackSize() == 0) continue;
 
                     if (!simulate) {
-                        if (!consumePlasmaEU(req.getStackSize() * BASE_PLASMA_EU_COST)) { return Pair.of(UplinkStatus.NO_PLASMA, null); }
+                        if (!consumePlasmaEU(req.getStackSize() * BASE_PLASMA_EU_COST)) { return Pair.of(UplinkStatus.NO_PLASMA, out); }
                     }
 
                     IAEItemStack result = simulate && pass == 0 ?
