@@ -3,9 +3,9 @@ package com.recursive_pineapple.matter_manipulator.common.building;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Map;
 
 import net.minecraft.block.Block;
@@ -37,7 +37,7 @@ import it.unimi.dsi.fastutil.Pair;
  */
 public class PendingMove extends AbstractBuildable {
 
-    private List<Pair<Location, Location>> moves = null;
+    private Deque<Pair<Location, Location>> moves = null;
 
     private int moveOffsetX, moveOffsetY, moveOffsetZ;
     private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
@@ -108,16 +108,16 @@ public class PendingMove extends AbstractBuildable {
         BlockSpec target = new BlockSpec();
 
         int ops = 0;
-        var iter = moves.listIterator(moves.size());
-
-        ArrayList<Pair<Location, Location>> shuffled = new ArrayList<>();
-
-        // try to move `placeSpeed` blocks from here to there
-        while (ops < tier.placeSpeed && iter.hasPrevious()) {
-            Pair<Location, Location> move = iter.previous();
+        for (int attempts = Math.min(tier.placeSpeed, moves.size()); attempts > 0; attempts--) {
+            Pair<Location, Location> move = moves.getLast();
 
             Location s = move.left();
             Location d = move.right();
+
+            if (world.isAirBlock(s.x, s.y, s.z)) {
+                moves.removeLast();
+                continue;
+            }
 
             // if either block is protected, ignore them completely and print a warning
             if (!isEditable(world, s.x, s.y, s.z, false) || !isEditable(world, d.x, d.y, d.z, true)) {
@@ -129,14 +129,14 @@ public class PendingMove extends AbstractBuildable {
                     s.z,
                     source.getChatComponent()
                 );
-                iter.remove();
+                moves.removeLast();
                 continue;
             }
 
             BlockSpec.fromBlock(source, world, s.x, s.y, s.z);
 
             if (source.isAir()) {
-                iter.remove();
+                moves.removeLast();
                 continue;
             }
 
@@ -149,7 +149,7 @@ public class PendingMove extends AbstractBuildable {
                     s.z,
                     source.getChatComponent()
                 );
-                iter.remove();
+                moves.removeLast();
                 continue;
             }
 
@@ -173,7 +173,7 @@ public class PendingMove extends AbstractBuildable {
                     d.z,
                     source.getChatComponent()
                 );
-                iter.remove();
+                moves.removeLast();
                 continue;
             }
 
@@ -189,8 +189,7 @@ public class PendingMove extends AbstractBuildable {
 
             // if we can't move the source block then skip it for now
             if (!source.getBlock().canPlaceBlockAt(world, d.x, d.y, d.z)) {
-                shuffled.add(move);
-                iter.remove();
+                moves.addFirst(moves.removeLast());
                 continue;
             }
 
@@ -214,11 +213,9 @@ public class PendingMove extends AbstractBuildable {
             playSound(world, s.x, s.y, s.z, SoundResource.MOB_ENDERMEN_PORTAL);
             playSound(world, d.x, d.y, d.z, SoundResource.MOB_ENDERMEN_PORTAL);
 
-            iter.remove();
+            moves.removeLast();
             ops++;
         }
-
-        moves.addAll(shuffled);
 
         playSounds();
         actuallyGivePlayerStuff();
@@ -230,7 +227,7 @@ public class PendingMove extends AbstractBuildable {
                 ops,
                 moves.size()
             );
-        } else {
+        } else if (moves.isEmpty()) {
             sendInfoToPlayer(
                 player,
                 "mm.info.finished_move"
@@ -244,7 +241,7 @@ public class PendingMove extends AbstractBuildable {
     }
 
     private void initMoves() {
-        moves = new ArrayList<>();
+        moves = new ArrayDeque<>();
 
         Location startA = state.config.coordA;
         Location startB = state.config.coordB;
