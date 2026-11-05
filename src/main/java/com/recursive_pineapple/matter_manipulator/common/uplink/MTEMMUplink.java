@@ -503,33 +503,43 @@ public class MTEMMUplink extends MTEExtendedPowerMultiBlockBase<MTEMMUplink> imp
                 continue;
             }
 
-            // spotless:off
-            List<IAEItemStack> matches = fuzzy ?
-                ImmutableList.copyOf(itemInventory.getStorageList().findFuzzy(req.getAEItemStack(), FuzzyMode.IGNORE_ALL)) :
-                Arrays.asList(itemInventory.getStorageList().findPrecise(req.getAEItemStack()));
-            // spotless:on
+            for (int pass = 0; pass < (fuzzy ? 2 : 1) && req.getStackSize() > 0; pass++) {
+                List<IAEItemStack> matches;
+                if (pass == 0) {
+                    IAEItemStack exact = itemInventory.extractItems(
+                        req.getAEItemStack(),
+                        Actionable.SIMULATE,
+                        hatch.getRequestSource()
+                    );
 
-            for (IAEItemStack match : matches) {
-                if (req.getStackSize() == 0) break;
-                if (match == null) continue;
-                if (match.getStackSize() == 0) continue;
+                    if (fuzzy && (exact == null || exact.getStackSize() < req.getStackSize())) continue;
 
-                match = match.copy()
-                    .setStackSize(req.getStackSize());
-
-                if (!simulate) {
-                    if (!consumePlasmaEU(req.getStackSize() * BASE_PLASMA_EU_COST)) { return Pair.of(UplinkStatus.NO_PLASMA, null); }
+                    matches = Arrays.asList(exact);
+                } else {
+                    matches = ImmutableList.copyOf(itemInventory.getStorageList().findFuzzy(req.getAEItemStack(), FuzzyMode.IGNORE_ALL));
                 }
 
-                IAEItemStack result = itemInventory.extractItems(
-                    match,
-                    simulate ? Actionable.SIMULATE : Actionable.MODULATE,
-                    hatch.getRequestSource()
-                );
+                for (IAEItemStack match : matches) {
+                    if (req.getStackSize() == 0) break;
+                    if (match == null) continue;
+                    if (match.getStackSize() == 0) continue;
 
-                if (result != null) {
-                    out.add(BigItemStack.create(result));
-                    req.setStackSize(req.getStackSize() - result.getStackSize());
+                    if (!simulate) {
+                        if (!consumePlasmaEU(req.getStackSize() * BASE_PLASMA_EU_COST)) { return Pair.of(UplinkStatus.NO_PLASMA, null); }
+                    }
+
+                    IAEItemStack result = simulate && pass == 0 ?
+                        match :
+                        itemInventory.extractItems(
+                            match.copy().setStackSize(req.getStackSize()),
+                            simulate ? Actionable.SIMULATE : Actionable.MODULATE,
+                            hatch.getRequestSource()
+                        );
+
+                    if (result != null) {
+                        out.add(BigItemStack.create(result));
+                        req.setStackSize(req.getStackSize() - result.getStackSize());
+                    }
                 }
             }
         }
