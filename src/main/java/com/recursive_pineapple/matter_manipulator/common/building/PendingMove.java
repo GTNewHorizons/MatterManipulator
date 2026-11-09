@@ -13,9 +13,11 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.IChunkProvider;
 
 import net.minecraftforge.common.MinecraftForge;
 
+import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.BuildingConfig;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMover;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMovers;
@@ -38,6 +40,8 @@ import it.unimi.dsi.fastutil.Pair;
 public class PendingMove extends AbstractBuildable {
 
     private Deque<Pair<Location, Location>> moves = null;
+    private final long airFilterBudgetNanos;
+    private int airFilterRemaining;
 
     private int moveOffsetX, moveOffsetY, moveOffsetZ;
     private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
@@ -47,6 +51,7 @@ public class PendingMove extends AbstractBuildable {
 
     public PendingMove(EntityPlayer player, MMState state, ManipulatorTier tier) {
         super(player, state, tier);
+        this.airFilterBudgetNanos = BuildingConfig.airFilterBudgetMicros * 1_000L;
     }
 
     public int getMoveOffsetX() {
@@ -100,9 +105,15 @@ public class PendingMove extends AbstractBuildable {
 
         if (moves == null) {
             initMoves();
+            airFilterRemaining = airFilterBudgetNanos > 0 ? moves.size() : 0;
         }
 
         World world = player.worldObj;
+        filterSourceAir(world);
+        if (airFilterRemaining > 0) {
+            sendInfoToPlayer(player, "mm.info.process_move", 0, moves.size());
+            return;
+        }
 
         BlockSpec source = new BlockSpec();
         BlockSpec target = new BlockSpec();
@@ -220,7 +231,7 @@ public class PendingMove extends AbstractBuildable {
         playSounds();
         actuallyGivePlayerStuff();
 
-        if (ops > 0) {
+        if (ops > 0 || !moves.isEmpty()) {
             sendInfoToPlayer(
                 player,
                 "mm.info.process_move",
@@ -238,6 +249,23 @@ public class PendingMove extends AbstractBuildable {
     @Override
     public void onStopped() {
 
+    }
+
+    private void filterSourceAir(World world) {
+        if (airFilterRemaining == 0) return;
+
+        IChunkProvider chunkProvider = world.getChunkProvider();
+        long start = System.nanoTime();
+        do {
+            Pair<Location, Location> move = moves.getLast();
+            Location source = move.left();
+            boolean sourceAir = chunkProvider.chunkExists(source.x >> 4, source.z >> 4) &&
+                world.isAirBlock(source.x, source.y, source.z);
+
+            moves.removeLast();
+            if (!sourceAir) moves.addFirst(move);
+            airFilterRemaining--;
+        } while (airFilterRemaining > 0 && System.nanoTime() - start < airFilterBudgetNanos);
     }
 
     private void initMoves() {

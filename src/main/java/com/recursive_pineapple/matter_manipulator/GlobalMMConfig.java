@@ -52,8 +52,8 @@ public class GlobalMMConfig {
     public static class BuildingConfig {
 
         @Config.Comment({
-            "Time budget in microseconds per pass for removing air-to-air candidates before building. Server only.",
-            "Applies to geometry, copying, exchanging and cables. 0 disables filtering.",
+            "Time budget in microseconds per pass for removing air-to-air build candidates or empty move sources. Server only.",
+            "Applies to geometry, copying, exchanging, cables and moving. 0 disables filtering.",
             "Applied when starting a new operation. Skipped positions are not revisited."
         })
         @Config.DefaultInt(1_000)
