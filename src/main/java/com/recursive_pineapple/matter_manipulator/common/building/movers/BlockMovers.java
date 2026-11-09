@@ -7,12 +7,21 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
 public enum BlockMovers {
 
-    @Optional(Names.FORGE_MULTIPART)
-    FMP(FMPBlockMover.INSTANCE),
-    @Optional(Names.GREG_TECH_NH)
-    GT(GTBlockMover.INSTANCE),
     @Optional(Names.APPLIED_ENERGISTICS2)
     Wireless(WirelessBlockMover.INSTANCE),
+
+    @Optional(Names.APPLIED_ENERGISTICS2)
+    AE(AEBlockMover.INSTANCE),
+
+    @Optional(Names.FORGE_MULTIPART)
+    FMP(FMPBlockMover.INSTANCE),
+
+    @Optional(Names.GREG_TECH_NH)
+    GT(GTBlockMover.INSTANCE),
+
+    @Optional(Names.CARPENTERS_BLOCKS)
+    Carpenter(CarpenterBlockMover.INSTANCE),
+
     Standard(StandardBlockMover.INSTANCE);
 
     public final BlockMover<?> blockMover;

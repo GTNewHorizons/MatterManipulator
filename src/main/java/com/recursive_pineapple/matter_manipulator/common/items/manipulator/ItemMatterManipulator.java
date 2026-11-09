@@ -1426,7 +1426,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     UIBuildContext buildContext2 = new UIBuildContext(buildContext.getPlayer());
                     TransformWindow transformWindow = new TransformWindow(buildContext2);
 
-                    if (state.config.placeMode != PlaceMode.COPYING) {
+                    if (state.config.placeMode != PlaceMode.COPYING && state.config.placeMode != PlaceMode.MOVING) {
                         transformWindow.buildDirectionWidget();
                     }
 
@@ -2186,9 +2186,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         .widgets(widget)).fillParent());
         }
 
-        public void buildCopyMode() {
-            if (!isClient()) return;
-
+        public void buildRotationWindow() {
             DynamicTextWidget rotationInfo = DynamicTextWidget.dynamicText(() -> {
                 MMState currState = getState(
                     buildContext.getPlayer()
@@ -2291,6 +2289,17 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                         .setSize(40, 36 + 30))
             };
 
+            builder.widget(
+                new Row().widgets(
+                    padding(10, 10),
+                    new Column()
+                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
+                        .widgets(left)).fillParent());
+        }
+
+        public void buildCopyMode() {
+            if (!isClient()) return;
+
             Widget[] right, lessRight;
 
             if (Minecraft.getMinecraft().gameSettings.guiScale <= 2) {
@@ -2391,12 +2400,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 };
             }
 
-            builder.widget(
-                new Row().widgets(
-                    padding(10, 10),
-                    new Column()
-                        .setAlignment(MainAxisAlignment.CENTER, CrossAxisAlignment.START)
-                        .widgets(left)).fillParent());
+            buildRotationWindow();
 
             Column columnRight, columnLessRight;
 
@@ -2514,6 +2518,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     makeCoordinateEditor(buildContext.getPlayer(), Coord.CopyB, CoordComponent.Z)
                 };
             }
+
+            buildRotationWindow();
 
             Column columnRight, columnLessRight;
 
