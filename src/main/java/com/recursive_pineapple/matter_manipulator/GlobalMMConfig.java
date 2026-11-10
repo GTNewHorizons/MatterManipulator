@@ -51,6 +51,16 @@ public class GlobalMMConfig {
     @Config(modid = Names.MATTER_MANIPULATOR, category = "building")
     public static class BuildingConfig {
 
+        @Config.Comment({
+            "Time budget in microseconds per pass for removing air-to-air build candidates or empty move sources. Server only.",
+            "Applies to geometry, copying, exchanging, cables and moving. 0 disables filtering.",
+            "Applied when starting a new operation. Skipped positions are not revisited."
+        })
+        @Config.DefaultInt(1_000)
+        @Config.RangeInt(min = 0, max = 10_000)
+        @Config.Name("Air Filter Budget (us)")
+        public static int airFilterBudgetMicros;
+
         @Config.Comment("Empty ME Output Hatches/Busses when they're removed. Server only.")
         @Config.DefaultBoolean(true)
         @Config.Name("Empty ME Outputs")

@@ -205,7 +205,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
             boolean ok = ctx
                 .tryConsumeItems(
                     Collections.singletonList(BigItemStack.create(stack)),
-                    IPseudoInventory.CONSUME_FUZZY
+                    data.typeId != null && data.typeId.startsWith("mcr_") ? 0 : IPseudoInventory.CONSUME_FUZZY
                 )
                 .leftBoolean();
 
@@ -314,7 +314,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
                 if (stack != null) {
                     context.tryConsumeItems(
                         Collections.singletonList(BigItemStack.create(stack)),
-                        IPseudoInventory.CONSUME_FUZZY
+                        data.typeId != null && data.typeId.startsWith("mcr_") ? 0 : IPseudoInventory.CONSUME_FUZZY
                     );
                 }
             }
