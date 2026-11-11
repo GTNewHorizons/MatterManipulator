@@ -175,6 +175,28 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
         return sorted;
     }
 
+    /** Whether any part needs a neighbouring block to stay, such as a wire or gate. Microblocks don't. */
+    public boolean hasAttachedParts() {
+        if (parts == null) return false;
+
+        for (PartData data : parts) {
+            if (data != null && data.typeId != null && !data.typeId.startsWith("mcr_")) return true;
+        }
+
+        return false;
+    }
+
+    /** Whether every part would have its support block at the given position. */
+    public boolean hasSupport(World world, int x, int y, int z) {
+        if (parts == null) return true;
+
+        for (PartData data : parts) {
+            if (data != null && !hasSupportBlock(world, data, x, y, z)) return false;
+        }
+
+        return true;
+    }
+
     private static boolean hasSupportBlock(World world, PartData data, int x, int y, int z) {
         if (data.typeId == null || data.typeId.startsWith("mcr_")) return true;
         if (data.nbt == null) return true;
