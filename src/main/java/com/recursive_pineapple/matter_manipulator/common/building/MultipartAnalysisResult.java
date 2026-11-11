@@ -202,6 +202,11 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
             int faces = slotted.getSlotMask() & 0x3F;
             if (Integer.bitCount(faces) != 1) continue;
 
+            // AE2 cable buses also take the slot of a lone bus or facade, but they don't need support
+            NBTTagCompound nbt = new NBTTagCompound();
+            part.save(nbt);
+            if (!nbt.hasKey("side") && !nbt.hasKey("orient")) continue;
+
             ForgeDirection dir = ForgeDirection.getOrientation(Integer.numberOfTrailingZeros(faces));
             if (world.isAirBlock(x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ)) return false;
         }
