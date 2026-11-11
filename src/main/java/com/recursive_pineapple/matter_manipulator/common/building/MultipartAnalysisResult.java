@@ -24,6 +24,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.BigItemStack;
 import codechicken.lib.vec.BlockCoord;
 import codechicken.multipart.MultiPartRegistry;
 import codechicken.multipart.TMultiPart;
+import codechicken.multipart.TSlottedPart;
 import codechicken.multipart.TileMultipart;
 
 /**
@@ -173,6 +174,39 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
         PartData[] sorted = parts.clone();
         Arrays.sort(sorted, (a, b) -> Integer.compare(getPartOrder(a), getPartOrder(b)));
         return sorted;
+    }
+
+    public static boolean isMultipart(TileEntity tile) {
+        return tile instanceof TileMultipart;
+    }
+
+    /** Same as {@link #hasAttachedParts()}, for a multipart in the world. */
+    public static boolean hasAttachedParts(TileEntity tile) {
+        if (!(tile instanceof TileMultipart multipart)) return false;
+
+        for (TMultiPart part : multipart.jPartList()) {
+            if (!part.getType().startsWith("mcr_")) return true;
+        }
+
+        return false;
+    }
+
+    /** Whether every part of a multipart in the world would have its support block if it was at the given position. */
+    public static boolean hasSupportAt(TileEntity tile, World world, int x, int y, int z) {
+        if (!(tile instanceof TileMultipart multipart)) return true;
+
+        for (TMultiPart part : multipart.jPartList()) {
+            if (part.getType().startsWith("mcr_") || !(part instanceof TSlottedPart slotted)) continue;
+
+            // parts sitting on a face take that face's slot and nothing else
+            int faces = slotted.getSlotMask() & 0x3F;
+            if (Integer.bitCount(faces) != 1) continue;
+
+            ForgeDirection dir = ForgeDirection.getOrientation(Integer.numberOfTrailingZeros(faces));
+            if (world.isAirBlock(x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ)) return false;
+        }
+
+        return true;
     }
 
     /** Whether any part needs a neighbouring block to stay, such as a wire or gate. Microblocks don't. */

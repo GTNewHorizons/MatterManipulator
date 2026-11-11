@@ -9,13 +9,20 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockBasePressurePlate;
+import net.minecraft.block.BlockDoor;
+import net.minecraft.block.BlockSign;
+import net.minecraft.block.BlockTrapDoor;
+import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.IChunkProvider;
 
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.util.ForgeDirection;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.BuildingConfig;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
@@ -42,6 +49,8 @@ public class PendingMove extends AbstractBuildable {
     private Deque<Pair<Location, Location>> moves = null;
     private final long airFilterBudgetNanos;
     private int airFilterRemaining;
+    /** How many moves haven't been looked at yet. Attached blocks wait until every other block went through. */
+    private int firstPassRemaining = -1;
 
     private int moveOffsetX, moveOffsetY, moveOffsetZ;
     private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
@@ -115,6 +124,8 @@ public class PendingMove extends AbstractBuildable {
             return;
         }
 
+        if (firstPassRemaining < 0) firstPassRemaining = moves.size();
+
         BlockSpec source = new BlockSpec();
         BlockSpec target = new BlockSpec();
 
@@ -125,8 +136,17 @@ public class PendingMove extends AbstractBuildable {
             Location s = move.left();
             Location d = move.right();
 
+            boolean firstPass = firstPassRemaining > 0;
+            if (firstPass) firstPassRemaining--;
+
             if (world.isAirBlock(s.x, s.y, s.z)) {
                 moves.removeLast();
+                continue;
+            }
+
+            // torches, wires and the like go last, so that their support is already in place at the destination
+            if (firstPass && isAttached(world, s.x, s.y, s.z)) {
+                moves.addFirst(moves.removeLast());
                 continue;
             }
 
@@ -192,6 +212,7 @@ public class PendingMove extends AbstractBuildable {
             if (!target.getBlock().isAir(world, d.x, d.y, d.z)) {
                 if (!tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
                     sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+                    if (firstPass) firstPassRemaining++;
                     break;
                 }
 
@@ -199,13 +220,14 @@ public class PendingMove extends AbstractBuildable {
             }
 
             // if we can't move the source block then skip it for now
-            if (!source.getBlock().canPlaceBlockAt(world, d.x, d.y, d.z)) {
+            if (!source.getBlock().canPlaceBlockAt(world, d.x, d.y, d.z) || !hasMultipartSupport(world, s, d)) {
                 moves.addFirst(moves.removeLast());
                 continue;
             }
 
             if (!tryConsumePower(stack, world, s.x, s.y, s.z, source)) {
                 sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+                if (firstPass) firstPassRemaining++;
                 break;
             }
 
@@ -249,6 +271,50 @@ public class PendingMove extends AbstractBuildable {
     @Override
     public void onStopped() {
 
+    }
+
+    /**
+     * Whether a block needs another block to stay in place. The blocks it's attached to are removed without telling
+     * it, so it has to be moved after them.
+     */
+    private static boolean isAttached(World world, int x, int y, int z) {
+        Block block = world.getBlock(x, y, z);
+
+        if (Mods.ForgeMultipart.isModLoaded()) {
+            TileEntity te = world.getTileEntity(x, y, z);
+
+            // only wires, gates and such are attached, microblocks are what they sit on
+            if (MultipartAnalysisResult.isMultipart(te)) return MultipartAnalysisResult.hasAttachedParts(te);
+        }
+
+        Material material = block.getMaterial();
+
+        if (!material.isSolid() && !material.isLiquid() && material != Material.air) return true;
+
+        return block instanceof BlockDoor || block instanceof BlockSign ||
+            block instanceof BlockTrapDoor ||
+            block instanceof BlockBasePressurePlate;
+    }
+
+    /** Wires and gates drop themselves on the next block update when the block they sit on is missing. */
+    private static boolean hasMultipartSupport(World world, Location s, Location d) {
+        if (!Mods.ForgeMultipart.isModLoaded()) return true;
+
+        return MultipartAnalysisResult.hasSupportAt(world.getTileEntity(s.x, s.y, s.z), world, d.x, d.y, d.z);
+    }
+
+    /**
+     * The movers remove blocks without block updates. Attached blocks in the source region are moved later and must
+     * not notice that their support is gone, everything else gets its update here.
+     */
+    private static void notifyRemoval(PendingMove pendingMove, World world, int x, int y, int z, Block removed) {
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            int nx = x + dir.offsetX, ny = y + dir.offsetY, nz = z + dir.offsetZ;
+
+            if (pendingMove != null && pendingMove.isInSourceRegion(nx, ny, nz) && isAttached(world, nx, ny, nz)) continue;
+
+            world.notifyBlockOfNeighborChange(nx, ny, nz, removed);
+        }
     }
 
     private void filterSourceAir(World world) {
@@ -374,6 +440,9 @@ public class PendingMove extends AbstractBuildable {
             BlockCaptureDrops.stopCapturingDrops(worldS);
             if (worldS != worldD) BlockCaptureDrops.stopCapturingDrops(worldD);
         }
+
+        // after the capture, so that whatever pops off outside the moved region drops normally
+        if (worldS.isAirBlock(sx, sy, sz)) notifyRemoval(pendingMove, worldS, sx, sy, sz, blockS);
 
         return true;
     }
