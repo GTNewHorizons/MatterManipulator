@@ -6,6 +6,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.se
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 
 import net.minecraft.block.Block;
@@ -14,6 +15,7 @@ import net.minecraft.block.BlockDoor;
 import net.minecraft.block.BlockSign;
 import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.block.material.Material;
+import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
@@ -436,15 +438,36 @@ public class PendingMove extends AbstractBuildable {
             source.place(pendingMove, worldD, dx, dy, dz, sourceState);
             dest.place(pendingMove, worldS, sx, sy, sz, destState);
         } finally {
-            // delete any items that were dropped
-            BlockCaptureDrops.stopCapturingDrops(worldS);
-            if (worldS != worldD) BlockCaptureDrops.stopCapturingDrops(worldD);
+            keepOtherDrops(worldS, BlockCaptureDrops.stopCapturingDropEntities(worldS), s, d);
+            if (worldS != worldD) keepOtherDrops(worldD, BlockCaptureDrops.stopCapturingDropEntities(worldD), s, d);
         }
 
         // after the capture, so that whatever pops off outside the moved region drops normally
         if (worldS.isAirBlock(sx, sy, sz)) notifyRemoval(pendingMove, worldS, sx, sy, sz, blockS);
 
         return true;
+    }
+
+    /**
+     * The moved blocks keep what they hold, so what they dropped while being removed is deleted. Anything else that
+     * dropped, like a neighbour popping off, goes into the world.
+     */
+    private static void keepOtherDrops(World world, List<EntityItem> drops, Location s, Location d) {
+        for (EntityItem drop : drops) {
+            if (isInsideBlock(drop, s) || isInsideBlock(drop, d)) continue;
+
+            world.spawnEntityInWorld(drop);
+        }
+    }
+
+    private static boolean isInsideBlock(EntityItem drop, Location block) {
+        double margin = 0.05;
+
+        return drop.posX >= block.x - margin && drop.posX <= block.x + 1 + margin &&
+            drop.posY >= block.y - margin &&
+            drop.posY <= block.y + 1 + margin &&
+            drop.posZ >= block.z - margin &&
+            drop.posZ <= block.z + 1 + margin;
     }
 
     @Optional(Names.BLOOD_MAGIC)
