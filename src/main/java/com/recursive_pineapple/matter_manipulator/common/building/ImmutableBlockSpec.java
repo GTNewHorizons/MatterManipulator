@@ -18,6 +18,8 @@ import com.gtnewhorizon.gtnhlib.util.data.ImmutableItemMeta;
 
 import org.jetbrains.annotations.NotNull;
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+
 public interface ImmutableBlockSpec extends ImmutableItemMeta, ImmutableBlockMeta {
 
     UniqueIdentifier getObjectId();
@@ -91,5 +93,58 @@ public interface ImmutableBlockSpec extends ImmutableItemMeta, ImmutableBlockMet
 
     static BlockSpec fromBlockMeta(ImmutableBlockMeta bm) {
         return new BlockSpec().setObject(bm.getBlock(), bm.getBlockMeta());
+    }
+
+    class BlockSpecSortKey implements Comparable<BlockSpecSortKey> {
+
+        static Object2ObjectOpenHashMap<String, String> NAMES_MAP = new Object2ObjectOpenHashMap<>();
+
+        private final boolean hasStack;
+        private final String name;
+        private final int damage;
+        private final boolean hasTag;
+        private final int tagHash;
+
+        public BlockSpecSortKey(ImmutableBlockSpec spec) {
+            ItemStack stack = spec.toStack(1);
+
+            if (stack == null) {
+                hasStack = false;
+                name = "";
+                damage = -1;
+                hasTag = false;
+                tagHash = -1;
+            } else {
+                assert stack.getItem() != null;
+                hasStack = true;
+                name = NAMES_MAP.computeIfAbsent(stack.getItem().delegate.name().toLowerCase(), k -> (String) k);
+                damage = stack.itemDamage;
+                hasTag = stack.hasTagCompound();
+                tagHash = hasTag ? stack.getTagCompound().hashCode() : -1;
+            }
+        }
+
+        @Override
+        public int compareTo(@NotNull ImmutableBlockSpec.BlockSpecSortKey other) {
+            if (!hasStack && other.hasStack) return -1;
+            if (hasStack && !other.hasStack) return 1;
+            if (!hasStack && !other.hasStack) return 0;
+
+            int result;
+
+            if (name != other.name) {
+                result = name.compareTo(other.name);
+                if (result != 0) return result;
+            }
+
+            result = Integer.compare(damage, other.damage);
+            if (result != 0) return result;
+
+            if (!hasTag && other.hasTag) return -1;
+            if (hasTag && !other.hasTag) return 1;
+            if (!hasTag && !other.hasTag) return 0;
+
+            return Integer.compare(tagHash, other.tagHash);
+        }
     }
 }
