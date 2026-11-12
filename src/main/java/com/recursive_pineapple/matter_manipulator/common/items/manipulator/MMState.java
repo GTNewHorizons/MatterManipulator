@@ -73,6 +73,13 @@ import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
 import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration;
 import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration.SmartCopyAction;
+import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableAnalysisAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableCableAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableExchangeAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableGeomAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableSmartCopyApplyAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableSmartCopyPostAnalyzer;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
@@ -88,6 +95,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 
 import org.joml.Vector3i;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import tectech.thing.CustomItemList;
 import tectech.thing.metaTileEntity.hatch.MTEHatchDynamoTunnel;
@@ -367,6 +375,8 @@ public class MMState {
     /**
      * Gets the pending blocks for this manipulator.
      * Note: moving uses a special algorithm, so its value returned here should only be used for drawing the hints.
+     *
+     * @Deprecated See {@link SchedulableAnalyzer}
      */
     public List<PendingBlock> getPendingBlocks(ManipulatorTier tier, World world) {
         return switch (config.placeMode) {
@@ -377,6 +387,9 @@ public class MMState {
         };
     }
 
+    /**
+     * @Deprecated see {@link SchedulableAnalysisAnalyzer}
+     */
     private List<PendingBlock> getAnalysis(World world) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
@@ -455,6 +468,9 @@ public class MMState {
         return analysis.blocks;
     }
 
+    /**
+     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer}
+     */
     private void applySmartCopySubstitutions(World world, List<PendingBlock> blocks, Location coordA) {
         if (GregTech.isModLoaded() && config.replaceCribsWithProxies && hasCap(ItemMatterManipulator.ALLOW_SMART_COPY)) {
             applySmartCopyCribs(world, blocks, coordA);
@@ -469,6 +485,9 @@ public class MMState {
         }
     }
 
+    /**
+     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer#applySmartCopyCrib(World, PendingBlock, Location, BlockSpec)}
+     */
     @Optional(Names.GREG_TECH_NH)
     private void applySmartCopyCribs(World world, List<PendingBlock> blocks, Location coordA) {
         ItemStack proxyStack = ItemList.Hatch_CraftingInput_Bus_Slave.get(1L);
@@ -520,6 +539,8 @@ public class MMState {
      * 2. Records a P2PInfo so that PendingBuild can later place a matching P2P tunnel
      * (input side) at the original source location, preserving the patterns there
      * The result is that all pasted copies route patterns through P2P back to the single source interface.
+     *
+     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer#applySmartCopyP2P(World, PendingBlock, Location, AEPartData[])}
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void applySmartCopyP2P(World world, List<PendingBlock> blocks, Location coordA) {
@@ -582,6 +603,9 @@ public class MMState {
         }
     }
 
+    /**
+     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer#applyP2PInterfaceCopyMode(AEPartData[])}
+     */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void applyP2PInterfaceCopyMode(List<PendingBlock> blocks) {
         if (config.p2pInterfaceCopyMode != P2PInterfaceCopyMode.LINK_TO_ORIGINAL) return;
@@ -595,6 +619,8 @@ public class MMState {
     /**
      * AE allows one input per frequency. The new frequency depends only on the old one and the paste position, so
      * analysing the same paste again gives the same result.
+     *
+     * @Deprecated see {@link SchedulableSmartCopyPostAnalyzer#postP2pInputNewFrequency(AEPartData[], LongOpenHashSet, Location, Vector3i)}
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void giveCopiedP2PInputsNewFrequencies(List<PendingBlock> copy, Location dest, Vector3i arrayOffset) {
@@ -617,7 +643,7 @@ public class MMState {
         }
     }
 
-    private static long getCopiedFrequency(long original, Location dest, Vector3i arrayOffset) {
+    public static long getCopiedFrequency(long original, Location dest, Vector3i arrayOffset) {
         long freq = Hashing.murmur3_128()
             .newHasher()
             .putLong(original)
@@ -650,23 +676,26 @@ public class MMState {
         return out;
     }
 
-    private static synchronized long nextP2PFrequency() {
+    public static synchronized long nextP2PFrequency() {
         lastP2PFrequency = Math.max(System.currentTimeMillis(), lastP2PFrequency + 1);
         return lastP2PFrequency;
     }
 
     @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
-    private static ItemStack getFluidP2PInterfaceStack() {
+    public static ItemStack getFluidP2PInterfaceStack() {
         var item = com.glodblock.github.loader.ItemAndBlockHolder.FLUID_INTERFACE_P2P;
         return item != null ? new ItemStack(item) : null;
     }
 
     @com.recursive_pineapple.matter_manipulator.asm.Optional(Names.AE2_FLUID_CRAFT)
-    private static boolean isFluidInterfaceStack(PortableItemStack stack) {
+    public static boolean isFluidInterfaceStack(PortableItemStack stack) {
         var item = com.glodblock.github.loader.ItemAndBlockHolder.FLUID_INTERFACE;
         return item != null && stack != null && stack.item != null && stack.getItem() == item;
     }
 
+    /**
+     * @Deprecated see {@link SchedulableExchangeAnalyzer}
+     */
     private List<PendingBlock> getExchangeBlocks(ManipulatorTier tier, World world) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
@@ -734,7 +763,7 @@ public class MMState {
     }
 
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private void placingAECable(PendingBlock pendingBlock, ImmutableBlockSpec cable) {
+    public void placingAECable(PendingBlock pendingBlock, ImmutableBlockSpec cable) {
         if (pendingBlock.ae == null) pendingBlock.ae = new AEAnalysisResult();
 
         AEAnalysisResult ae = (AEAnalysisResult) pendingBlock.ae;
@@ -744,6 +773,9 @@ public class MMState {
         ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = new AEPartData(((IPartItem) cable.getItem()).createPartFromItemStack(cable.toStack(1)));
     }
 
+    /**
+     * @Deprecated see {@link SchedulableCableAnalyzer}
+     */
     private List<PendingBlock> getCableBlocks(World world) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
@@ -825,7 +857,7 @@ public class MMState {
      * Gets every voxel along a cable path, in order. Each voxel is adjacent to the one before it. A voxel may appear
      * more than once if the path crosses itself.
      */
-    static List<Vector3i> getCablePath(List<Vector3i> points) {
+    public static List<Vector3i> getCablePath(List<Vector3i> points) {
         List<Vector3i> path = new ArrayList<>();
 
         path.add(points.get(0));
@@ -842,6 +874,9 @@ public class MMState {
         return path;
     }
 
+    /**
+     * @Deprecated see {@link SchedulableCableAnalyzer#getOCCable(Vector3i, World, ImmutableBlockSpec)}
+     */
     private void getOCCables(
         Set<Vector3i> voxels,
         List<PendingBlock> out,
@@ -856,6 +891,9 @@ public class MMState {
         }
     }
 
+    /**
+     * @Deprecated see {@link SchedulableCableAnalyzer#getGTCable(Vector3i, byte, byte, World, ImmutableBlockSpec)}
+     */
     @Optional(Names.GREG_TECH_NH)
     private void getGTCables(List<Vector3i> path, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
         if (block instanceof BlockMachines) {
@@ -917,7 +955,7 @@ public class MMState {
      * Does nothing unless the clicked block is a laser hatch facing the end of the path.
      */
     @Optional(Names.GREG_TECH_NH)
-    private void addCableHatch(World world, Vector3i end, @Nullable Vector3i hatch, Map<Vector3i, Integer> connections, List<PendingBlock> out) {
+    public void addCableHatch(World world, Vector3i end, @Nullable Vector3i hatch, Map<Vector3i, Integer> connections, List<PendingBlock> out) {
         if (hatch == null) return;
 
         if (!(world.getTileEntity(hatch.x, hatch.y, hatch.z) instanceof IGregTechTileEntity igte)) return;
@@ -947,7 +985,7 @@ public class MMState {
      * @return True if the cable is a laser pipe, including mirrors.
      */
     @Optional(Names.GREG_TECH_NH)
-    private static boolean isLaserPipe(ImmutableBlockSpec cable) {
+    public static boolean isLaserPipe(ImmutableBlockSpec cable) {
         return MMUtils.getIndexSafe(GregTechAPI.METATILEENTITIES, cable.getItemMeta()) instanceof MTEPipeLaser;
     }
 
@@ -962,7 +1000,7 @@ public class MMState {
     }
 
     @Optional(Names.GREG_TECH_NH)
-    private static ImmutableBlockSpec getLaserMirrorSpec() {
+    public static ImmutableBlockSpec getLaserMirrorSpec() {
         ItemStack stack = CustomItemList.LASERpipeSmart.get(1);
 
         return new BlockSpec().setObject(stack.getItem(), stack.getItemDamage());
@@ -971,7 +1009,7 @@ public class MMState {
     /**
      * @return True if the connection flags are perpendicular.
      */
-    private static boolean isTurn(int flags) {
+    public static boolean isTurn(int flags) {
         if (Integer.bitCount(flags) != 2) return false;
 
         // straight lines connect to opposite sides: down/up, north/south, west/east
@@ -980,6 +1018,9 @@ public class MMState {
             flags != (ForgeDirection.WEST.flag | ForgeDirection.EAST.flag);
     }
 
+    /**
+     * @Deprecated see {@link SchedulableCableAnalyzer#getAECable(Vector3i, World, ImmutableBlockSpec)}
+     */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void getAECables(Set<Vector3i> voxels, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
         if (cableSpec.getItem() instanceof IPartItem partItem) {
@@ -1014,7 +1055,7 @@ public class MMState {
     }
 
     @Optional(Names.APPLIED_ENERGISTICS2)
-    private void clearAECable(PendingBlock pendingBlock) {
+    public void clearAECable(PendingBlock pendingBlock) {
         if (pendingBlock.ae == null) return;
 
         AEAnalysisResult ae = (AEAnalysisResult) pendingBlock.ae;
@@ -1024,6 +1065,9 @@ public class MMState {
         ae.mAEParts[ForgeDirection.UNKNOWN.ordinal()] = null;
     }
 
+    /**
+     * @Deprecated see {@link SchedulableGeomAnalyzer}
+     */
     private List<PendingBlock> getGeomPendingBlocks(World world) {
         Location coordA = config.coordA;
         Location coordB = config.coordB;
@@ -1073,6 +1117,9 @@ public class MMState {
         return pending;
     }
 
+    /**
+     * @Deprecated see {@link com.recursive_pineapple.matter_manipulator.common.utils.voxels.LineIterator}
+     */
     private static List<Vector3i> getLineVoxels(int x1, int y1, int z1, int x2, int y2, int z2) {
         List<Vector3i> voxels = new ArrayList<>();
 
@@ -1149,6 +1196,9 @@ public class MMState {
         return voxels;
     }
 
+    /**
+     * @Deprecated see {@link com.recursive_pineapple.matter_manipulator.common.utils.voxels.LineIterator}
+     */
     private void iterateLine(ArrayList<PendingBlock> pending, int x1, int y1, int z1, int x2, int y2, int z2) {
         XSTR rng = new XSTR(config.hashCode());
 
@@ -1157,6 +1207,9 @@ public class MMState {
         }
     }
 
+    /**
+     * @Deprecated see {@link com.recursive_pineapple.matter_manipulator.common.utils.voxels.CubeIterator}
+     */
     private void iterateCube(
         ArrayList<PendingBlock> pending,
         int minX,
@@ -1191,6 +1244,9 @@ public class MMState {
         }
     }
 
+    /**
+     * @Deprecated see {@link com.recursive_pineapple.matter_manipulator.common.utils.voxels.SphereIterator}
+     */
     private void iterateSphere(
         ArrayList<PendingBlock> pending,
         int minX,
@@ -1266,6 +1322,9 @@ public class MMState {
         }
     }
 
+    /**
+     * @Deprecated see {@link com.recursive_pineapple.matter_manipulator.common.utils.voxels.CylinderIterator}
+     */
     private void iterateCylinder(ArrayList<PendingBlock> pending, Vector3i coordA, Vector3i coordB, Vector3i coordC) {
         XSTR rng = new XSTR(config.hashCode());
 
@@ -1442,7 +1501,7 @@ public class MMState {
      * @return The direction from one point to another point on one of its axes, or UNKNOWN if the points are equal or
      *         not on a shared axis.
      */
-    static ForgeDirection getAxisDirection(Vector3i from, Vector3i to) {
+    public static ForgeDirection getAxisDirection(Vector3i from, Vector3i to) {
         int dx = Integer.signum(to.x - from.x), dy = Integer.signum(to.y - from.y), dz = Integer.signum(to.z - from.z);
 
         for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
