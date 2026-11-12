@@ -77,6 +77,8 @@ public class PendingBuild extends AbstractBuildable {
     private final long airFilterBudgetNanos;
     private int airFilterRemaining;
     private long shuffledWithoutProgress;
+    /** Set once nothing else can be placed, so multiparts stop waiting for a support that isn't coming. */
+    private boolean placeUnsupported;
     private final HashSet<Long> visited = new HashSet<>();
 
     private final LongList errors = new LongArrayList();
@@ -163,6 +165,13 @@ public class PendingBuild extends AbstractBuildable {
             // if this block is protected, ignore it completely and print a warning
             if (!isEditable(world, x, y, z, true)) {
                 takePendingBlock();
+                continue;
+            }
+
+            // wires and gates drop themselves without their support, which may be a multipart that's placed later
+            if (next.mp != null && !placeUnsupported && !((MultipartAnalysisResult) next.mp).hasSupport(world, x, y, z)) {
+                pendingBlocks.addLast(pendingBlocks.removeFirst());
+                shuffledWithoutProgress++;
                 continue;
             }
 
@@ -257,6 +266,7 @@ public class PendingBuild extends AbstractBuildable {
                 sendInfoToPlayer(player, "mm.info.placed_remaining", 0, pendingBlocks.size());
             } else {
                 shuffledWithoutProgress = 0;
+                placeUnsupported = true;
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.could_not_place",
@@ -273,6 +283,7 @@ public class PendingBuild extends AbstractBuildable {
 
         shuffledWithoutProgress = 0;
         PendingBlock first = toPlace.get(0);
+        if (first.mp == null) placeUnsupported = false;
 
         ItemStack perBlock = first.getStack();
         long total = 0;
