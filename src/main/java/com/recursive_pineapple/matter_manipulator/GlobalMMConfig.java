@@ -61,6 +61,25 @@ public class GlobalMMConfig {
         @Config.Name("Air Filter Budget (us)")
         public static int airFilterBudgetMicros;
 
+        @Config.Comment({
+            "Time budget in microseconds per tick for heavy operations.",
+            "Such as: getting blocks, analyzing blocks, placing blocks.",
+            "Applies to all modes. 0 disables budget limit."
+        })
+        @Config.DefaultInt(20_000)
+        @Config.RangeInt(min = 0, max = 50_000)
+        @Config.Name("Work Scheduler Budget (μs)")
+        public static int schedulerBudgetMicros;
+
+        @Config.Comment({
+            "Whether to use work scheduler for heavy operations.",
+            "Such as: getting blocks, analyzing blocks, placing blocks.",
+            "Experimental."
+        })
+        @Config.DefaultBoolean(false)
+        @Config.Name("Use Scheduler for Heavy Operations")
+        public static boolean useWorkScheduler;
+
         @Config.Comment("Empty ME Output Hatches/Busses when they're removed. Server only.")
         @Config.DefaultBoolean(true)
         @Config.Name("Empty ME Outputs")

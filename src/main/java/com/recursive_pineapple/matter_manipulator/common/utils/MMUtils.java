@@ -409,6 +409,8 @@ public class MMUtils {
      * Gets all blocks contained in a bounding box.
      * This can certainly be improved but I couldn't get the Iterator version to work properly and this doesn't seem to
      * be a big problem.
+     *
+     * @Deprecated see {@link com.recursive_pineapple.matter_manipulator.common.utils.voxels.BoundingBoxIterator}
      */
     public static List<Vector3i> getBlocksInBB(Location l, Vector3i deltas) {
         int minX = Math.min(l.x, l.x + deltas.x);
@@ -443,6 +445,8 @@ public class MMUtils {
      * @param arraySpan the array repetition counts in each axis
      * @param deltas the region deltas from {@link #getRegionDeltas}
      * @param consumer called with each offset vector; the vector is reused, so callers must not retain references
+     * @Deprecated see
+     *             {@link com.recursive_pineapple.matter_manipulator.common.utils.voxels.ArraySpanOffsetIterator}
      */
     public static void forEachArrayOffset(Vector3i arraySpan, Vector3i deltas, Consumer<Vector3i> consumer) {
         int sx = arraySpan.x;
