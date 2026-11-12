@@ -11,7 +11,10 @@ import java.util.Map;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBasePressurePlate;
+import net.minecraft.block.BlockBed;
+import net.minecraft.block.BlockDirectional;
 import net.minecraft.block.BlockDoor;
+import net.minecraft.block.BlockDoublePlant;
 import net.minecraft.block.BlockSign;
 import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.block.material.Material;
@@ -222,7 +225,7 @@ public class PendingMove extends AbstractBuildable {
             }
 
             // if we can't move the source block then skip it for now
-            if (!source.getBlock().canPlaceBlockAt(world, d.x, d.y, d.z) || !hasMultipartSupport(world, s, d)) {
+            if (!canStayAt(world, s, d, source.getBlock()) || !hasMultipartSupport(world, s, d)) {
                 moves.addFirst(moves.removeLast());
                 continue;
             }
@@ -233,8 +236,12 @@ public class PendingMove extends AbstractBuildable {
                 break;
             }
 
+            int[] otherHalf = getOtherHalf(world, s.x, s.y, s.z);
+
             // try to move the source block into the (now empty) target block
-            if (!moveBlock(this, world, s, source, d, target)) {
+            boolean moved = moveBlock(this, world, s, source, d, target);
+
+            if (!moved) {
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.could_not_move_block.new",
@@ -250,6 +257,21 @@ public class PendingMove extends AbstractBuildable {
 
             moves.removeLast();
             ops++;
+
+            // one half breaks on the next block update without the other, so the other one follows right away
+            if (moved && otherHalf != null) {
+                int ox = s.x + otherHalf[0], oy = s.y + otherHalf[1], oz = s.z + otherHalf[2];
+
+                if (isInSourceRegion(ox, oy, oz) && world.getBlock(ox, oy, oz) == source.getBlock()) {
+                    moves.addLast(
+                        Pair.of(
+                            new Location(s.worldId, ox, oy, oz),
+                            new Location(d.worldId, d.x + otherHalf[0], d.y + otherHalf[1], d.z + otherHalf[2])
+                        )
+                    );
+                    attempts++;
+                }
+            }
         }
 
         playSounds();
@@ -295,7 +317,45 @@ public class PendingMove extends AbstractBuildable {
 
         return block instanceof BlockDoor || block instanceof BlockSign ||
             block instanceof BlockTrapDoor ||
-            block instanceof BlockBasePressurePlate;
+            block instanceof BlockBasePressurePlate ||
+            block instanceof BlockBed;
+    }
+
+    private static boolean isTwoHigh(Block block) {
+        return block instanceof BlockDoor || block instanceof BlockDoublePlant;
+    }
+
+    /** Where the other half of a door, tall plant or bed is from the given half, or null if there's none. */
+    private static int[] getOtherHalf(World world, int x, int y, int z) {
+        Block block = world.getBlock(x, y, z);
+        int meta = world.getBlockMetadata(x, y, z);
+
+        int[] offset;
+
+        if (isTwoHigh(block)) {
+            offset = new int[] {
+                0, (meta & 8) != 0 ? -1 : 1, 0
+            };
+        } else if (block instanceof BlockBed) {
+            int[] toHead = BlockBed.field_149981_a[BlockDirectional.getDirection(meta)];
+            int sign = BlockBed.isBlockHeadOfBed(meta) ? -1 : 1;
+
+            offset = new int[] {
+                sign * toHead[0], 0, sign * toHead[1]
+            };
+        } else {
+            return null;
+        }
+
+        return world.getBlock(x + offset[0], y + offset[1], z + offset[2]) == block ? offset : null;
+    }
+
+    /** Whether the source block can be at the destination. */
+    private static boolean canStayAt(World world, Location s, Location d, Block block) {
+        // an upper half only fits on its lower half, which canPlaceBlockAt never accepts
+        if (isTwoHigh(block) && (world.getBlockMetadata(s.x, s.y, s.z) & 8) != 0) { return world.getBlock(d.x, d.y - 1, d.z) == block; }
+
+        return block.canPlaceBlockAt(world, d.x, d.y, d.z);
     }
 
     /** Wires and gates drop themselves on the next block update when the block they sit on is missing. */
