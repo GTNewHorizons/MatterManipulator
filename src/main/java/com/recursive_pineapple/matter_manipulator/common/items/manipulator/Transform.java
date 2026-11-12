@@ -46,6 +46,11 @@ public class Transform {
         return rot.mul(flip);
     }
 
+    /** Whether this turns things into their mirror image. */
+    public boolean isMirrored() {
+        return flipX ^ flipY ^ flipZ;
+    }
+
     public void cacheRotation() {
         rotation = getRotation();
     }

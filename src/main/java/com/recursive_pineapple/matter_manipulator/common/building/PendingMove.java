@@ -6,16 +6,28 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.se
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockBasePressurePlate;
+import net.minecraft.block.BlockBed;
+import net.minecraft.block.BlockDirectional;
+import net.minecraft.block.BlockDoor;
+import net.minecraft.block.BlockDoublePlant;
+import net.minecraft.block.BlockSign;
+import net.minecraft.block.BlockTrapDoor;
+import net.minecraft.block.material.Material;
+import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.IChunkProvider;
 
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.util.ForgeDirection;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.BuildingConfig;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
@@ -42,6 +54,8 @@ public class PendingMove extends AbstractBuildable {
     private Deque<Pair<Location, Location>> moves = null;
     private final long airFilterBudgetNanos;
     private int airFilterRemaining;
+    /** How many moves haven't been looked at yet. Attached blocks wait until every other block went through. */
+    private int firstPassRemaining = -1;
 
     private int moveOffsetX, moveOffsetY, moveOffsetZ;
     private int srcMinX, srcMinY, srcMinZ, srcMaxX, srcMaxY, srcMaxZ;
@@ -115,6 +129,8 @@ public class PendingMove extends AbstractBuildable {
             return;
         }
 
+        if (firstPassRemaining < 0) firstPassRemaining = moves.size();
+
         BlockSpec source = new BlockSpec();
         BlockSpec target = new BlockSpec();
 
@@ -125,8 +141,17 @@ public class PendingMove extends AbstractBuildable {
             Location s = move.left();
             Location d = move.right();
 
+            boolean firstPass = firstPassRemaining > 0;
+            if (firstPass) firstPassRemaining--;
+
             if (world.isAirBlock(s.x, s.y, s.z)) {
                 moves.removeLast();
+                continue;
+            }
+
+            // torches, wires and the like go last, so that their support is already in place at the destination
+            if (firstPass && isAttached(world, s.x, s.y, s.z)) {
+                moves.addFirst(moves.removeLast());
                 continue;
             }
 
@@ -192,6 +217,7 @@ public class PendingMove extends AbstractBuildable {
             if (!target.getBlock().isAir(world, d.x, d.y, d.z)) {
                 if (!tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
                     sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+                    if (firstPass) firstPassRemaining++;
                     break;
                 }
 
@@ -199,18 +225,23 @@ public class PendingMove extends AbstractBuildable {
             }
 
             // if we can't move the source block then skip it for now
-            if (!source.getBlock().canPlaceBlockAt(world, d.x, d.y, d.z)) {
+            if (!canStayAt(world, s, d, source.getBlock()) || !hasMultipartSupport(world, s, d)) {
                 moves.addFirst(moves.removeLast());
                 continue;
             }
 
             if (!tryConsumePower(stack, world, s.x, s.y, s.z, source)) {
                 sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+                if (firstPass) firstPassRemaining++;
                 break;
             }
 
+            int[] otherHalf = getOtherHalf(world, s.x, s.y, s.z);
+
             // try to move the source block into the (now empty) target block
-            if (!moveBlock(this, world, s, source, d, target)) {
+            boolean moved = moveBlock(this, world, s, source, d, target);
+
+            if (!moved) {
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.could_not_move_block.new",
@@ -226,6 +257,21 @@ public class PendingMove extends AbstractBuildable {
 
             moves.removeLast();
             ops++;
+
+            // one half breaks on the next block update without the other, so the other one follows right away
+            if (moved && otherHalf != null) {
+                int ox = s.x + otherHalf[0], oy = s.y + otherHalf[1], oz = s.z + otherHalf[2];
+
+                if (isInSourceRegion(ox, oy, oz) && world.getBlock(ox, oy, oz) == source.getBlock()) {
+                    moves.addLast(
+                        Pair.of(
+                            new Location(s.worldId, ox, oy, oz),
+                            new Location(d.worldId, d.x + otherHalf[0], d.y + otherHalf[1], d.z + otherHalf[2])
+                        )
+                    );
+                    attempts++;
+                }
+            }
         }
 
         playSounds();
@@ -249,6 +295,88 @@ public class PendingMove extends AbstractBuildable {
     @Override
     public void onStopped() {
 
+    }
+
+    /**
+     * Whether a block needs another block to stay in place. The blocks it's attached to are removed without telling
+     * it, so it has to be moved after them.
+     */
+    private static boolean isAttached(World world, int x, int y, int z) {
+        Block block = world.getBlock(x, y, z);
+
+        if (Mods.ForgeMultipart.isModLoaded()) {
+            TileEntity te = world.getTileEntity(x, y, z);
+
+            // only wires, gates and such are attached, microblocks are what they sit on
+            if (MultipartAnalysisResult.isMultipart(te)) return MultipartAnalysisResult.hasAttachedParts(te);
+        }
+
+        Material material = block.getMaterial();
+
+        if (!material.isSolid() && !material.isLiquid() && material != Material.air) return true;
+
+        return block instanceof BlockDoor || block instanceof BlockSign ||
+            block instanceof BlockTrapDoor ||
+            block instanceof BlockBasePressurePlate ||
+            block instanceof BlockBed;
+    }
+
+    private static boolean isTwoHigh(Block block) {
+        return block instanceof BlockDoor || block instanceof BlockDoublePlant;
+    }
+
+    /** Where the other half of a door, tall plant or bed is from the given half, or null if there's none. */
+    private static int[] getOtherHalf(World world, int x, int y, int z) {
+        Block block = world.getBlock(x, y, z);
+        int meta = world.getBlockMetadata(x, y, z);
+
+        int[] offset;
+
+        if (isTwoHigh(block)) {
+            offset = new int[] {
+                0, (meta & 8) != 0 ? -1 : 1, 0
+            };
+        } else if (block instanceof BlockBed) {
+            int[] toHead = BlockBed.field_149981_a[BlockDirectional.getDirection(meta)];
+            int sign = BlockBed.isBlockHeadOfBed(meta) ? -1 : 1;
+
+            offset = new int[] {
+                sign * toHead[0], 0, sign * toHead[1]
+            };
+        } else {
+            return null;
+        }
+
+        return world.getBlock(x + offset[0], y + offset[1], z + offset[2]) == block ? offset : null;
+    }
+
+    /** Whether the source block can be at the destination. */
+    private static boolean canStayAt(World world, Location s, Location d, Block block) {
+        // an upper half only fits on its lower half, which canPlaceBlockAt never accepts
+        if (isTwoHigh(block) && (world.getBlockMetadata(s.x, s.y, s.z) & 8) != 0) { return world.getBlock(d.x, d.y - 1, d.z) == block; }
+
+        return block.canPlaceBlockAt(world, d.x, d.y, d.z);
+    }
+
+    /** Wires and gates drop themselves on the next block update when the block they sit on is missing. */
+    private static boolean hasMultipartSupport(World world, Location s, Location d) {
+        if (!Mods.ForgeMultipart.isModLoaded()) return true;
+
+        return MultipartAnalysisResult.hasSupportAt(world.getTileEntity(s.x, s.y, s.z), world, d.x, d.y, d.z);
+    }
+
+    /**
+     * The movers remove blocks without block updates. Attached blocks in the source region are moved later and must
+     * not notice that their support is gone, everything else gets its update here.
+     */
+    private static void notifyRemoval(PendingMove pendingMove, World world, int x, int y, int z, Block removed) {
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            int nx = x + dir.offsetX, ny = y + dir.offsetY, nz = z + dir.offsetZ;
+
+            if (pendingMove != null && pendingMove.isInSourceRegion(nx, ny, nz) && isAttached(world, nx, ny, nz)) continue;
+
+            world.notifyBlockOfNeighborChange(nx, ny, nz, removed);
+        }
     }
 
     private void filterSourceAir(World world) {
@@ -370,12 +498,36 @@ public class PendingMove extends AbstractBuildable {
             source.place(pendingMove, worldD, dx, dy, dz, sourceState);
             dest.place(pendingMove, worldS, sx, sy, sz, destState);
         } finally {
-            // delete any items that were dropped
-            BlockCaptureDrops.stopCapturingDrops(worldS);
-            if (worldS != worldD) BlockCaptureDrops.stopCapturingDrops(worldD);
+            keepOtherDrops(worldS, BlockCaptureDrops.stopCapturingDropEntities(worldS), s, d);
+            if (worldS != worldD) keepOtherDrops(worldD, BlockCaptureDrops.stopCapturingDropEntities(worldD), s, d);
         }
 
+        // after the capture, so that whatever pops off outside the moved region drops normally
+        if (worldS.isAirBlock(sx, sy, sz)) notifyRemoval(pendingMove, worldS, sx, sy, sz, blockS);
+
         return true;
+    }
+
+    /**
+     * The moved blocks keep what they hold, so what they dropped while being removed is deleted. Anything else that
+     * dropped, like a neighbour popping off, goes into the world.
+     */
+    private static void keepOtherDrops(World world, List<EntityItem> drops, Location s, Location d) {
+        for (EntityItem drop : drops) {
+            if (isInsideBlock(drop, s) || isInsideBlock(drop, d)) continue;
+
+            world.spawnEntityInWorld(drop);
+        }
+    }
+
+    private static boolean isInsideBlock(EntityItem drop, Location block) {
+        double margin = 0.05;
+
+        return drop.posX >= block.x - margin && drop.posX <= block.x + 1 + margin &&
+            drop.posY >= block.y - margin &&
+            drop.posY <= block.y + 1 + margin &&
+            drop.posZ >= block.z - margin &&
+            drop.posZ <= block.z + 1 + margin;
     }
 
     @Optional(Names.BLOOD_MAGIC)
