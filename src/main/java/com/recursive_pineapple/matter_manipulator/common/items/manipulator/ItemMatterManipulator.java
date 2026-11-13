@@ -38,6 +38,7 @@ import net.minecraft.item.EnumRarity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.MathHelper;
@@ -99,6 +100,8 @@ import com.recursive_pineapple.matter_manipulator.common.building.InteropConstan
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBuild;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMBuild;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMMove;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItemList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
@@ -114,6 +117,8 @@ import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3i;
@@ -1159,6 +1164,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     static final Map<EntityPlayer, IBuildable> PENDING_BUILDS = new MapMaker().weakKeys()
         .makeMap();
 
+    static final Map<EntityPlayer, FSMBuild> SCHEDULED_BUILDS = new MapMaker().weakKeys().makeMap();
+    static final Map<EntityPlayer, FSMMove> SCHEDULED_MOVES = new MapMaker().weakKeys().makeMap();
+
     @Override
     public EnumAction getItemUseAction(ItemStack stack) {
         return EnumAction.bow;
@@ -1177,52 +1185,246 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
     }
 
+    private void stopSchedulable(EntityPlayer player) {
+        if (!player.worldObj.isRemote) {
+            FSMBuild build = SCHEDULED_BUILDS.remove(player);
+
+            if (build != null) {
+                WorkScheduler.INSTANCE.removeWork(build);
+                build.finishBuild();
+            }
+
+            FSMMove move = SCHEDULED_MOVES.remove(player);
+
+            if (move != null) {
+                WorkScheduler.INSTANCE.removeWork(move);
+                move.finishMove();
+            }
+        }
+    }
+
     @Override
     public void onPlayerStoppedUsing(ItemStack stack, World world, EntityPlayer player, int itemUseCount) {
         stopBuildable(player);
+        stopSchedulable(player);
+
     }
 
     @Override
     public void onUsingTick(ItemStack stack, EntityPlayer player, int count) {
         if (!player.worldObj.isRemote) {
-            int ticksUsed = Integer.MAX_VALUE - count;
+            if (GlobalMMConfig.BuildingConfig.useWorkScheduler) {
+                onUsingTickScheduled(stack, player, count);
+            } else {
+                onUsingTickDirect(stack, player, count);
+            }
+        }
+    }
 
-            MMState state = getState(stack);
+    private void onUsingTickScheduled(ItemStack stack, EntityPlayer player, int count) {
+        if (!PENDING_BUILDS.isEmpty()) {
+            PENDING_BUILDS.values()
+                .iterator()
+                .forEachRemaining(IBuildable::onStopped);
+            PENDING_BUILDS.clear();
+        }
 
-            if (ticksUsed == 1) {
-                switch (state.config.placeMode) {
-                    case GEOMETRY:
-                    case COPYING:
-                    case EXCHANGING:
-                    case CABLES: {
-                        PENDING_BUILDS.put(player, getPendingBuild(player, stack, state));
-                        break;
-                    }
-                    case MOVING: {
-                        PENDING_BUILDS.put(player, getPendingMove(player, stack, state));
-                        break;
-                    }
-                }
+        if (WorkScheduler.INSTANCE.budgetMicros != GlobalMMConfig.BuildingConfig.schedulerBudgetMicros) {
+            WorkScheduler newScheduler = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
+
+            WorkScheduler.INSTANCE.iterator()
+                .forEachRemaining(newScheduler::scheduleWork);
+            WorkScheduler.INSTANCE = newScheduler;
+        }
+
+        WorkScheduler.INSTANCE.tryDoWork(MinecraftServer.getServer().getTickCounter());
+
+        int ticksUsed = Integer.MAX_VALUE - count;
+
+        MMState state = getState(stack);
+
+        int placeTicks = tier.placeTicks;
+
+        if (state.hasUpgrade(MMUpgrades.Speed)) {
+            placeTicks = placeTicks / 2;
+        }
+
+        switch (state.config.placeMode) {
+            case GEOMETRY:
+            case COPYING:
+            case EXCHANGING:
+            case CABLES: {
+                tickScheduledBuild(stack, player, ticksUsed, state, placeTicks);
+                break;
+            }
+            case MOVING: {
+                tickScheduledMove(stack, player, ticksUsed, state, placeTicks);
+                break;
+            }
+        }
+    }
+
+    private void tickScheduledBuild(ItemStack stack, EntityPlayer player, int ticksUsed, MMState state, int placeTicks) {
+        if (ticksUsed < 1) return;
+        if (ticksUsed == 1) {
+            FSMBuild build = new FSMBuild(state, player, stack, tier);
+            build.onStateChange(FSM::pause);
+
+            SCHEDULED_BUILDS.put(player, build);
+            WorkScheduler.INSTANCE.scheduleWork(build);
+
+            return;
+        }
+
+        FSMBuild build = SCHEDULED_BUILDS.get(player);
+
+        FSMBuild.State prevState = build.getPreviousState();
+        FSMBuild.State currentState = build.getCurrentState();
+
+        if (prevState != currentState) {
+            build.resume();
+
+            if (prevState == FSMBuild.State.WAIT_FOR_ANALYZER) {
+                sendInfoToPlayer(player, "mm.info.analyzed", build.getAnalyzedAmount());
+                return;
             }
 
-            int placeTicks = tier.placeTicks;
+            return;
+        }
 
-            if (state.hasUpgrade(MMUpgrades.Speed)) {
-                placeTicks = placeTicks / 2;
+        if (ticksUsed % placeTicks == 0) {
+            if (build.getLastWorkingTick() - WorkScheduler.INSTANCE.getLastTIck() > placeTicks) {
+                sendInfoToPlayer(player, "mm.info.work_pending");
+                return;
             }
 
-            if (ticksUsed >= 10 && (ticksUsed % placeTicks) == 0) {
-                try {
-                    IBuildable buildable = PENDING_BUILDS.get(player);
+            if (currentState == FSMBuild.State.WAIT_FOR_ANALYZER) {
+                sendInfoToPlayer(player, "mm.info.analyzed", build.getAnalyzedAmount());
+                return;
+            }
 
-                    if (buildable != null) buildable.tryPlaceBlocks(stack, player);
-                } catch (Throwable t) {
-                    MMMod.LOG.error("Could not place blocks", t);
+            if (currentState == FSMBuild.State.PLACE_BLOCK) {
+                if (build.isStalled()) {
                     sendErrorToPlayer(
                         player,
-                        "mm.info.error.could_not_place_blocks"
+                        "mm.info.error.could_not_place",
+                        build.getRemainingAmount()
+                    );
+                } else {
+                    sendInfoToPlayer(
+                        player,
+                        "mm.info.placed_remaining",
+                        build.getPlacedAmount(),
+                        build.getRemainingAmount()
                     );
                 }
+
+                build.resetBudget();
+                return;
+            }
+        }
+    }
+
+    private void tickScheduledMove(ItemStack stack, EntityPlayer player, int ticksUsed, MMState state, int placeTicks) {
+        if (ticksUsed < 1) return;
+        if (ticksUsed == 1) {
+            FSMMove move = new FSMMove(state, player, stack, tier);
+            move.onStateChange(FSM::pause);
+
+            SCHEDULED_MOVES.put(player, move);
+            WorkScheduler.INSTANCE.scheduleWork(move);
+
+            return;
+        }
+
+        FSMMove move = SCHEDULED_MOVES.get(player);
+
+        FSMMove.State prevState = move.getPreviousState();
+        FSMMove.State currentState = move.getCurrentState();
+
+        if (prevState != currentState) {
+            move.resume();
+
+            if (prevState == FSMMove.State.INIT_MOVES) {
+                sendInfoToPlayer(player, "mm.info.analyzed", move.getRemainingAmount());
+                return;
+            }
+
+            return;
+        }
+
+        if (ticksUsed % placeTicks == 0) {
+            if (move.getLastWorkingTick() - WorkScheduler.INSTANCE.getLastTIck() > placeTicks) {
+                sendInfoToPlayer(player, "mm.info.work_pending");
+                return;
+            }
+
+            if (currentState == FSMMove.State.MOVE_BLOCK) {
+                sendInfoToPlayer(
+                    player,
+                    "mm.info.process_move",
+                    move.getMovedAmount(),
+                    move.getRemainingAmount()
+                );
+                move.resetBudget();
+                return;
+            }
+        }
+    }
+
+    private void onUsingTickDirect(ItemStack stack, EntityPlayer player, int count) {
+        if (!SCHEDULED_BUILDS.isEmpty() || !SCHEDULED_MOVES.isEmpty()) {
+            SCHEDULED_BUILDS.values()
+                .iterator()
+                .forEachRemaining(FSMBuild::finishBuild);
+            SCHEDULED_MOVES.values()
+                .iterator()
+                .forEachRemaining(FSMMove::finishMove);
+
+            SCHEDULED_BUILDS.clear();
+            SCHEDULED_MOVES.clear();
+
+            WorkScheduler.INSTANCE.iterator()
+                .forEachRemaining(WorkScheduler.INSTANCE::removeWork);
+        }
+
+        int ticksUsed = Integer.MAX_VALUE - count;
+
+        MMState state = getState(stack);
+
+        if (ticksUsed == 1) {
+            switch (state.config.placeMode) {
+                case GEOMETRY:
+                case COPYING:
+                case EXCHANGING:
+                case CABLES: {
+                    PENDING_BUILDS.put(player, getPendingBuild(player, stack, state));
+                    break;
+                }
+                case MOVING: {
+                    PENDING_BUILDS.put(player, getPendingMove(player, stack, state));
+                    break;
+                }
+            }
+        }
+
+        int placeTicks = tier.placeTicks;
+
+        if (state.hasUpgrade(MMUpgrades.Speed)) {
+            placeTicks = placeTicks / 2;
+        }
+
+        if (ticksUsed >= 10 && (ticksUsed % placeTicks) == 0) {
+            try {
+                IBuildable buildable = PENDING_BUILDS.get(player);
+
+                if (buildable != null) buildable.tryPlaceBlocks(stack, player);
+            } catch (Throwable t) {
+                MMMod.LOG.error("Could not place blocks", t);
+                sendErrorToPlayer(
+                    player,
+                    "mm.info.error.could_not_place_blocks"
+                );
             }
         }
     }

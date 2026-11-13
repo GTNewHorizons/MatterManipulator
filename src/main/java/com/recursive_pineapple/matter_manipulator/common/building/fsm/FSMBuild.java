@@ -1,6 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
+import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendWarningToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.GregTech;
 
@@ -110,7 +111,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     public final ItemStack stack;
     public final ItemMatterManipulator.ManipulatorTier tier;
 
-    protected final AbstractBuildable buildable;
+    protected AbstractBuildable buildable;
     protected FSMAnalyzer analyzer;
     protected Deque<PendingBlock> pendingBlocks;
     protected WirelessLinkFixer wirelessLinkFixer;
@@ -138,7 +139,6 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         this.world = player.worldObj;
         this.stack = stack;
         this.tier = tier;
-        this.buildable = new AbstractBuildable(player, state, tier);
     }
 
     @Override
@@ -180,15 +180,14 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
     public void finishBuild() {
         if (finished) return;
+        if (buildable == null) return;
 
         buildable.actuallyGivePlayerStuff();
-        if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
 
         if (!buildable.pendingItems.isEmpty() || !buildable.pendingFluids.isEmpty()) {
             MMMod.LOG.error("Build stopped without delivering all items! There's a bug somewhere!");
         }
 
-        buildable.playSounds();
         Messages.BuildStatus.sendToPlayer((EntityPlayerMP) player, Pair.of(errors, warnings));
 
         finished = true;
@@ -218,6 +217,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         pooled = new BlockSpec();
         proxiedWorld = new ProxiedWorld(world);
         applyContext = new FSMBuildApplyContext(stack);
+        buildable = new AbstractBuildable(player, state, tier);
         return true;
     }
 
@@ -245,6 +245,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         if (getLastWorkingTick() != lastPlaceTick) {
             buildable.resetWarnings();
             buildable.refillPower(stack);
+            buildable.actuallyGivePlayerStuff();
         }
 
         lastPlaceTick = getLastWorkingTick();
@@ -339,7 +340,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             }
             wirelessLinkFixer.tryApply(world, x, y, z);
             world.notifyBlockOfNeighborChange(x, y, z, Blocks.air);
-            placedAmount++;
+            finishPlaceBlock();
             return true;
         }
 
@@ -401,8 +402,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         rememberP2POutputs(pending);
         wirelessLinkFixer.tryApply(world, x, y, z);
 
-        placeBudget--;
-        placedAmount++;
+        finishPlaceBlock();
 
         return true;
     }
@@ -415,6 +415,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     @FSM.Event(State.NAMES.COMPLETE)
     protected boolean completeBuild() {
         finishBuild();
+        sendInfoToPlayer(player, "mm.info.finished_placing");
         return true;
     }
 
@@ -427,6 +428,14 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         pendingBlocks.addLast(pendingBlocks.removeFirst());
         shuffledWithoutProgress++;
         return !isStalled();
+    }
+
+    private void finishPlaceBlock() {
+        buildable.playSounds();
+        if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
+
+        placeBudget--;
+        placedAmount++;
     }
 
     private PendingBlock takePendingBlock() {
