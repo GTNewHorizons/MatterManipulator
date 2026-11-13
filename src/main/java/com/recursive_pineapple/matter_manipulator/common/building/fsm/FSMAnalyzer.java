@@ -3,6 +3,7 @@ package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.BiPredicate;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.MathHelper;
@@ -49,7 +50,10 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     public final List<PendingBlock> blocks = new ArrayList<>();
 
     protected ISchedulable analyzer;
+    protected Exception analyzerError;
     protected Iterator<PendingBlock> blockIterator;
+
+    private final BiPredicate<ISchedulable, Exception> childErrorHandler = this::handleChildError;
 
     public FSMAnalyzer(EntityPlayer player, MMState state, World world, ItemMatterManipulator.ManipulatorTier tier) {
         super(State.INIT_ANALYZER, State.FINISH);
@@ -58,6 +62,15 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         this.player = player;
         this.world = world;
         this.tier = tier;
+    }
+
+    protected boolean handleChildError(ISchedulable schedulable, Exception e) {
+        if (schedulable == analyzer) {
+            analyzerError = e;
+            return true;
+        }
+
+        return false;
     }
 
     @FSM.Event(State.NAMES.INIT_ANALYZER)
@@ -70,12 +83,19 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         };
 
         getScheduler().scheduleWork(analyzer);
+
         return true;
     }
 
     @FSM.Transition(from = State.NAMES.INIT_ANALYZER, to = State.NAMES.WAIT_FOR_ANALYZER)
     protected boolean analyzerInitialized() {
         return analyzer != null;
+    }
+
+    @FSM.Event(State.NAMES.WAIT_FOR_ANALYZER)
+    protected boolean propagateAnalyzerError() throws Exception {
+        if (analyzerError != null) throw analyzerError;
+        return false;
     }
 
     @FSM.Transition(from = State.NAMES.WAIT_FOR_ANALYZER, to = State.NAMES.INIT_BLOCK_ITERATOR)
@@ -140,16 +160,19 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
 
     @Override
     public void onScheduled(WorkScheduler scheduler) {
-        if (getScheduler() == scheduler) return;
-
         super.onScheduled(scheduler);
 
         if (scheduler == null || !hasWork()) return;
+
+        scheduler.addErrorHandler(this.childErrorHandler);
+
         if (analyzer != null && analyzer.hasWork()) scheduler.scheduleWork(analyzer);
     }
 
     @Override
     public void onUnscheduled() {
+        WorkScheduler scheduler = getScheduler();
+        if (scheduler != null) scheduler.removeErrorHandler(this.childErrorHandler);
         unscheduleChild(analyzer);
     }
 }

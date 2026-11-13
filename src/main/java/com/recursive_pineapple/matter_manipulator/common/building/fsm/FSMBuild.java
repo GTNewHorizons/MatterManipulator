@@ -11,6 +11,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -71,6 +72,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 
 import it.unimi.dsi.fastutil.Pair;
@@ -113,6 +115,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
     protected AbstractBuildable buildable;
     protected FSMAnalyzer analyzer;
+    protected Exception analyzerError;
     protected Deque<PendingBlock> pendingBlocks;
     protected WirelessLinkFixer wirelessLinkFixer;
     protected BlockSpec pooled;
@@ -130,6 +133,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     private final LongList warnings = new LongArrayList();
     private final List<PendingBlock> appliedP2POutputs = new ArrayList<>();
     private final Set<Pair<Long, ForgeDirection>> convertedSources = new HashSet<>();
+    private final BiPredicate<ISchedulable, Exception> childErrorHandler = this::handleChildError;
 
     public FSMBuild(MMState state, EntityPlayer player, ItemStack stack, ItemMatterManipulator.ManipulatorTier tier) {
         super(State.INIT_ANALYZER, State.FINISH);
@@ -143,16 +147,26 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
     @Override
     public void onScheduled(WorkScheduler scheduler) {
-        if (getScheduler() == scheduler) return;
-
         super.onScheduled(scheduler);
 
         if (scheduler == null || !hasWork()) return;
+        scheduler.addErrorHandler(this.childErrorHandler);
         if (analyzer != null && analyzer.hasWork()) scheduler.scheduleWork(analyzer);
+    }
+
+    protected boolean handleChildError(ISchedulable schedulable, Exception e) {
+        if (schedulable == analyzer) {
+            analyzerError = e;
+            return true;
+        }
+
+        return false;
     }
 
     @Override
     public void onUnscheduled() {
+        WorkScheduler scheduler = getScheduler();
+        if (scheduler != null) scheduler.removeErrorHandler(this.childErrorHandler);
         unscheduleChild(analyzer);
     }
 
@@ -205,6 +219,12 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         return analyzer != null;
     }
 
+    @FSM.Event(State.NAMES.WAIT_FOR_ANALYZER)
+    protected boolean propagateAnalyzerError() throws Exception {
+        if (analyzerError != null) throw analyzerError;
+        return false;
+    }
+
     @FSM.Transition(from = State.NAMES.WAIT_FOR_ANALYZER, to = State.NAMES.INIT_BUILD)
     protected boolean analyzerComplete() {
         return !analyzer.hasWork();
@@ -255,6 +275,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
+
         if (!world.getChunkProvider().chunkExists(chunkX, chunkZ)) {
             takePendingBlock();
             return true;
@@ -281,13 +302,17 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         existing.analyze(world.getTileEntity(x, y, z), PendingBlock.ANALYZE_ARCH);
         if (PendingBlock.areEquivalent(existing, next)) {
             PendingBlock block = takePendingBlock();
+
             if (supportsConfiguring()) {
                 applyContext.pendingBlock = block;
                 block.apply(applyContext, world);
                 rememberP2POutputs(block);
                 buildable.playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
             }
+
             wirelessLinkFixer.tryApply(world, x, y, z);
+            finishPlaceBlock();
+
             return true;
         }
 
@@ -296,6 +321,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             case REPLACEABLE -> existing.getBlock().isReplaceable(world, x, y, z);
             case ALL -> true;
         };
+
         canPlace &= existing.getBlock().getBlockHardness(world, x, y, z) >= 0;
         if (!canPlace) return rotatePendingBlock();
 
@@ -304,6 +330,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                 takePendingBlock();
                 return true;
             }
+
             if (!buildable.tryConsumePower(stack, world, x, y, z, existing.spec)) {
                 sendErrorToPlayer(player, "mm.info.error.out_of_eu");
                 return false;
@@ -313,6 +340,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         proxiedWorld.airX = x;
         proxiedWorld.airY = y;
         proxiedWorld.airZ = z;
+
         if (!next.getBlock().canPlaceBlockAt(proxiedWorld, x, y, z)) return rotatePendingBlock();
 
         if (!buildable.tryConsumePower(stack, world, x, y, z, next.spec)) {
@@ -332,23 +360,28 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
         int metadata = pending.spec.getBlockMeta();
         BlockSpec existingSpec = BlockSpec.fromBlock(pooled, world, x, y, z);
+
         if (existingSpec.equals(pending.spec)) {
             if (supportsConfiguring()) {
                 applyContext.pendingBlock = pending;
                 pending.apply(applyContext, world);
                 rememberP2POutputs(pending);
             }
+
             wirelessLinkFixer.tryApply(world, x, y, z);
             world.notifyBlockOfNeighborChange(x, y, z, Blocks.air);
             finishPlaceBlock();
+
             return true;
         }
 
         if (!pending.isFree()) {
             ItemStack perBlock = pending.getStack();
             BigItemStack extracted = MMItemConsumer.consume(applyContext, BigItemStack.create(perBlock));
+
             if (extracted == null || extracted.stackSize < perBlock.stackSize) {
                 if (extracted != null) buildable.givePlayerItems(extracted.toStacks().toArray(new ItemStack[0]));
+
                 sendWarningToPlayer(player, "mm.info.warning.could_not_find", 1);
                 sendWarningToPlayer(
                     player,
@@ -356,8 +389,10 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                     pending.getDisplayNameChat(),
                     perBlock.stackSize
                 );
+
                 pendingBlocks.addFirst(pending);
                 visited.remove(coord);
+
                 return false;
             }
         }
@@ -369,6 +404,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
         if (!pending.spec.isAir()) {
             Block block = pending.getBlock();
+
             if (pending.getItem() instanceof ItemBlock itemBlock && Block.getBlockFromItem(itemBlock) == block) {
                 boolean placed = itemBlock.placeBlockAt(
                     pending.getStack(),
@@ -383,6 +419,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                     0,
                     metadata
                 );
+
                 if (!placed && replacing) world.notifyBlocksOfNeighborChange(x, y, z, existingSpec.getBlock());
             } else {
                 if (!world.setBlock(x, y, z, block, metadata, 3)) {
@@ -390,6 +427,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                     if (!pending.isFree()) buildable.givePlayerItems(pending.getStack());
                     return true;
                 }
+
                 if (world.getBlock(x, y, z) == block) {
                     block.onBlockPlacedBy(world, x, y, z, player, stack);
                     block.onPostBlockPlaced(world, x, y, z, metadata);
@@ -400,6 +438,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         applyContext.pendingBlock = pending;
         pending.apply(applyContext, world);
         rememberP2POutputs(pending);
+
         wirelessLinkFixer.tryApply(world, x, y, z);
 
         finishPlaceBlock();

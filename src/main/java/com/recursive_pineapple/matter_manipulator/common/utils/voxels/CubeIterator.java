@@ -54,12 +54,12 @@ public class CubeIterator implements Iterator<Vector3i> {
         z++;
 
         if (z > maxZ) {
-            z = 0;
+            z = minZ;
             y++;
         }
 
         if (y > maxY) {
-            y = 0;
+            y = minY;
             x++;
         }
 

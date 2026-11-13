@@ -4,7 +4,8 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.lang.reflect.InvocationTargetException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -166,6 +167,8 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
     }
 
     protected void discoverStateMethods() {
+        MethodHandles.Lookup lookup = MethodHandles.lookup();
+
         for (Class<?> type = getClass(); type != FSM.class && type != null; type = type.getSuperclass()) {
             for (Method method : type.getDeclaredMethods()) {
                 Event event = method.getAnnotation(Event.class);
@@ -179,23 +182,32 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
                     throw new IllegalArgumentException("FSM methods must take no arguments and return boolean: " + method);
                 }
 
-                method.setAccessible(true);
-                BooleanSupplier action = () -> {
-                    try {
-                        return (boolean) method.invoke(this);
-                    } catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new IllegalStateException("Failed to invoke FSM method: " + method, e);
-                    }
-                };
+                try {
+                    method.setAccessible(true);
 
-                if (event != null) {
-                    int state = stateOrdinal(event.value());
-                    stateEvents.computeIfAbsent(state, k -> new ArrayList<>()).add(action);
-                } else {
-                    int fromState = stateOrdinal(transition.from());
-                    int toState = stateOrdinal(transition.to());
-                    stateTransitions.computeIfAbsent(fromState, k -> new ArrayList<>())
-                        .add(IntReferenceImmutablePair.of(toState, action));
+                    MethodHandle methodHandle = lookup.unreflect(method)
+                        .bindTo(this);
+
+                    BooleanSupplier action = () -> {
+                        try {
+                            return (boolean) methodHandle.invokeExact();
+                        } catch (Throwable e) {
+                            throw new IllegalStateException("Failed to invoke FSM method: " + method, e);
+                        }
+                    };
+
+                    if (event != null) {
+                        int state = stateOrdinal(event.value());
+                        stateEvents.computeIfAbsent(state, k -> new ArrayList<>()).add(action);
+                    } else {
+                        int fromState = stateOrdinal(transition.from());
+                        int toState = stateOrdinal(transition.to());
+                        stateTransitions.computeIfAbsent(fromState, k -> new ArrayList<>())
+                            .add(IntReferenceImmutablePair.of(toState, action));
+                    }
+                } catch (Throwable t) {
+                    if (t instanceof IllegalArgumentException argumentException) throw argumentException;
+                    throw new ExceptionInInitializerError(t);
                 }
             }
         }

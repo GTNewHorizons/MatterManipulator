@@ -1,9 +1,11 @@
 package com.recursive_pineapple.matter_manipulator.common.utils.scheduler;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 
@@ -20,6 +22,7 @@ public class WorkScheduler {
     private long elapsedThisTick;
 
     private final Set<ISchedulable> workers = new LinkedHashSet<>();
+    private final Set<BiPredicate<ISchedulable, Exception>> errorHandlers = new HashSet<>();
 
     public WorkScheduler(long budgetMicros) {
         this.budgetMicros = budgetMicros;
@@ -75,7 +78,7 @@ public class WorkScheduler {
      * @param tick the current tick
      * @return {@code true} if the scheduler ran; {@code false} if the budget is spent
      */
-    public boolean tryDoWork(long tick) {
+    public boolean tryDoWork(long tick) throws Exception {
         if (!canDoWork(tick)) return false;
 
         doWork();
@@ -87,7 +90,15 @@ public class WorkScheduler {
         return Collections.unmodifiableSet(new LinkedHashSet<>(workers)).iterator();
     }
 
-    protected void doWork() {
+    public boolean addErrorHandler(BiPredicate<ISchedulable, Exception> handler) {
+        return errorHandlers.add(handler);
+    }
+
+    public boolean removeErrorHandler(BiPredicate<ISchedulable, Exception> handler) {
+        return errorHandlers.remove(handler);
+    }
+
+    protected void doWork() throws Exception {
         long start = System.nanoTime();
         long now = start;
 
@@ -106,7 +117,18 @@ public class WorkScheduler {
             ISchedulable worker = iterator.next();
 
             while (worker.hasWork() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros)) {
-                boolean keep = worker.doWork(lastTick) && worker.hasWork();
+                boolean keep;
+
+                try {
+                    keep = worker.doWork(lastTick);
+                } catch (Exception e) {
+                    removeWork(worker);
+                    onError(worker, e);
+                    break;
+                }
+
+                keep &= worker.hasWork();
+
                 if (budgetMicros != 0) now = System.nanoTime();
 
                 if (keep) {
@@ -120,5 +142,15 @@ public class WorkScheduler {
         }
 
         if (budgetMicros != 0) elapsedThisTick += (now - start) / 1000;
+    }
+
+    protected void onError(ISchedulable worker, Exception exception) throws Exception {
+        boolean handled = false;
+
+        for (BiPredicate<ISchedulable, Exception> handler : errorHandlers) {
+            handled = handler.test(worker, exception) || handled;
+        }
+
+        if (!handled) throw exception;
     }
 }

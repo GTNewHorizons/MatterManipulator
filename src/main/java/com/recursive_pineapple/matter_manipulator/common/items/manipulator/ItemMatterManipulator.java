@@ -118,6 +118,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 
 import org.jetbrains.annotations.NotNull;
@@ -1237,7 +1238,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             WorkScheduler.INSTANCE = newScheduler;
         }
 
-        WorkScheduler.INSTANCE.tryDoWork(MinecraftServer.getServer().getTickCounter());
+        WorkScheduler.INSTANCE.addErrorHandler(ItemMatterManipulator::handleSchedulerError);
+
+        try {
+            WorkScheduler.INSTANCE.tryDoWork(MinecraftServer.getServer().getTickCounter());
+        } catch (Exception e) {
+            MMMod.LOG.error("Unhandled worker exception", e);
+        }
 
         int ticksUsed = Integer.MAX_VALUE - count;
 
@@ -1265,8 +1272,18 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private void tickScheduledBuild(ItemStack stack, EntityPlayer player, int ticksUsed, MMState state, int placeTicks) {
-        if (ticksUsed < 1) return;
-        if (ticksUsed == 1) {
+        if (ticksUsed < placeTicks) return;
+        if (ticksUsed == placeTicks) {
+            if (state.config.placeMode == PlaceMode.CABLES && Mods.GregTech.isModLoaded()) {
+                Byte sprayColour = MMUtils.getOffhandSprayColour(player);
+
+                if (sprayColour != null) {
+                    state.config.cableColour = sprayColour;
+
+                    if (AppliedEnergistics2.isModLoaded()) MMUtils.recolourAECable(state.config.cables, sprayColour);
+                }
+            }
+
             FSMBuild build = new FSMBuild(state, player, stack, tier);
             build.onStateChange(FSM::pause);
 
@@ -1277,6 +1294,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         FSMBuild build = SCHEDULED_BUILDS.get(player);
+
+        if (build == null) return;
 
         FSMBuild.State prevState = build.getPreviousState();
         FSMBuild.State currentState = build.getCurrentState();
@@ -1293,7 +1312,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         if (ticksUsed % placeTicks == 0) {
-            if (build.getLastWorkingTick() - WorkScheduler.INSTANCE.getLastTIck() > placeTicks) {
+            if (WorkScheduler.INSTANCE.getLastTIck() - build.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }
@@ -1326,8 +1345,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private void tickScheduledMove(ItemStack stack, EntityPlayer player, int ticksUsed, MMState state, int placeTicks) {
-        if (ticksUsed < 1) return;
-        if (ticksUsed == 1) {
+        if (ticksUsed < placeTicks) return;
+        if (ticksUsed == placeTicks) {
             FSMMove move = new FSMMove(state, player, stack, tier);
             move.onStateChange(FSM::pause);
 
@@ -1338,6 +1357,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         FSMMove move = SCHEDULED_MOVES.get(player);
+
+        if (move == null) return;
 
         FSMMove.State prevState = move.getPreviousState();
         FSMMove.State currentState = move.getCurrentState();
@@ -1354,7 +1375,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         if (ticksUsed % placeTicks == 0) {
-            if (move.getLastWorkingTick() - WorkScheduler.INSTANCE.getLastTIck() > placeTicks) {
+            if (WorkScheduler.INSTANCE.getLastTIck() - move.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }
@@ -1427,6 +1448,22 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 );
             }
         }
+    }
+
+    private static boolean handleSchedulerError(ISchedulable schedulable, Exception e) {
+        if (schedulable instanceof FSMBuild build) {
+            MMMod.LOG.error("Could not place blocks", e);
+            sendErrorToPlayer(build.player, "mm.info.error.could_not_place_blocks");
+            return true;
+        }
+
+        if (schedulable instanceof FSMMove move) {
+            MMMod.LOG.error("Could not move blocks", e);
+            sendErrorToPlayer(move.player, "mm.info.error.could_not_place_blocks");
+            return true;
+        }
+
+        return false;
     }
 
     private IBuildable getPendingBuild(EntityPlayer player, ItemStack stack, MMState state) {
@@ -3048,12 +3085,14 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         @SubscribeEvent
         public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
             stopBuildable(event.player);
+            stopSchedulable(event.player);
         }
 
         @SubscribeEvent
         public void onPlayerKilled(LivingDeathEvent event) {
             if (event.entity instanceof EntityPlayer player) {
                 stopBuildable(player);
+                stopSchedulable(player);
             }
         }
     }

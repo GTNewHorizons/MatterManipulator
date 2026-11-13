@@ -3,6 +3,7 @@ package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.BiPredicate;
 
 import net.minecraft.world.World;
 
@@ -11,6 +12,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Locat
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 import com.recursive_pineapple.matter_manipulator.common.utils.voxels.ArraySpanOffsetIterator;
 
@@ -75,8 +77,12 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     protected Iterator<PendingBlock> blockIterator;
     protected Iterator<Vector3i> spanOffsetIterator;
     protected Iterator<PendingBlock> spanBlockIterator;
+    protected List<PendingBlock> baseBlocks;
     protected List<PendingBlock> blocksSpan;
     protected Vector3i spanOffset;
+    protected Exception childError;
+
+    private final BiPredicate<ISchedulable, Exception> childErrorHandler = this::handleChildError;
 
     public FSMAnalysisAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
         super(State.CHECK_VALIDITY, State.FINISH);
@@ -84,6 +90,20 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         this.world = world;
         this.state = state;
         this.blocks = blocks;
+    }
+
+    protected boolean handleChildError(ISchedulable schedulable, Exception e) {
+        if (schedulable == regionAnalyzer || schedulable == smartCopyApplyAnalyzer || schedulable == smartCopyPostAnalyzer) {
+            childError = e;
+            return true;
+        }
+
+        return false;
+    }
+
+    protected boolean propagateChildError() throws Exception {
+        if (childError != null) throw childError;
+        return false;
     }
 
     @FSM.Transition(from = State.NAMES.CHECK_VALIDITY, to = State.NAMES.FINISH)
@@ -108,6 +128,11 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     @FSM.Transition(from = State.NAMES.INIT_REGION, to = State.NAMES.WAIT_REGION)
     protected boolean regionStarted() {
         return regionAnalyzer != null;
+    }
+
+    @FSM.Event(State.NAMES.WAIT_REGION)
+    protected boolean propagateRegionError() throws Exception {
+        return propagateChildError();
     }
 
     @FSM.Transition(from = State.NAMES.WAIT_REGION, to = State.NAMES.INIT_BLOCK_ITERATOR)
@@ -164,6 +189,11 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         return smartCopyApplyAnalyzer != null;
     }
 
+    @FSM.Event(State.NAMES.WAIT_SMART_COPY)
+    protected boolean propagateSmartCopyError() throws Exception {
+        return propagateChildError();
+    }
+
     @FSM.Transition(from = State.NAMES.WAIT_SMART_COPY, to = State.NAMES.PROCESS_BLOCK)
     protected boolean smartCopyComplete() {
         return !smartCopyApplyAnalyzer.hasWork();
@@ -216,6 +246,11 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         return smartCopyPostAnalyzer != null;
     }
 
+    @FSM.Event(State.NAMES.WAIT_BASE_POST)
+    protected boolean propagateBasePostError() throws Exception {
+        return propagateChildError();
+    }
+
     @FSM.Transition(from = State.NAMES.WAIT_BASE_POST, to = State.NAMES.COMPLETE_BASE)
     protected boolean basePostComplete() {
         return !smartCopyPostAnalyzer.hasWork();
@@ -235,7 +270,8 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     @FSM.Event(State.NAMES.INIT_SPAN)
     protected boolean initSpan() {
         spanOffsetIterator = new ArraySpanOffsetIterator(state.config.arraySpan, regionAnalyzer.deltas);
-        blocksSpan = new ArrayList<>();
+        baseBlocks = new ArrayList<>(blocks);
+        blocks.clear();
         return true;
     }
 
@@ -246,9 +282,17 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
 
     @FSM.Event(State.NAMES.ADVANCE_SPAN)
     protected boolean advanceSpan() {
+        if (blocksSpan != null) blocks.addAll(blocksSpan);
+
         smartCopyPostAnalyzer = null;
         spanOffset = spanOffsetIterator.next();
-        spanBlockIterator = blocks.iterator();
+        spanBlockIterator = baseBlocks.iterator();
+        blocksSpan = new ArrayList<>();
+
+        if (spanOffset != null && state.config.transform != null) {
+            spanOffset = state.config.transform.apply(spanOffset);
+        }
+
         return true;
     }
 
@@ -272,6 +316,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         dup.y += spanOffset.y;
         dup.z += spanOffset.z;
         blocksSpan.add(dup);
+
         return true;
     }
 
@@ -282,7 +327,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
 
     @FSM.Event(State.NAMES.INIT_SPAN_POST)
     protected boolean initSpanPostAnalyzer() {
-        smartCopyPostAnalyzer = new FSMSmartCopyPostAnalyzer(world, state, blocks, new Vector3i());
+        smartCopyPostAnalyzer = new FSMSmartCopyPostAnalyzer(world, state, blocksSpan, spanOffset);
         getScheduler().scheduleWork(smartCopyPostAnalyzer);
         return true;
     }
@@ -292,6 +337,11 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         return smartCopyPostAnalyzer != null;
     }
 
+    @FSM.Event(State.NAMES.WAIT_SPAN_POST)
+    protected boolean propagateSpanPostError() throws Exception {
+        return propagateChildError();
+    }
+
     @FSM.Transition(from = State.NAMES.WAIT_SPAN_POST, to = State.NAMES.ADVANCE_SPAN)
     protected boolean spanPostComplete() {
         return !smartCopyPostAnalyzer.hasWork();
@@ -299,8 +349,6 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
 
     @FSM.Event(State.NAMES.COMPLETE_SPAN)
     protected boolean completeSpan() {
-        blocks.clear();
-        blocks.addAll(blocksSpan);
         if (state.config.transform != null) state.config.transform.uncacheRotation();
         return true;
     }
@@ -312,11 +360,12 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
 
     @Override
     public void onScheduled(WorkScheduler scheduler) {
-        if (getScheduler() == scheduler) return;
-
         super.onScheduled(scheduler);
 
         if (scheduler == null || !hasWork()) return;
+
+        scheduler.addErrorHandler(this.childErrorHandler);
+
         if (regionAnalyzer != null && regionAnalyzer.hasWork()) scheduler.scheduleWork(regionAnalyzer);
         if (smartCopyApplyAnalyzer != null && smartCopyApplyAnalyzer.hasWork()) scheduler.scheduleWork(smartCopyApplyAnalyzer);
         if (smartCopyPostAnalyzer != null && smartCopyPostAnalyzer.hasWork()) scheduler.scheduleWork(smartCopyPostAnalyzer);
@@ -324,6 +373,8 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
 
     @Override
     public void onUnscheduled() {
+        WorkScheduler scheduler = getScheduler();
+        if (scheduler != null) scheduler.removeErrorHandler(this.childErrorHandler);
         unscheduleChild(regionAnalyzer);
         unscheduleChild(smartCopyApplyAnalyzer);
         unscheduleChild(smartCopyPostAnalyzer);
