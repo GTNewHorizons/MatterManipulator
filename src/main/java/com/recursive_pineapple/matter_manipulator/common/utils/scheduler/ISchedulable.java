@@ -2,8 +2,12 @@ package com.recursive_pineapple.matter_manipulator.common.utils.scheduler;
 
 /**
  * A worker that a {@link WorkScheduler} processes incrementally
- * <p> {@link #hasWork()} reports whether work remains </p>
- * <p> {@link #doWork(long)} returns whether to continue this pass </p>
+ * <p>
+ * {@link #hasWork()} reports whether work remains
+ * </p>
+ * <p>
+ * {@link #doWork(long)} returns whether to continue this pass
+ * </p>
  */
 public interface ISchedulable {
 
@@ -19,12 +23,14 @@ public interface ISchedulable {
     boolean doWork(long tick);
 
     /**
-     * @param scheduler the scheduler for this worker
-     */
-    void setScheduler(WorkScheduler scheduler);
-
-    /**
      * @return this worker's scheduler, or {@code null}
      */
     WorkScheduler getScheduler();
+
+    /**
+     * @param scheduler the scheduler for this worker
+     */
+    void onScheduled(WorkScheduler scheduler);
+
+    void onUnscheduled();
 }

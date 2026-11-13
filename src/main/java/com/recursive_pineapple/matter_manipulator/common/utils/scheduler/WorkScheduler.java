@@ -1,8 +1,8 @@
 package com.recursive_pineapple.matter_manipulator.common.utils.scheduler;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
@@ -32,13 +32,24 @@ public class WorkScheduler {
      * @return {@code true} if the worker was added
      */
     public boolean scheduleWork(ISchedulable worker) {
-        if (worker.getScheduler() != null) worker.getScheduler().removeWork(worker);
-        worker.setScheduler(this);
+        if (worker.getScheduler() == this) return false;
+        if (worker.getScheduler() != null) {
+            worker.getScheduler().removeWork(worker);
+        }
 
-        return workers.add(worker);
+        boolean added = workers.add(worker);
+        worker.onScheduled(this);
+
+        return added;
     }
 
+    /**
+     * Removes a worker from this scheduler.
+     *
+     * @return {@code true} if the worker was removed
+     */
     public boolean removeWork(ISchedulable worker) {
+        worker.onUnscheduled();
         return workers.remove(worker);
     }
 
@@ -68,7 +79,7 @@ public class WorkScheduler {
     }
 
     public Iterator<ISchedulable> iterator() {
-        return List.copyOf(workers).iterator();
+        return Collections.unmodifiableSet(new LinkedHashSet<>(workers)).iterator();
     }
 
     protected void doWork() {
@@ -77,8 +88,15 @@ public class WorkScheduler {
 
         Iterator<ISchedulable> iterator = iterator();
 
+        boolean hasKeep = true;
+
         while (!workers.isEmpty() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros)) {
-            if (!iterator.hasNext()) iterator = iterator();
+            if (!iterator.hasNext()) {
+                if (!hasKeep) break;
+
+                iterator = iterator();
+                hasKeep = false;
+            }
 
             ISchedulable worker = iterator.next();
 
@@ -86,7 +104,11 @@ public class WorkScheduler {
                 boolean keep = worker.doWork(lastTick) && worker.hasWork();
                 if (budgetMicros != 0) now = System.nanoTime();
 
-                if (!keep) break;
+                if (keep) {
+                    hasKeep = true;
+                } else {
+                    break;
+                }
             }
 
             if (!worker.hasWork()) removeWork(worker);
