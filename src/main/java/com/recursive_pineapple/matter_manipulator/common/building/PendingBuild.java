@@ -71,7 +71,7 @@ import it.unimi.dsi.fastutil.longs.LongList;
 /**
  * Handles all building logic.
  */
-public class PendingBuild extends AbstractBuildable {
+public class PendingBuild extends AbstractBuildable implements IBuildable {
 
     private final Deque<PendingBlock> pendingBlocks;
     private final long airFilterBudgetNanos;
