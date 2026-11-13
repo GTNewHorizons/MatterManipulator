@@ -1,4 +1,4 @@
-package com.recursive_pineapple.matter_manipulator.common.building.schedulable;
+package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.Mods.AppliedEnergistics2;
 
@@ -15,69 +15,93 @@ import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
-import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
-import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
 import com.recursive_pineapple.matter_manipulator.common.utils.voxels.BoundingBoxIterator;
 
 import org.joml.Vector3i;
 
-public class SchedulableExchangeAnalyzer implements ISchedulable {
+public class FSMExchangeAnalyzer extends FSM<FSMExchangeAnalyzer.State, FSMExchangeAnalyzer> {
+
+    public enum State {
+
+        CHECK_VALIDITY,
+        INIT_RANDOM,
+        INIT_VOXELS,
+        PROCESS_VOXEL,
+        FINISH;
+
+        public static class NAMES {
+
+            public static final String CHECK_VALIDITY = "CHECK_VALIDITY";
+            public static final String INIT_RANDOM = "INIT_RANDOM";
+            public static final String INIT_VOXELS = "INIT_VOXELS";
+            public static final String PROCESS_VOXEL = "PROCESS_VOXEL";
+            public static final String FINISH = "FINISH";
+        }
+    }
 
     public final MMState state;
     public final World world;
     public final List<PendingBlock> blocks;
 
-    protected boolean isDone;
     protected XSTR rng;
     protected Vector3i deltas;
     protected boolean replacingAir;
     protected BlockSpec existing;
     protected Iterator<Vector3i> voxelIterator;
 
-    private WorkScheduler scheduler;
+    public FSMExchangeAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
+        super(State.CHECK_VALIDITY, State.FINISH);
 
-    public SchedulableExchangeAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
         this.state = state;
         this.world = world;
         this.blocks = blocks;
 
-        if (!Location.areCompatible(state.config.coordA, state.config.coordB) || !state.config.coordA.isInWorld(world)) {
-            isDone = true;
-            return;
-        }
+        if (!Location.areCompatible(state.config.coordA, state.config.coordB) || !state.config.coordA.isInWorld(world)) { return; }
 
-        if (state.config.replaceWhitelist == null || state.config.replaceWhitelist.specs.isEmpty()) {
-            isDone = true;
-            return;
-        }
+        if (state.config.replaceWhitelist == null || state.config.replaceWhitelist.specs.isEmpty()) { return; }
 
         deltas = MMUtils.getRegionDeltas(state.config.coordA, state.config.coordB);
         replacingAir = state.config.replaceWhitelist.contains(BlockSpec.air());
         existing = new BlockSpec();
     }
 
-    @Override
-    public boolean hasWork() {
-        return !isDone;
+    @FSM.Transition(from = State.NAMES.CHECK_VALIDITY, to = State.NAMES.FINISH)
+    protected boolean invalidConfiguration() {
+        return deltas == null;
     }
 
-    @Override
-    public boolean doWork(long tick) {
-        if (isDone) return false;
+    @FSM.Transition(from = State.NAMES.CHECK_VALIDITY, to = State.NAMES.INIT_RANDOM)
+    protected boolean validConfiguration() {
+        return deltas != null;
+    }
 
-        if (rng == null) {
-            rng = new XSTR(state.config.hashCode());
-            return true;
-        }
+    @FSM.Event(State.NAMES.INIT_RANDOM)
+    protected boolean initRandom() {
+        rng = new XSTR(state.config.hashCode());
+        return true;
+    }
 
-        if (voxelIterator == null) {
-            voxelIterator = new BoundingBoxIterator(state.config.coordA, deltas);
-            return true;
-        } else if (!voxelIterator.hasNext()) {
-            isDone = true;
-            return false;
-        }
+    @FSM.Transition(from = State.NAMES.INIT_RANDOM, to = State.NAMES.INIT_VOXELS)
+    protected boolean randomInitialized() {
+        return rng != null;
+    }
+
+    @FSM.Event(State.NAMES.INIT_VOXELS)
+    protected boolean initVoxels() {
+        voxelIterator = new BoundingBoxIterator(state.config.coordA, deltas);
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.INIT_VOXELS, to = State.NAMES.PROCESS_VOXEL)
+    protected boolean voxelsInitialized() {
+        return voxelIterator != null;
+    }
+
+    @FSM.Event(State.NAMES.PROCESS_VOXEL)
+    protected boolean processVoxel() {
+        if (!voxelIterator.hasNext()) return true;
 
         Vector3i voxel = voxelIterator.next();
 
@@ -127,13 +151,8 @@ public class SchedulableExchangeAnalyzer implements ISchedulable {
         return true;
     }
 
-    @Override
-    public void setScheduler(WorkScheduler scheduler) {
-        this.scheduler = scheduler;
-    }
-
-    @Override
-    public WorkScheduler getScheduler() {
-        return scheduler;
+    @FSM.Transition(from = State.NAMES.PROCESS_VOXEL, to = State.NAMES.FINISH)
+    protected boolean voxelsComplete() {
+        return !voxelIterator.hasNext();
     }
 }

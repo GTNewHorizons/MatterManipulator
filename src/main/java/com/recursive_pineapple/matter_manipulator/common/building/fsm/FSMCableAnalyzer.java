@@ -1,4 +1,4 @@
-package com.recursive_pineapple.matter_manipulator.common.building.schedulable;
+package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -25,22 +25,40 @@ import com.recursive_pineapple.matter_manipulator.common.building.InteropConstan
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
-import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
-import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
 
 import org.joml.Vector3i;
 
 import it.unimi.dsi.fastutil.objects.Object2ByteOpenHashMap;
 
-public class SchedulableCableAnalyzer implements ISchedulable {
+public class FSMCableAnalyzer extends FSM<FSMCableAnalyzer.State, FSMCableAnalyzer> {
+
+    public enum State {
+
+        CHECK_VALIDITY,
+        INIT_PATH,
+        BUILD_CONNECTIONS,
+        INIT_VOXELS,
+        PROCESS_VOXEL,
+        FINISH;
+
+        public static class NAMES {
+
+            public static final String CHECK_VALIDITY = "CHECK_VALIDITY";
+            public static final String INIT_PATH = "INIT_PATH";
+            public static final String BUILD_CONNECTIONS = "BUILD_CONNECTIONS";
+            public static final String INIT_VOXELS = "INIT_VOXELS";
+            public static final String PROCESS_VOXEL = "PROCESS_VOXEL";
+            public static final String FINISH = "FINISH";
+        }
+    }
 
     public final MMState state;
     public final World world;
     public final List<PendingBlock> blocks;
 
-    protected boolean isDone;
     protected BlockSpec pooled;
     protected Block block;
 
@@ -48,71 +66,87 @@ public class SchedulableCableAnalyzer implements ISchedulable {
     protected Iterator<Vector3i> voxelIterator;
     protected Object2ByteOpenHashMap<Vector3i> connections;
 
-    private WorkScheduler scheduler;
+    public FSMCableAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
+        super(State.CHECK_VALIDITY, State.FINISH);
 
-    public SchedulableCableAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
         this.state = state;
         this.world = world;
         this.blocks = blocks;
-
-        if (!Location.areCompatible(state.config.coordA, state.config.coordB) || !state.config.coordA.isInWorld(world)) {
-            isDone = true;
-        }
     }
 
-    @Override
-    public boolean hasWork() {
-        return !isDone;
+    @FSM.Transition(from = State.NAMES.CHECK_VALIDITY, to = State.NAMES.FINISH)
+    protected boolean invalidCoordinates() {
+        return !Location.areCompatible(state.config.coordA, state.config.coordB) || !state.config.coordA.isInWorld(world);
     }
 
-    @Override
-    public boolean doWork(long tick) {
-        if (isDone) return false;
+    @FSM.Transition(from = State.NAMES.CHECK_VALIDITY, to = State.NAMES.INIT_PATH)
+    protected boolean validCoordinates() {
+        return Location.areCompatible(state.config.coordA, state.config.coordB) && state.config.coordA.isInWorld(world);
+    }
 
-        if (path == null) {
-            if (state.config.cables == null)
-                pooled = new BlockSpec();
-            else
-                block = Block.getBlockFromItem(state.config.cables.getItem());
-
-            List<Vector3i> points = MMState.getCablePoints(state.config.coordA.toVec(), state.config.cableCorners, state.config.coordB.toVec());
-            path = MMState.getCablePath(points);
-
-            return true;
+    @FSM.Event(State.NAMES.INIT_PATH)
+    protected boolean initPath() {
+        if (state.config.cables == null) {
+            pooled = new BlockSpec();
+        } else {
+            block = Block.getBlockFromItem(state.config.cables.getItem());
         }
 
-        if (Mods.GregTech.isModLoaded() && isGTCable(block) && connections == null) {
-            connections = new Object2ByteOpenHashMap<>();
+        List<Vector3i> points = MMState.getCablePoints(state.config.coordA.toVec(), state.config.cableCorners, state.config.coordB.toVec());
+        path = MMState.getCablePath(points);
+        return true;
+    }
 
-            for (int i = 0; i < path.size(); i++) {
-                Vector3i voxel = path.get(i);
+    @FSM.Transition(from = State.NAMES.INIT_PATH, to = State.NAMES.BUILD_CONNECTIONS)
+    protected boolean needsConnections() {
+        return Mods.GregTech.isModLoaded() && isGTCable(block);
+    }
 
-                byte flags = connections.getOrDefault(voxel, (byte) 0);
+    @FSM.Transition(from = State.NAMES.INIT_PATH, to = State.NAMES.INIT_VOXELS)
+    protected boolean doesNotNeedConnections() {
+        return !Mods.GregTech.isModLoaded() || !isGTCable(block);
+    }
 
-                // the voxels before and after this one
-                for (int j = i - 1; j <= i + 1; j += 2) {
-                    if (j < 0 || j >= path.size()) continue;
+    @FSM.Event(State.NAMES.BUILD_CONNECTIONS)
+    protected boolean buildConnections() {
+        connections = new Object2ByteOpenHashMap<>();
 
-                    ForgeDirection dir = MMState.getAxisDirection(voxel, path.get(j));
+        for (int i = 0; i < path.size(); i++) {
+            Vector3i voxel = path.get(i);
+            byte flags = connections.getOrDefault(voxel, (byte) 0);
 
-                    // UNKNOWN's flag isn't a side, so it must not end up in the connections
-                    if (dir != ForgeDirection.UNKNOWN) flags |= dir.flag;
-                }
+            for (int j = i - 1; j <= i + 1; j += 2) {
+                if (j < 0 || j >= path.size()) continue;
 
-                connections.put(voxel, flags);
+                ForgeDirection dir = MMState.getAxisDirection(voxel, path.get(j));
+                if (dir != ForgeDirection.UNKNOWN) flags |= dir.flag;
             }
 
-            return true;
+            connections.put(voxel, flags);
         }
 
-        if (voxelIterator == null) {
-            voxelIterator = new LinkedHashSet<>(path).iterator();
+        return true;
+    }
 
-            return true;
-        } else if (!voxelIterator.hasNext()) {
-            isDone = true;
-            return false;
-        }
+    @FSM.Transition(from = State.NAMES.BUILD_CONNECTIONS, to = State.NAMES.INIT_VOXELS)
+    protected boolean connectionsBuilt() {
+        return connections != null;
+    }
+
+    @FSM.Event(State.NAMES.INIT_VOXELS)
+    protected boolean initVoxels() {
+        voxelIterator = new LinkedHashSet<>(path).iterator();
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.INIT_VOXELS, to = State.NAMES.PROCESS_VOXEL)
+    protected boolean voxelsInitialized() {
+        return voxelIterator != null;
+    }
+
+    @FSM.Event(State.NAMES.PROCESS_VOXEL)
+    protected boolean processVoxel() {
+        if (!voxelIterator.hasNext()) return true;
 
         Vector3i voxel = voxelIterator.next();
 
@@ -147,14 +181,9 @@ public class SchedulableCableAnalyzer implements ISchedulable {
         return true;
     }
 
-    @Override
-    public void setScheduler(WorkScheduler scheduler) {
-        this.scheduler = scheduler;
-    }
-
-    @Override
-    public WorkScheduler getScheduler() {
-        return scheduler;
+    @FSM.Transition(from = State.NAMES.PROCESS_VOXEL, to = State.NAMES.FINISH)
+    protected boolean voxelsComplete() {
+        return !voxelIterator.hasNext();
     }
 
     @Optional(Mods.Names.APPLIED_ENERGISTICS2)

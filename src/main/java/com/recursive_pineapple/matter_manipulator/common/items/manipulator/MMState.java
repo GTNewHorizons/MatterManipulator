@@ -73,13 +73,13 @@ import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.building.PortableItemStack;
 import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration;
 import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyIntegration.SmartCopyAction;
-import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableAnalysisAnalyzer;
-import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableAnalyzer;
-import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableCableAnalyzer;
-import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableExchangeAnalyzer;
-import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableGeomAnalyzer;
-import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableSmartCopyApplyAnalyzer;
-import com.recursive_pineapple.matter_manipulator.common.building.schedulable.SchedulableSmartCopyPostAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMAnalysisAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMCableAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMExchangeAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMGeomAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMSmartCopyApplyAnalyzer;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMSmartCopyPostAnalyzer;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
@@ -376,7 +376,7 @@ public class MMState {
      * Gets the pending blocks for this manipulator.
      * Note: moving uses a special algorithm, so its value returned here should only be used for drawing the hints.
      *
-     * @Deprecated See {@link SchedulableAnalyzer}
+     * @Deprecated See {@link FSMAnalyzer}
      */
     public List<PendingBlock> getPendingBlocks(ManipulatorTier tier, World world) {
         return switch (config.placeMode) {
@@ -388,7 +388,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableAnalysisAnalyzer}
+     * @Deprecated see {@link FSMAnalysisAnalyzer}
      */
     private List<PendingBlock> getAnalysis(World world) {
         Location coordA = config.coordA;
@@ -469,7 +469,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer}
+     * @Deprecated see {@link FSMSmartCopyApplyAnalyzer}
      */
     private void applySmartCopySubstitutions(World world, List<PendingBlock> blocks, Location coordA) {
         if (GregTech.isModLoaded() && config.replaceCribsWithProxies && hasCap(ItemMatterManipulator.ALLOW_SMART_COPY)) {
@@ -486,7 +486,8 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer#applySmartCopyCrib(World, PendingBlock, Location, BlockSpec)}
+     * @Deprecated see
+     *             {@link FSMSmartCopyApplyAnalyzer#applySmartCopyCrib(World, PendingBlock, Location, BlockSpec)}
      */
     @Optional(Names.GREG_TECH_NH)
     private void applySmartCopyCribs(World world, List<PendingBlock> blocks, Location coordA) {
@@ -540,7 +541,8 @@ public class MMState {
      * (input side) at the original source location, preserving the patterns there
      * The result is that all pasted copies route patterns through P2P back to the single source interface.
      *
-     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer#applySmartCopyP2P(World, PendingBlock, Location, AEPartData[])}
+     * @Deprecated see
+     *             {@link FSMSmartCopyApplyAnalyzer#applySmartCopyP2P(World, PendingBlock, Location, AEPartData[])}
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void applySmartCopyP2P(World world, List<PendingBlock> blocks, Location coordA) {
@@ -604,7 +606,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableSmartCopyApplyAnalyzer#applyP2PInterfaceCopyMode(AEPartData[])}
+     * @Deprecated see {@link FSMSmartCopyApplyAnalyzer#applyP2PInterfaceCopyMode(AEPartData[])}
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void applyP2PInterfaceCopyMode(List<PendingBlock> blocks) {
@@ -620,7 +622,8 @@ public class MMState {
      * AE allows one input per frequency. The new frequency depends only on the old one and the paste position, so
      * analysing the same paste again gives the same result.
      *
-     * @Deprecated see {@link SchedulableSmartCopyPostAnalyzer#postP2pInputNewFrequency(AEPartData[], LongOpenHashSet, Location, Vector3i)}
+     * @Deprecated see
+     *             {@link FSMSmartCopyPostAnalyzer#postP2pInputNewFrequency(AEPartData[], LongOpenHashSet, Location, Vector3i)}
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void giveCopiedP2PInputsNewFrequencies(List<PendingBlock> copy, Location dest, Vector3i arrayOffset) {
@@ -694,7 +697,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableExchangeAnalyzer}
+     * @Deprecated see {@link FSMExchangeAnalyzer}
      */
     private List<PendingBlock> getExchangeBlocks(ManipulatorTier tier, World world) {
         Location coordA = config.coordA;
@@ -774,7 +777,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableCableAnalyzer}
+     * @Deprecated see {@link FSMCableAnalyzer}
      */
     private List<PendingBlock> getCableBlocks(World world) {
         Location coordA = config.coordA;
@@ -875,7 +878,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableCableAnalyzer#getOCCable(Vector3i, World, ImmutableBlockSpec)}
+     * @Deprecated see {@link FSMCableAnalyzer#getOCCable(Vector3i, World, ImmutableBlockSpec)}
      */
     private void getOCCables(
         Set<Vector3i> voxels,
@@ -892,7 +895,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableCableAnalyzer#getGTCable(Vector3i, byte, byte, World, ImmutableBlockSpec)}
+     * @Deprecated see {@link FSMCableAnalyzer#getGTCable(Vector3i, byte, byte, World, ImmutableBlockSpec)}
      */
     @Optional(Names.GREG_TECH_NH)
     private void getGTCables(List<Vector3i> path, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cable) {
@@ -1019,7 +1022,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableCableAnalyzer#getAECable(Vector3i, World, ImmutableBlockSpec)}
+     * @Deprecated see {@link FSMCableAnalyzer#getAECable(Vector3i, World, ImmutableBlockSpec)}
      */
     @Optional(Names.APPLIED_ENERGISTICS2)
     private void getAECables(Set<Vector3i> voxels, List<PendingBlock> out, Block block, World world, ImmutableBlockSpec cableSpec) {
@@ -1066,7 +1069,7 @@ public class MMState {
     }
 
     /**
-     * @Deprecated see {@link SchedulableGeomAnalyzer}
+     * @Deprecated see {@link FSMGeomAnalyzer}
      */
     private List<PendingBlock> getGeomPendingBlocks(World world) {
         Location coordA = config.coordA;

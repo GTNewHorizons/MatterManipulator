@@ -1,4 +1,4 @@
-package com.recursive_pineapple.matter_manipulator.common.building.schedulable;
+package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -30,77 +30,91 @@ import com.recursive_pineapple.matter_manipulator.common.building.SmartCopyInteg
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
-import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
-import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
 
-public class SchedulableSmartCopyApplyAnalyzer implements ISchedulable {
+public class FSMSmartCopyApplyAnalyzer extends FSM<FSMSmartCopyApplyAnalyzer.State, FSMSmartCopyApplyAnalyzer> {
+
+    public enum State {
+
+        INIT_SPEC,
+        INIT_BLOCK_ITERATOR,
+        PROCESS_BLOCK,
+        FINISH;
+
+        public static class NAMES {
+
+            public static final String INIT_SPEC = "INIT_SPEC";
+            public static final String INIT_BLOCK_ITERATOR = "INIT_BLOCK_ITERATOR";
+            public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
+            public static final String FINISH = "FINISH";
+        }
+    }
 
     public final World world;
-    public final MMState mmState;
+    public final MMState state;
     public final List<PendingBlock> blocks;
 
-    protected boolean isDone;
     protected BlockSpec spec;
     protected Iterator<PendingBlock> blockIterator;
 
-    private WorkScheduler scheduler;
-
-    public SchedulableSmartCopyApplyAnalyzer(World world, MMState mmState, List<PendingBlock> blocks) {
+    public FSMSmartCopyApplyAnalyzer(World world, MMState state, List<PendingBlock> blocks) {
+        super(State.INIT_SPEC, State.FINISH);
 
         this.world = world;
-        this.mmState = mmState;
+        this.state = state;
         this.blocks = blocks;
     }
 
-    @Override
-    public boolean hasWork() {
-        return !isDone;
+    @FSM.Event(State.NAMES.INIT_SPEC)
+    protected boolean initSpec() {
+        spec = new BlockSpec();
+        return true;
     }
 
-    @Override
-    public boolean doWork(long tick) {
-        if (isDone) return false;
+    @FSM.Transition(from = State.NAMES.INIT_SPEC, to = State.NAMES.INIT_BLOCK_ITERATOR)
+    protected boolean specInitialized() {
+        return spec != null;
+    }
 
-        if (spec == null) {
-            spec = new BlockSpec();
-        }
+    @FSM.Event(State.NAMES.INIT_BLOCK_ITERATOR)
+    protected boolean initBlockIterator() {
+        blockIterator = blocks.iterator();
+        return true;
+    }
 
-        if (blockIterator == null) {
-            blockIterator = blocks.iterator();
-        } else if (!blockIterator.hasNext()) {
-            isDone = true;
-            return false;
-        }
+    @FSM.Transition(from = State.NAMES.INIT_BLOCK_ITERATOR, to = State.NAMES.PROCESS_BLOCK)
+    protected boolean blockIteratorInitialized() {
+        return blockIterator != null;
+    }
+
+    @FSM.Event(State.NAMES.PROCESS_BLOCK)
+    protected boolean processBlock() {
+        if (!blockIterator.hasNext()) return true;
 
         PendingBlock block = blockIterator.next();
 
-        if (Mods.GregTech.isModLoaded() && mmState.config.replaceCribsWithProxies && mmState.hasCap(ItemMatterManipulator.ALLOW_SMART_COPY)) {
-            applySmartCopyCrib(world, block, mmState.config.coordA, spec);
+        if (Mods.GregTech.isModLoaded() && state.config.replaceCribsWithProxies && state.hasCap(ItemMatterManipulator.ALLOW_SMART_COPY)) {
+            applySmartCopyCrib(world, block, state.config.coordA, spec);
         }
 
         if (Mods.AppliedEnergistics2.isModLoaded() && block.ae instanceof AEAnalysisResult ae && ae.mAEParts != null) {
-            if (mmState.config.p2pInterfaceCopyMode == MMState.P2PInterfaceCopyMode.LINK_TO_ORIGINAL) {
+            if (state.config.p2pInterfaceCopyMode == MMState.P2PInterfaceCopyMode.LINK_TO_ORIGINAL) {
                 applyP2PInterfaceCopyMode(ae.mAEParts);
             }
 
-            if (mmState.config.interfaceCopyMode == MMState.InterfaceCopyMode.CONVERT_TO_P2P) {
-                applySmartCopyP2P(world, block, mmState.config.coordA, ae.mAEParts);
+            if (state.config.interfaceCopyMode == MMState.InterfaceCopyMode.CONVERT_TO_P2P) {
+                applySmartCopyP2P(world, block, state.config.coordA, ae.mAEParts);
             }
         }
 
         return true;
     }
 
-    @Override
-    public void setScheduler(WorkScheduler scheduler) {
-        this.scheduler = scheduler;
-    }
-
-    @Override
-    public WorkScheduler getScheduler() {
-        return scheduler;
+    @FSM.Transition(from = State.NAMES.PROCESS_BLOCK, to = State.NAMES.FINISH)
+    protected boolean blocksProcessed() {
+        return !blockIterator.hasNext();
     }
 
     @Optional(Mods.Names.GREG_TECH_NH)
