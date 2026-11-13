@@ -60,6 +60,7 @@ public class PendingBlock extends Location {
     public ITileAnalysisIntegration arch;
     public ITileAnalysisIntegration mp;
     public ITileAnalysisIntegration cb;
+    public ITileAnalysisIntegration eio;
     public transient SmartCopyIntegration smartCopy;
 
     public InventoryAnalysis inventory = null;
@@ -83,6 +84,7 @@ public class PendingBlock extends Location {
         this.arch = null;
         this.mp = null;
         this.cb = null;
+        this.eio = null;
         this.smartCopy = null;
         this.inventory = null;
         this.renderOrder = 0;
@@ -153,6 +155,7 @@ public class PendingBlock extends Location {
         if (arch != null) list.add(arch);
         if (mp != null) list.add(mp);
         if (cb != null) list.add(cb);
+        if (eio != null) list.add(eio);
         if (smartCopy != null) list.add(smartCopy);
 
         return list;
@@ -250,6 +253,7 @@ public class PendingBlock extends Location {
         if (arch != null) dup.arch = arch.clone();
         if (mp != null) dup.mp = mp.clone();
         if (cb != null) dup.cb = cb.clone();
+        if (eio != null) dup.eio = eio.clone();
         if (smartCopy != null) dup.smartCopy = smartCopy.clone();
         if (inventory != null) dup.inventory = inventory.clone();
         dup.renderOrder = renderOrder;
@@ -478,6 +482,7 @@ public class PendingBlock extends Location {
         result = prime * result + ((arch == null) ? 0 : arch.hashCode());
         result = prime * result + ((mp == null) ? 0 : mp.hashCode());
         result = prime * result + ((cb == null) ? 0 : cb.hashCode());
+        result = prime * result + ((eio == null) ? 0 : eio.hashCode());
         result = prime * result + ((inventory == null) ? 0 : inventory.hashCode());
         result = prime * result + renderOrder;
         result = prime * result + buildOrder;
@@ -508,6 +513,9 @@ public class PendingBlock extends Location {
         if (cb == null) {
             if (other.cb != null) return false;
         } else if (!cb.equals(other.cb)) return false;
+        if (eio == null) {
+            if (other.eio != null) return false;
+        } else if (!eio.equals(other.eio)) return false;
         if (inventory == null) {
             if (other.inventory != null) return false;
         } else if (!inventory.equals(other.inventory)) return false;
@@ -538,6 +546,7 @@ public class PendingBlock extends Location {
     public static final int ANALYZE_MP = 0b1 << counter++;
     public static final int ANALYZE_CB = 0b1 << counter++;
     public static final int ANALYZE_INV = 0b1 << counter++;
+    public static final int ANALYZE_EIO = 0b1 << counter++;
     public static final int ANALYZE_ALL = -1;
 
     public PendingBlock analyze(TileEntity te, int flags) {
@@ -562,6 +571,10 @@ public class PendingBlock extends Location {
                 this.cb = CarpentersBlocksAnalysisResult.analyze(te);
             }
 
+            if ((flags & ANALYZE_EIO) != 0 && Mods.EnderIO.isModLoaded()) {
+                this.eio = EnderIOAnalysisResult.analyze(te);
+            }
+
             // Microcontroller parts are copied with the item (see MicrocontrollerCompat), not as an inventory
             if (
                 (flags & ANALYZE_INV) != 0 && te instanceof IInventory inventory &&
@@ -580,6 +593,7 @@ public class PendingBlock extends Location {
         if (arch != null) arch.migrate();
         if (mp != null) mp.migrate();
         if (cb != null) cb.migrate();
+        if (eio != null) eio.migrate();
 
         return this;
     }
