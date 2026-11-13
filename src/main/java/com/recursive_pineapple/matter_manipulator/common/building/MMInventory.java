@@ -166,7 +166,7 @@ public class MMInventory implements IPseudoInventory {
      * If items can't be inserted, they're dropped on the ground as an EntityItemLarge.
      * If fluids can't be inserted, they're voided.
      */
-    protected void actuallyGivePlayerStuff() {
+    public void actuallyGivePlayerStuff() {
         if (player.capabilities.isCreativeMode) {
             pendingItems.clear();
             pendingFluids.clear();
@@ -625,7 +625,7 @@ public class MMInventory implements IPseudoInventory {
         if (result.right() != null) extractedItems.addAll(result.right());
     }
 
-    protected void resetWarnings() {
+    public void resetWarnings() {
         printedUplinkWarning = false;
     }
 }

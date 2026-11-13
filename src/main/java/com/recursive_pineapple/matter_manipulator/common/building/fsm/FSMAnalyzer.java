@@ -9,6 +9,7 @@ import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
@@ -16,7 +17,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedu
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 
 /**
- * Gets the pending blocks for this manipulator.
+ * Gets the pending blocks for this manipulator incrementally.
  * Note: moving uses a special algorithm, so its value returned here should only be used for drawing the hints.
  */
 public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
@@ -44,17 +45,19 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     public final MMState state;
     public final EntityPlayer player;
     public final World world;
+    public final ItemMatterManipulator.ManipulatorTier tier;
     public final List<PendingBlock> blocks = new ArrayList<>();
 
     protected ISchedulable analyzer;
     protected Iterator<PendingBlock> blockIterator;
 
-    public FSMAnalyzer(EntityPlayer player, MMState state, World world) {
+    public FSMAnalyzer(EntityPlayer player, MMState state, World world, ItemMatterManipulator.ManipulatorTier tier) {
         super(State.INIT_ANALYZER, State.FINISH);
 
         this.state = state;
         this.player = player;
         this.world = world;
+        this.tier = tier;
     }
 
     @FSM.Event(State.NAMES.INIT_ANALYZER)
@@ -106,7 +109,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     }
 
     protected boolean isOutOfRange(PendingBlock block) {
-        int maxRange = state.manipulator.tier.maxRange;
+        int maxRange = tier.maxRange;
         if (maxRange == -1) return false;
 
         Location playerLocation = new Location(

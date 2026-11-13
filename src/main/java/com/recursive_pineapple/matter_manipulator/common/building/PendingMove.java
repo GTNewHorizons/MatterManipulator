@@ -31,6 +31,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.BuildingConfig;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMMove;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMover;
 import com.recursive_pineapple.matter_manipulator.common.building.movers.BlockMovers;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator.ManipulatorTier;
@@ -48,10 +49,12 @@ import it.unimi.dsi.fastutil.Pair;
 
 /**
  * Handles all moving logic.
+ *
+ * @Deprecated see {@link FSMMove}
  */
-public class PendingMove extends AbstractBuildable {
+public class PendingMove extends AbstractBuildable implements IBuildable {
 
-    private Deque<Pair<Location, Location>> moves = null;
+    public Deque<Pair<Location, Location>> moves = null;
     private final long airFilterBudgetNanos;
     private int airFilterRemaining;
     /** How many moves haven't been looked at yet. Attached blocks wait until every other block went through. */
@@ -301,7 +304,7 @@ public class PendingMove extends AbstractBuildable {
      * Whether a block needs another block to stay in place. The blocks it's attached to are removed without telling
      * it, so it has to be moved after them.
      */
-    private static boolean isAttached(World world, int x, int y, int z) {
+    public static boolean isAttached(World world, int x, int y, int z) {
         Block block = world.getBlock(x, y, z);
 
         if (Mods.ForgeMultipart.isModLoaded()) {
@@ -326,7 +329,7 @@ public class PendingMove extends AbstractBuildable {
     }
 
     /** Where the other half of a door, tall plant or bed is from the given half, or null if there's none. */
-    private static int[] getOtherHalf(World world, int x, int y, int z) {
+    public static int[] getOtherHalf(World world, int x, int y, int z) {
         Block block = world.getBlock(x, y, z);
         int meta = world.getBlockMetadata(x, y, z);
 
@@ -351,7 +354,7 @@ public class PendingMove extends AbstractBuildable {
     }
 
     /** Whether the source block can be at the destination. */
-    private static boolean canStayAt(World world, Location s, Location d, Block block) {
+    public static boolean canStayAt(World world, Location s, Location d, Block block) {
         // an upper half only fits on its lower half, which canPlaceBlockAt never accepts
         if (isTwoHigh(block) && (world.getBlockMetadata(s.x, s.y, s.z) & 8) != 0) { return world.getBlock(d.x, d.y - 1, d.z) == block; }
 
@@ -359,7 +362,7 @@ public class PendingMove extends AbstractBuildable {
     }
 
     /** Wires and gates drop themselves on the next block update when the block they sit on is missing. */
-    private static boolean hasMultipartSupport(World world, Location s, Location d) {
+    public static boolean hasMultipartSupport(World world, Location s, Location d) {
         if (!Mods.ForgeMultipart.isModLoaded()) return true;
 
         return MultipartAnalysisResult.hasSupportAt(world.getTileEntity(s.x, s.y, s.z), world, d.x, d.y, d.z);
@@ -396,7 +399,7 @@ public class PendingMove extends AbstractBuildable {
         } while (airFilterRemaining > 0 && System.nanoTime() - start < airFilterBudgetNanos);
     }
 
-    private void initMoves() {
+    public void initMoves() {
         moves = new ArrayDeque<>();
 
         Location startA = state.config.coordA;
