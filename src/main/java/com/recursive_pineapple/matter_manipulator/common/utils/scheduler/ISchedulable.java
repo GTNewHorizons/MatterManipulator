@@ -20,7 +20,7 @@ public interface ISchedulable {
      * @param tick the current scheduler tick
      * @return {@code true} to continue this pass, {@code false} to yield
      */
-    boolean doWork(long tick);
+    boolean doWork(long tick) throws Exception;
 
     /**
      * @return this worker's scheduler, or {@code null}
