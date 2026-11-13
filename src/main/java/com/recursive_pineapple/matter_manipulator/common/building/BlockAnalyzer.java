@@ -67,9 +67,9 @@ public class BlockAnalyzer {
                 pending.analyze(world.getTileEntity(voxel.x, voxel.y, voxel.z), PendingBlock.ANALYZE_ALL & ~PendingBlock.ANALYZE_ARCH);
             }
 
-            // FMP blocks (multiparts) depend on adjacent blocks for support,
-            // so they must be placed after regular blocks.
-            if (pending.mp != null) {
+            // Multiparts holding wires, gates and the like depend on adjacent blocks for support, so they must be
+            // placed after regular blocks. Ones with only microblocks are solid and can be that support.
+            if (pending.mp != null && ((MultipartAnalysisResult) pending.mp).hasAttachedParts()) {
                 pending.buildOrder = Math.max(pending.buildOrder, 100);
             }
 

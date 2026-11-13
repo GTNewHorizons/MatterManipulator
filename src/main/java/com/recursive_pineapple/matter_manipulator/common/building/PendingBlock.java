@@ -37,6 +37,7 @@ import com.recursive_pineapple.matter_manipulator.common.compat.BlockPropertyReg
 import com.recursive_pineapple.matter_manipulator.common.compat.Orientation;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Transform;
+import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.recursive_pineapple.matter_manipulator.mixin.BlockCaptureDrops;
@@ -296,9 +297,15 @@ public class PendingBlock extends Location {
             try {
                 Orientation o = Orientation.valueOf(p.get(CopyableProperty.ORIENTATION).toUpperCase());
 
+                ForgeDirection forward = o.b;
+
+                if (transform.isMirrored() && arch != null && ((ArchitectureCraftAnalysisResult) arch).mirrorsDiagonally()) {
+                    forward = MMUtils.cross(o.a, o.b);
+                }
+
                 o = Orientation.getOrientation(
                     transform.apply(o.a),
-                    transform.apply(o.b)
+                    transform.apply(forward)
                 );
 
                 p.put(CopyableProperty.ORIENTATION, o.name().toLowerCase());
