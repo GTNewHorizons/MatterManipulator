@@ -1,11 +1,13 @@
 package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
+import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
 
+import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
@@ -27,6 +29,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         INIT_MOVES,
         PREPARE_FOR_MOVE,
         MOVE_BLOCK,
+        COMPLETE,
         FINISH;
 
         public static class NAMES {
@@ -35,6 +38,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
             public static final String INIT_MOVES = "INIT_MOVES";
             public static final String PREPARE_FOR_MOVE = "PREPARE_FOR_MOVE";
             public static final String MOVE_BLOCK = "MOVE_BLOCK";
+            public static final String COMPLETE = "COMPLETE";
             public static final String FINISH = "FINISH";
         }
     }
@@ -58,6 +62,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
     protected int movesBudget;
     protected int movedAmount;
     protected long lastMoveTick;
+    protected boolean finished;
 
     public FSMMove(MMState state, EntityPlayer player, ItemStack stack, ItemMatterManipulator.ManipulatorTier tier) {
         super(State.INIT_PENDING_MOVE, State.FINISH);
@@ -79,7 +84,19 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
     }
 
     public int getRemainingAmount() {
-        return pendingMove != null ? pendingMove.moves.size() : 0;
+        if (pendingMove == null) return 0;
+        return pendingMove.moves != null ? pendingMove.moves.size() : 0;
+    }
+
+    public void finishMove() {
+        if (finished) return;
+        if (pendingMove != null) {
+            pendingMove.actuallyGivePlayerStuff();
+            if (!pendingMove.pendingItems.isEmpty() || !pendingMove.pendingFluids.isEmpty()) {
+                MMMod.LOG.error("Move stopped without delivering all items! There's a bug somewhere!");
+            }
+        }
+        finished = true;
     }
 
     @FSM.Event(State.NAMES.INIT_PENDING_MOVE)
@@ -129,6 +146,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         if (getLastWorkingTick() != lastMoveTick) {
             pendingMove.resetWarnings();
             pendingMove.refillPower(stack);
+            pendingMove.actuallyGivePlayerStuff();
         }
 
         lastMoveTick = getLastWorkingTick();
@@ -274,8 +292,20 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.MOVE_BLOCK, to = State.NAMES.FINISH)
+    @FSM.Transition(from = State.NAMES.MOVE_BLOCK, to = State.NAMES.COMPLETE)
     protected boolean blocksMoved() {
         return pendingMove.moves.isEmpty();
+    }
+
+    @FSM.Event(State.NAMES.COMPLETE)
+    protected boolean completeMove() {
+        finishMove();
+        sendInfoToPlayer(player, "mm.info.finished_move");
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.COMPLETE, to = State.NAMES.FINISH)
+    protected boolean moveCompleted() {
+        return true;
     }
 }

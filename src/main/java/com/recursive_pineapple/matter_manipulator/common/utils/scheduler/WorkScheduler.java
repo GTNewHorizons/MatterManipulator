@@ -25,6 +25,10 @@ public class WorkScheduler {
         this.budgetMicros = budgetMicros;
     }
 
+    public long getLastTIck() {
+        return lastTick;
+    }
+
     /**
      * Adds a worker to this scheduler, moving it from its previous scheduler.
      *
@@ -32,7 +36,7 @@ public class WorkScheduler {
      * @return {@code true} if the worker was added
      */
     public boolean scheduleWork(ISchedulable worker) {
-        if (worker.getScheduler() == this) return false;
+        if (worker.getScheduler() == this && workers.contains(worker)) return false;
         if (worker.getScheduler() != null) {
             worker.getScheduler().removeWork(worker);
         }
@@ -49,17 +53,18 @@ public class WorkScheduler {
      * @return {@code true} if the worker was removed
      */
     public boolean removeWork(ISchedulable worker) {
+        if (!workers.contains(worker)) return false;
         worker.onUnscheduled();
         return workers.remove(worker);
     }
 
     public boolean canDoWork(long tick) {
-        if (budgetMicros == 0) return true;
-
         if (tick > lastTick) {
             elapsedThisTick = 0;
             lastTick = tick;
         }
+
+        if (budgetMicros == 0) return true;
 
         return budgetMicros > elapsedThisTick;
     }
