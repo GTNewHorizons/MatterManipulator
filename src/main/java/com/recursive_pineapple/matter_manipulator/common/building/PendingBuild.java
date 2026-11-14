@@ -27,6 +27,7 @@ import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.IChunkProvider;
 
 import net.minecraftforge.common.util.ForgeDirection;
 
@@ -44,6 +45,7 @@ import appeng.util.SettingsFrom;
 
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
+import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.BuildingConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.IBlockApplyContext;
@@ -72,6 +74,11 @@ import it.unimi.dsi.fastutil.longs.LongList;
 public class PendingBuild extends AbstractBuildable {
 
     private final Deque<PendingBlock> pendingBlocks;
+    private final long airFilterBudgetNanos;
+    private int airFilterRemaining;
+    private long shuffledWithoutProgress;
+    /** Set once nothing else can be placed, so multiparts stop waiting for a support that isn't coming. */
+    private boolean placeUnsupported;
     private final HashSet<Long> visited = new HashSet<>();
 
     private final LongList errors = new LongArrayList();
@@ -91,21 +98,27 @@ public class PendingBuild extends AbstractBuildable {
         super(player, state, tier);
         this.pendingBlocks = new ArrayDeque<>(pendingBlocks);
         this.wirelessLinkFixer = new WirelessLinkFixer(state);
+        this.airFilterBudgetNanos = BuildingConfig.airFilterBudgetMicros * 1_000L;
+        this.airFilterRemaining = airFilterBudgetNanos > 0 ? pendingBlocks.size() : 0;
     }
 
     @Override
     public void tryPlaceBlocks(ItemStack stack, EntityPlayer player) {
         resetWarnings();
+
+        World world = player.worldObj;
+        wirelessLinkFixer.tryInit(world);
+        filterAirToAir(world);
+        if (airFilterRemaining > 0) {
+            sendInfoToPlayer(player, "mm.info.placed_remaining", 0, pendingBlocks.size());
+            return;
+        }
+
         refillPower(stack);
 
         List<PendingBlock> toPlace = new ArrayList<>(tier.placeSpeed);
 
         Integer lastChunkX = null, lastChunkZ = null;
-        int shuffleCount = 0;
-
-        World world = player.worldObj;
-
-        wirelessLinkFixer.tryInit(world);
 
         ProxiedWorld proxiedWorld = new ProxiedWorld(world);
 
@@ -113,8 +126,8 @@ public class PendingBuild extends AbstractBuildable {
 
         BlockSpec pooled = new BlockSpec();
 
-        // check every pending block that's left
-        while (toPlace.size() < tier.placeSpeed && !pendingBlocks.isEmpty()) {
+        int attemptsRemaining = Math.min(tier.placeSpeed, pendingBlocks.size());
+        for (; attemptsRemaining > 0 && !pendingBlocks.isEmpty(); attemptsRemaining--) {
             PendingBlock next = pendingBlocks.getFirst();
 
             int x = next.x, y = next.y, z = next.z;
@@ -125,7 +138,7 @@ public class PendingBuild extends AbstractBuildable {
             // if this block's chunk isn't loaded, ignore it completely
             if (!Objects.equals(chunkX, lastChunkX) || !Objects.equals(chunkZ, lastChunkZ)) {
                 if (!world.getChunkProvider().chunkExists(chunkX, chunkZ)) {
-                    pendingBlocks.removeFirst();
+                    takePendingBlock();
                     continue;
                 } else {
                     lastChunkX = chunkX;
@@ -134,13 +147,12 @@ public class PendingBuild extends AbstractBuildable {
             }
 
             if (y < 0 || y > 255) {
-                pendingBlocks.removeFirst();
+                takePendingBlock();
                 continue;
             }
 
-            // if this block is protected, ignore it completely and print a warning
-            if (!isEditable(world, x, y, z, true)) {
-                pendingBlocks.removeFirst();
+            if (next.spec.isAir() && world.isAirBlock(x, y, z)) {
+                takePendingBlock();
                 continue;
             }
 
@@ -150,10 +162,23 @@ public class PendingBuild extends AbstractBuildable {
                 break;
             }
 
+            // if this block is protected, ignore it completely and print a warning
+            if (!isEditable(world, x, y, z, true)) {
+                takePendingBlock();
+                continue;
+            }
+
+            // wires and gates drop themselves without their support, which may be a multipart that's placed later
+            if (next.mp != null && !placeUnsupported && !((MultipartAnalysisResult) next.mp).hasSupport(world, x, y, z)) {
+                pendingBlocks.addLast(pendingBlocks.removeFirst());
+                shuffledWithoutProgress++;
+                continue;
+            }
+
             PendingBlock existing = PendingBlock.fromBlock(world, x, y, z);
 
             if (next.spec.isAir() && existing.getBlock().isAir(world, x, y, z)) {
-                pendingBlocks.removeFirst();
+                takePendingBlock();
                 continue;
             }
 
@@ -161,7 +186,7 @@ public class PendingBuild extends AbstractBuildable {
 
             // if the existing block is the same as the one we're trying to place, just apply its tile data
             if (PendingBlock.areEquivalent(existing, next)) {
-                PendingBlock block = pendingBlocks.removeFirst();
+                PendingBlock block = takePendingBlock();
 
                 if (supportsConfiguring()) {
                     applyContext.pendingBlock = block;
@@ -188,19 +213,14 @@ public class PendingBuild extends AbstractBuildable {
             // couldn't be placed
             if (!canPlace) {
                 pendingBlocks.addLast(pendingBlocks.removeFirst());
-                shuffleCount++;
-
-                if (shuffleCount > pendingBlocks.size()) {
-                    break;
-                } else {
-                    continue;
-                }
+                shuffledWithoutProgress++;
+                continue;
             }
 
             // if there's an existing block then remove it if possible
             if (!existing.getBlock().isAir(world, x, y, z)) {
                 if (!state.hasCap(ItemMatterManipulator.ALLOW_REMOVING)) {
-                    pendingBlocks.removeFirst();
+                    takePendingBlock();
                     continue;
                 }
 
@@ -218,14 +238,8 @@ public class PendingBuild extends AbstractBuildable {
             // if we can't place this block, shuffle it to the back of the list
             if (!next.getBlock().canPlaceBlockAt(proxiedWorld, next.x, next.y, next.z)) {
                 pendingBlocks.addLast(pendingBlocks.removeFirst());
-                shuffleCount++;
-
-                // if we've shuffled every block, then we'll never be able to place any of them
-                if (shuffleCount > pendingBlocks.size()) {
-                    break;
-                } else {
-                    continue;
-                }
+                shuffledWithoutProgress++;
+                continue;
             }
 
             if (!tryConsumePower(stack, world, x, y, z, next.spec)) {
@@ -237,23 +251,27 @@ public class PendingBuild extends AbstractBuildable {
 
             if (!visited.add(coord)) {
                 MMMod.LOG.warn("Tried to place block twice! " + next);
-                pendingBlocks.removeFirst();
+                takePendingBlock();
                 continue;
             }
 
-            toPlace.add(pendingBlocks.removeFirst());
+            toPlace.add(takePendingBlock());
         }
 
         // check if we could place any blocks
         if (toPlace.isEmpty()) {
-            if (!pendingBlocks.isEmpty()) {
+            if (pendingBlocks.isEmpty()) {
+                sendInfoToPlayer(player, "mm.info.finished_placing");
+            } else if (attemptsRemaining == 0 && shuffledWithoutProgress < pendingBlocks.size()) {
+                sendInfoToPlayer(player, "mm.info.placed_remaining", 0, pendingBlocks.size());
+            } else {
+                shuffledWithoutProgress = 0;
+                placeUnsupported = true;
                 sendErrorToPlayer(
                     player,
                     "mm.info.error.could_not_place",
                     pendingBlocks.size()
                 );
-            } else {
-                sendInfoToPlayer(player, "mm.info.finished_placing");
             }
 
             if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
@@ -263,7 +281,9 @@ public class PendingBuild extends AbstractBuildable {
             return;
         }
 
+        shuffledWithoutProgress = 0;
         PendingBlock first = toPlace.get(0);
+        if (first.mp == null) placeUnsupported = false;
 
         ItemStack perBlock = first.getStack();
         long total = 0;
@@ -432,6 +452,28 @@ public class PendingBuild extends AbstractBuildable {
 
         actuallyGivePlayerStuff();
         playSounds();
+    }
+
+    private void filterAirToAir(World world) {
+        if (airFilterRemaining == 0) return;
+
+        IChunkProvider chunkProvider = world.getChunkProvider();
+        long start = System.nanoTime();
+        do {
+            PendingBlock block = pendingBlocks.getFirst();
+            boolean airToAir = block.spec.isAir() &&
+                chunkProvider.chunkExists(block.x >> 4, block.z >> 4) &&
+                world.isAirBlock(block.x, block.y, block.z);
+
+            pendingBlocks.removeFirst();
+            if (!airToAir) pendingBlocks.addLast(block);
+            airFilterRemaining--;
+        } while (airFilterRemaining > 0 && System.nanoTime() - start < airFilterBudgetNanos);
+    }
+
+    private PendingBlock takePendingBlock() {
+        shuffledWithoutProgress = 0;
+        return pendingBlocks.removeFirst();
     }
 
     private void rememberP2POutputs(PendingBlock applied) {

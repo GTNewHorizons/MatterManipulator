@@ -26,6 +26,7 @@ import codechicken.microblock.BlockMicroMaterial;
 import codechicken.microblock.MicroMaterialRegistry;
 import codechicken.multipart.MultiPartRegistry;
 import codechicken.multipart.TMultiPart;
+import codechicken.multipart.TSlottedPart;
 import codechicken.multipart.TileMultipart;
 
 /**
@@ -177,6 +178,66 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
         return sorted;
     }
 
+    public static boolean isMultipart(TileEntity tile) {
+        return tile instanceof TileMultipart;
+    }
+
+    /** Same as {@link #hasAttachedParts()}, for a multipart in the world. */
+    public static boolean hasAttachedParts(TileEntity tile) {
+        if (!(tile instanceof TileMultipart multipart)) return false;
+
+        for (TMultiPart part : multipart.jPartList()) {
+            if (!part.getType().startsWith("mcr_")) return true;
+        }
+
+        return false;
+    }
+
+    /** Whether every part of a multipart in the world would have its support block if it was at the given position. */
+    public static boolean hasSupportAt(TileEntity tile, World world, int x, int y, int z) {
+        if (!(tile instanceof TileMultipart multipart)) return true;
+
+        for (TMultiPart part : multipart.jPartList()) {
+            if (part.getType().startsWith("mcr_") || !(part instanceof TSlottedPart slotted)) continue;
+
+            // parts sitting on a face take that face's slot and nothing else
+            int faces = slotted.getSlotMask() & 0x3F;
+            if (Integer.bitCount(faces) != 1) continue;
+
+            // AE2 cable buses also take the slot of a lone bus or facade, but they don't need support
+            NBTTagCompound nbt = new NBTTagCompound();
+            part.save(nbt);
+            if (!nbt.hasKey("side") && !nbt.hasKey("orient")) continue;
+
+            ForgeDirection dir = ForgeDirection.getOrientation(Integer.numberOfTrailingZeros(faces));
+            if (world.isAirBlock(x + dir.offsetX, y + dir.offsetY, z + dir.offsetZ)) return false;
+        }
+
+        return true;
+    }
+
+    /** Whether any part needs a neighbouring block to stay, such as a wire or gate. Microblocks don't. */
+    public boolean hasAttachedParts() {
+        if (parts == null) return false;
+
+        for (PartData data : parts) {
+            if (data != null && data.typeId != null && !data.typeId.startsWith("mcr_")) return true;
+        }
+
+        return false;
+    }
+
+    /** Whether every part would have its support block at the given position. */
+    public boolean hasSupport(World world, int x, int y, int z) {
+        if (parts == null) return true;
+
+        for (PartData data : parts) {
+            if (data != null && !hasSupportBlock(world, data, x, y, z)) return false;
+        }
+
+        return true;
+    }
+
     private static boolean hasSupportBlock(World world, PartData data, int x, int y, int z) {
         if (data.typeId == null || data.typeId.startsWith("mcr_")) return true;
         if (data.nbt == null) return true;
@@ -207,7 +268,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
             boolean ok = ctx
                 .tryConsumeItems(
                     Collections.singletonList(BigItemStack.create(stack)),
-                    IPseudoInventory.CONSUME_FUZZY
+                    data.typeId != null && data.typeId.startsWith("mcr_") ? 0 : IPseudoInventory.CONSUME_FUZZY
                 )
                 .leftBoolean();
 
@@ -316,7 +377,7 @@ public class MultipartAnalysisResult implements ITileAnalysisIntegration {
                 if (stack != null) {
                     context.tryConsumeItems(
                         Collections.singletonList(BigItemStack.create(stack)),
-                        IPseudoInventory.CONSUME_FUZZY
+                        data.typeId != null && data.typeId.startsWith("mcr_") ? 0 : IPseudoInventory.CONSUME_FUZZY
                     );
                 }
             }

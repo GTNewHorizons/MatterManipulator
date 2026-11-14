@@ -17,6 +17,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Trans
 
 import gcewing.architecture.ArchitectureCraft;
 import gcewing.architecture.common.shape.Shape;
+import gcewing.architecture.common.shape.ShapeSymmetry;
 import gcewing.architecture.common.tile.TileShape;
 import gcewing.architecture.compat.BlockCompatUtils;
 import gcewing.architecture.compat.IBlockState;
@@ -30,6 +31,12 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
     public PortableItemStack material;
     @SerializedName("c")
     public PortableItemStack cladding;
+    /** The sides that don't connect to neighbours, one bit per direction. */
+    @SerializedName("d")
+    public int disconnected;
+    /** The placement offset along the shape's own X axis, in sixteenths of a block. */
+    @SerializedName("o")
+    public byte offsetX;
 
     public static ArchitectureCraftAnalysisResult analyze(TileEntity te) {
         if (!(te instanceof TileShape tileShape)) return null;
@@ -41,6 +48,9 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         result.material = new PortableItemStack(
             new ItemStack(tileShape.baseBlockState.getBlock(), 0, BlockCompatUtils.getMetaFromBlockState(tileShape.baseBlockState))
         );
+
+        result.disconnected = tileShape.disabledConnections;
+        result.offsetX = (byte) Math.round(tileShape.getOffsetX() * 16);
 
         if (tileShape.secondaryBlockState != null) {
             result.cladding = new PortableItemStack(
@@ -63,6 +73,9 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
             if (cladding != null) {
                 if (!addCladding(ctx, tileShape, false)) { return false; }
             }
+
+            tileShape.disabledConnections = disconnected;
+            tileShape.setOffsetX(offsetX / 16.0);
 
             tileShape.markChanged();
 
@@ -158,7 +171,20 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
 
     @Override
     public void transform(Transform transform) {
+        disconnected = (disconnected & ~0x3F) | (transform.applyBits(disconnected & 0x3F) & 0x3F);
 
+        // the other shapes are mirrored across their own X axis, which the offset is on
+        if (transform.isMirrored() && !mirrorsDiagonally()) offsetX = (byte) -offsetX;
+    }
+
+    /**
+     * Corner shapes are only symmetric across their diagonal, so a flipped one has to swap its forward and sideways
+     * axes to look mirrored.
+     */
+    public boolean mirrorsDiagonally() {
+        Shape shape = Shape.forId(this.shape);
+
+        return shape != null && shape.symmetry == ShapeSymmetry.Unilateral;
     }
 
     @Override
@@ -173,6 +199,8 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         dup.shape = shape;
         dup.material = material == null ? null : material.clone();
         dup.cladding = cladding == null ? null : cladding.clone();
+        dup.disconnected = disconnected;
+        dup.offsetX = offsetX;
 
         return dup;
     }
@@ -184,6 +212,8 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         result = prime * result + shape;
         result = prime * result + ((material == null) ? 0 : material.hashCode());
         result = prime * result + ((cladding == null) ? 0 : cladding.hashCode());
+        result = prime * result + disconnected;
+        result = prime * result + offsetX;
         return result;
     }
 
@@ -194,6 +224,8 @@ public class ArchitectureCraftAnalysisResult implements ITileAnalysisIntegration
         if (getClass() != obj.getClass()) return false;
         ArchitectureCraftAnalysisResult other = (ArchitectureCraftAnalysisResult) obj;
         if (shape != other.shape) return false;
+        if (disconnected != other.disconnected) return false;
+        if (offsetX != other.offsetX) return false;
         if (material == null) {
             if (other.material != null) return false;
         } else if (!material.equals(other.material)) return false;

@@ -1,6 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.building.movers;
 
 import net.minecraft.block.Block;
+import net.minecraft.init.Blocks;
 import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
@@ -24,7 +25,8 @@ public class FMPBlockMover implements BlockMover<FMPBlock> {
         TileMultipart te = (TileMultipart) world.getTileEntity(x, y, z);
 
         world.removeTileEntity(x, y, z);
-        world.setBlockToAir(x, y, z);
+        // PendingMove notifies the neighbours, so that attached blocks which are moved later don't pop off
+        world.setBlock(x, y, z, Blocks.air, 0, 2);
 
         return new FMPBlock(block, meta, te);
     }
