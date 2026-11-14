@@ -229,7 +229,7 @@ public class RenderHints {
             GL11.glDisable(GL11.GL_CULL_FACE);
             GL11.glDisable(GL11.GL_ALPHA_TEST);
             GL11.glEnable(GL11.GL_BLEND); // enable blend so it is transparent
-            GL11.glBlendFunc(GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_SRC_ALPHA);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             if (!hints.depthWrite) GL11.glDepthMask(false);
 
             if (!hints.depthTest) {
@@ -291,6 +291,9 @@ public class RenderHints {
     /** Geometry must remain unchanged after client-thread preparation, while the worker sizes and draws it. */
     public static class Hint {
 
+        // Preserve the source weight of legacy hints while allowing texture alpha to control transparency.
+        protected static final int OPACITY = 105;
+
         public int x, y, z;
         public IIcon[] icons;
         public short[] tint;
@@ -325,7 +328,7 @@ public class RenderHints {
         ) {
             double size = 0.5;
 
-            tes.setColorRGBA(tint[0], tint[1], tint[2], 150);
+            tes.setColorRGBA(tint[0], tint[1], tint[2], OPACITY);
 
             double X = (x - eyeXint) + 0.25;
             double Y = (y - eyeYint) + 0.25;

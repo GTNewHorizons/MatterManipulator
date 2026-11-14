@@ -90,7 +90,7 @@ public final class MultipartPreview extends Hint {
                     statusTint ? tint[0] : (color & 0xFF) * tint[0] / 255,
                     statusTint ? tint[1] : (color >>> 8 & 0xFF) * tint[1] / 255,
                     statusTint ? tint[2] : (color >>> 16 & 0xFF) * tint[2] / 255,
-                    statusTint ? 150 : (color >>> 24) * 150 / 255
+                    statusTint ? OPACITY : (color >>> 24) * OPACITY / 255
                 );
                 tes.addVertexWithUV(
                     (x - originX) + quad.getX(v),
