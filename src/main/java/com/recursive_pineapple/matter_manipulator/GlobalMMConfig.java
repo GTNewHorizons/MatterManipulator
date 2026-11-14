@@ -77,7 +77,7 @@ public class GlobalMMConfig {
             "Experimental."
         })
         @Config.DefaultBoolean(false)
-        @Config.Name("Use Scheduler for Heavy Operations")
+        @Config.Name("Use Work Scheduler")
         public static boolean useWorkScheduler;
 
         @Config.Comment("Empty ME Output Hatches/Busses when they're removed. Server only.")

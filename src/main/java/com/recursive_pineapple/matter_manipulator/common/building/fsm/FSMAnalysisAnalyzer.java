@@ -271,7 +271,6 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     protected boolean initSpan() {
         spanOffsetIterator = new ArraySpanOffsetIterator(state.config.arraySpan, regionAnalyzer.deltas);
         baseBlocks = new ArrayList<>(blocks);
-        blocks.clear();
         return true;
     }
 
@@ -282,10 +281,9 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
 
     @FSM.Event(State.NAMES.ADVANCE_SPAN)
     protected boolean advanceSpan() {
-        if (blocksSpan != null) blocks.addAll(blocksSpan);
-
         smartCopyPostAnalyzer = null;
         spanOffset = spanOffsetIterator.next();
+
         spanBlockIterator = baseBlocks.iterator();
         blocksSpan = new ArrayList<>();
 
@@ -311,10 +309,18 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         if (!spanBlockIterator.hasNext()) return true;
 
         PendingBlock original = spanBlockIterator.next();
+
+        if (new Vector3i().equals(spanOffset)) {
+            blocksSpan.add(original);
+            return true;
+        }
+
         PendingBlock dup = original.clone();
         dup.x += spanOffset.x;
         dup.y += spanOffset.y;
         dup.z += spanOffset.z;
+
+        blocks.add(dup);
         blocksSpan.add(dup);
 
         return true;

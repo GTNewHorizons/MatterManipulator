@@ -176,6 +176,8 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     }
 
     public boolean isStalled() {
+        if (pendingBlocks == null) return false;
+        if (pendingBlocks.isEmpty()) return false;
         return shuffledWithoutProgress >= pendingBlocks.size();
     }
 
@@ -207,6 +209,11 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         finished = true;
     }
 
+    public void playSounds() {
+        if (buildable == null) return;
+        buildable.playSounds();
+    }
+
     @FSM.Event(State.NAMES.INIT_ANALYZER)
     protected boolean initAnalyzer() {
         analyzer = new FSMAnalyzer(player, state, world, tier);
@@ -233,11 +240,13 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     @FSM.Event(State.NAMES.INIT_BUILD)
     protected boolean initBuild() {
         pendingBlocks = new ArrayDeque<>(analyzer.blocks);
-        wirelessLinkFixer = new WirelessLinkFixer(state);
         pooled = new BlockSpec();
         proxiedWorld = new ProxiedWorld(world);
         applyContext = new FSMBuildApplyContext(stack);
         buildable = new AbstractBuildable(player, state, tier);
+
+        resetBudget();
+
         return true;
     }
 
@@ -248,13 +257,14 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
     @FSM.Event(State.NAMES.INIT_WIRELESS_FIXER)
     protected boolean initWirelessFixer() {
+        wirelessLinkFixer = new WirelessLinkFixer(state);
         wirelessLinkFixer.tryInit(world);
         return true;
     }
 
     @FSM.Transition(from = State.NAMES.INIT_WIRELESS_FIXER, to = State.NAMES.PLACE_BLOCK)
     protected boolean wirelessFixerInitialized() {
-        return true;
+        return wirelessLinkFixer != null;
     }
 
     @FSM.Event(State.NAMES.PLACE_BLOCK)
@@ -311,7 +321,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             }
 
             wirelessLinkFixer.tryApply(world, x, y, z);
-            finishPlaceBlock();
+            if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
 
             return true;
         }
@@ -460,7 +470,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
     @FSM.Transition(from = State.NAMES.COMPLETE, to = State.NAMES.FINISH)
     protected boolean buildComplete() {
-        return true;
+        return finished;
     }
 
     private boolean rotatePendingBlock() {
@@ -470,7 +480,6 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     }
 
     private void finishPlaceBlock() {
-        buildable.playSounds();
         if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
 
         placeBudget--;
