@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
@@ -156,6 +157,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             .register(handler);
     }
 
+    private static final BiPredicate<ISchedulable, Exception> schedulerErrorHandler = ItemMatterManipulator::handleSchedulerError;
     private static int counter = 0;
     public static final int CONNECTS_TO_AE = 0b1 << counter++;
     public static final int CONNECTS_TO_UPLINK = 0b1 << counter++;
@@ -1223,6 +1225,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private void onUsingTickScheduled(ItemStack stack, EntityPlayer player, int count) {
+        // Clean up direct method's data
         if (!PENDING_BUILDS.isEmpty()) {
             PENDING_BUILDS.values()
                 .iterator()
@@ -1230,6 +1233,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             PENDING_BUILDS.clear();
         }
 
+        // In case when the scheduler's budget config is changed in-game
         if (WorkScheduler.INSTANCE.budgetMicros != GlobalMMConfig.BuildingConfig.schedulerBudgetMicros) {
             WorkScheduler newScheduler = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
 
@@ -1238,7 +1242,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             WorkScheduler.INSTANCE = newScheduler;
         }
 
-        WorkScheduler.INSTANCE.addErrorHandler(ItemMatterManipulator::handleSchedulerError);
+        WorkScheduler.INSTANCE.addErrorHandler(ItemMatterManipulator.schedulerErrorHandler);
 
         try {
             WorkScheduler.INSTANCE.tryDoWork(MinecraftServer.getServer().getTickCounter());
@@ -1308,6 +1312,28 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 return;
             }
 
+            if (prevState == FSMBuild.State.PLACE_BLOCK) {
+                if (build.getPlacedAmount() > 0) {
+                    sendInfoToPlayer(
+                        player,
+                        "mm.info.placed_remaining",
+                        build.getPlacedAmount(),
+                        build.getRemainingAmount()
+                    );
+                    build.playSounds();
+                }
+
+                if (build.isStalled()) {
+                    sendErrorToPlayer(
+                        player,
+                        "mm.info.error.could_not_place",
+                        build.getRemainingAmount()
+                    );
+                }
+
+                return;
+            }
+
             return;
         }
 
@@ -1338,6 +1364,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     );
                 }
 
+                build.playSounds();
                 build.resetBudget();
                 return;
             }
@@ -1371,6 +1398,20 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 return;
             }
 
+            if (prevState == FSMMove.State.MOVE_BLOCK) {
+                if (move.getMovedAmount() > 0) {
+                    sendInfoToPlayer(
+                        player,
+                        "mm.info.process_move",
+                        move.getMovedAmount(),
+                        move.getRemainingAmount()
+                    );
+                    move.playSounds();
+                }
+
+                return;
+            }
+
             return;
         }
 
@@ -1387,6 +1428,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     move.getMovedAmount(),
                     move.getRemainingAmount()
                 );
+                move.playSounds();
                 move.resetBudget();
                 return;
             }
@@ -1394,6 +1436,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private void onUsingTickDirect(ItemStack stack, EntityPlayer player, int count) {
+        // Cleanup scheduler method's data
         if (!SCHEDULED_BUILDS.isEmpty() || !SCHEDULED_MOVES.isEmpty()) {
             SCHEDULED_BUILDS.values()
                 .iterator()

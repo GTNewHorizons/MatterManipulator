@@ -99,6 +99,11 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         finished = true;
     }
 
+    public void playSounds() {
+        if (pendingMove == null) return;
+        pendingMove.playSounds();
+    }
+
     @FSM.Event(State.NAMES.INIT_PENDING_MOVE)
     protected boolean initPendingMove() {
         pendingMove = new PendingMove(player, state, tier);
@@ -306,6 +311,6 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
     @FSM.Transition(from = State.NAMES.COMPLETE, to = State.NAMES.FINISH)
     protected boolean moveCompleted() {
-        return true;
+        return finished;
     }
 }
