@@ -336,7 +336,7 @@ public class AEAnalysisResult implements ITileAnalysisIntegration {
         return success;
     }
 
-    static void removePart(IPseudoInventory context, IPartHost partHost, ForgeDirection side, boolean simulate) {
+    public static void removePart(IPseudoInventory context, IPartHost partHost, ForgeDirection side, boolean simulate) {
         IPart part = partHost.getPart(side);
 
         if (part == null) return;
