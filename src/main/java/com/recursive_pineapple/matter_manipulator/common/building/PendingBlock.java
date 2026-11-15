@@ -527,6 +527,48 @@ public class PendingBlock extends Location {
             .thenComparingLong(value -> CoordinatePacker.pack(value.x, value.y, value.z));
     }
 
+    public PendingBlockSortKey sortKey;
+
+    public void generateSortKey() {
+        sortKey = new PendingBlockSortKey(this);
+    }
+
+    public static class PendingBlockSortKey implements Comparable<PendingBlockSortKey> {
+
+        private final int buildOrder;
+        private final ImmutableBlockSpec.BlockSpecSortKey blockSpecSortKey;
+        private final int chunkX;
+        private final int chunkZ;
+        private final long packedCoord;
+
+        public PendingBlockSortKey(PendingBlock b) {
+            buildOrder = b.buildOrder;
+            blockSpecSortKey = new ImmutableBlockSpec.BlockSpecSortKey(b.spec);
+            chunkX = b.x >> 4;
+            chunkZ = b.z >> 4;
+            packedCoord = CoordinatePacker.pack(b.x, b.y, b.z);
+        }
+
+        @Override
+        public int compareTo(@NotNull PendingBlock.PendingBlockSortKey other) {
+            int result;
+
+            result = Integer.compare(buildOrder, other.buildOrder);
+            if (result != 0) return result;
+
+            result = blockSpecSortKey.compareTo(other.blockSpecSortKey);
+            if (result != 0) return result;
+
+            result = Integer.compare(chunkX, other.chunkX);
+            if (result != 0) return result;
+
+            result = Integer.compare(chunkZ, other.chunkZ);
+            if (result != 0) return result;
+
+            return Long.compare(packedCoord, other.packedCoord);
+        }
+    }
+
     public static PendingBlock fromBlock(World world, int x, int y, int z) {
         return BlockSpec.fromBlock(null, world, x, y, z).instantiate(world, x, y, z);
     }

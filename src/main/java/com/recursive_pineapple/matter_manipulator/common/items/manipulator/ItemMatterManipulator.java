@@ -1254,7 +1254,12 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             blocks.removeIf(block -> block.distanceTo2(playerLocation) > maxRange2);
         }
 
-        blocks.sort(PendingBlock.getComparator());
+        for (var block : blocks) {
+            // Caches the sort key
+            block.generateSortKey();
+        }
+
+        blocks.sort((a, b) -> a.sortKey.compareTo(b.sortKey));
 
         return new PendingBuild(player, state, tier, blocks);
     }
