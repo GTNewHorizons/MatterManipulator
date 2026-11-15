@@ -28,7 +28,7 @@ public class WorkScheduler {
         this.budgetMicros = budgetMicros;
     }
 
-    public long getLastTIck() {
+    public long getLastTick() {
         return lastTick;
     }
 
@@ -124,6 +124,10 @@ public class WorkScheduler {
                 } catch (Throwable e) {
                     removeWork(worker);
                     onError(worker, e);
+
+                    // In case the error is to-be propagated
+                    hasKeep = true;
+
                     break;
                 }
 

@@ -1338,7 +1338,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         if (ticksUsed % placeTicks == 0) {
-            if (WorkScheduler.INSTANCE.getLastTIck() - build.getLastWorkingTick() > placeTicks) {
+            if (WorkScheduler.INSTANCE.getLastTick() - build.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }
@@ -1416,7 +1416,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         if (ticksUsed % placeTicks == 0) {
-            if (WorkScheduler.INSTANCE.getLastTIck() - move.getLastWorkingTick() > placeTicks) {
+            if (WorkScheduler.INSTANCE.getLastTick() - move.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }

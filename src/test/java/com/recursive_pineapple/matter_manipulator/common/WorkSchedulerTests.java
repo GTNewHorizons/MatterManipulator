@@ -27,7 +27,7 @@ class WorkSchedulerTests {
         assertFalse(worker.hasWork());
         assertEquals(1, worker.unscheduledCalls);
         assertFalse(scheduler.iterator().hasNext());
-        assertEquals(1, scheduler.getLastTIck());
+        assertEquals(1, scheduler.getLastTick());
     }
 
     @Test

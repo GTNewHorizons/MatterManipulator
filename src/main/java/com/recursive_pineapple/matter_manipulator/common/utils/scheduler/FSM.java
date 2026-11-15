@@ -136,15 +136,11 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
         if (transitions == null) return;
 
         for (IntReferenceImmutablePair<MethodHandle> transition : transitions) {
-            try {
-                boolean enabled = (boolean) transition.right().invokeExact();
+            boolean enabled = (boolean) transition.right().invokeExact();
 
-                if (enabled) {
-                    currentState = stateValues[transition.leftInt()];
-                    return;
-                }
-            } catch (Throwable e) {
-                throw new IllegalStateException("Failed to invoke FSM method: " + transition.right(), e);
+            if (enabled) {
+                currentState = stateValues[transition.leftInt()];
+                return;
             }
         }
     }
