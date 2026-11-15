@@ -33,6 +33,8 @@ public class FMPPartTransforms {
             case "mcr_face", "mcr_hllw" -> transformFaceSlot(slot, transform);
             case "mcr_edge" -> transformEdgeSlot(slot, transform);
             case "mcr_cnr" -> transformCornerSlot(slot, transform);
+            // Post slots are axes in side order: 0 is Y, 1 is Z, 2 is X
+            case "mcr_post" -> slot < 3 ? rotateFace(slot << 1, transform) >> 1 : -1;
             default -> -1;
         };
 

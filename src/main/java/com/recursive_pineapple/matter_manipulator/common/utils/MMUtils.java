@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -1606,6 +1607,19 @@ public class MMUtils {
 
     private static final XSTR RNG = new XSTR();
 
+    /** The cross product of two directions, or UNKNOWN when they are on the same axis. */
+    public static ForgeDirection cross(ForgeDirection a, ForgeDirection b) {
+        int x = a.offsetY * b.offsetZ - a.offsetZ * b.offsetY;
+        int y = a.offsetZ * b.offsetX - a.offsetX * b.offsetZ;
+        int z = a.offsetX * b.offsetY - a.offsetY * b.offsetX;
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (dir.offsetX == x && dir.offsetY == y && dir.offsetZ == z) return dir;
+        }
+
+        return ForgeDirection.UNKNOWN;
+    }
+
     public static Item getItemFromBlock(Block block, int metadata) {
         if (block == null) block = Blocks.air;
 
@@ -1761,6 +1775,26 @@ public class MMUtils {
 
         // solvent cans return -1, the infinite can returns 16 when set to solvent (this is stupid)
         return dye >= 0 && dye < Dyes.VALUES.length ? (byte) dye : -1;
+    }
+
+    /**
+     * Runs the action with the player's offhand slot (Backhand) emptied, then puts the item back.
+     */
+    @Optional(Names.GREG_TECH_NH)
+    public static boolean withoutOffhand(EntityPlayer player, BooleanSupplier action) {
+        int slot = Backhand.getOffhandSlot(player);
+        ItemStack[] inventory = player.inventory.mainInventory;
+
+        if (slot < 0 || slot >= inventory.length) return action.getAsBoolean();
+
+        ItemStack offhand = inventory[slot];
+        inventory[slot] = null;
+
+        try {
+            return action.getAsBoolean();
+        } finally {
+            inventory[slot] = offhand;
+        }
     }
 
     public static String getDirectionDisplayName(ForgeDirection dir) {

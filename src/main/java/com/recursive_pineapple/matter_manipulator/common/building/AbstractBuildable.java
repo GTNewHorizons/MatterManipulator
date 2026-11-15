@@ -8,10 +8,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.function.BooleanSupplier;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -133,6 +135,17 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
      * {@link #actuallyGivePlayerStuff()} or they will be deleted.
      */
     protected void removeBlock(World world, int x, int y, int z, ImmutableBlockSpec existing) {
+        removeBlock(world, x, y, z, existing, true);
+    }
+
+    /**
+     * @param notifyNeighbors When false, neighbours are not told that the block is gone. Use this when another block
+     *        is placed here right after (which notifies them), so things attached to this block (torches,
+     *        wires, ...) don't pop off in between. The caller must notify them if nothing gets placed.
+     */
+    protected void removeBlock(World world, int x, int y, int z, ImmutableBlockSpec existing, boolean notifyNeighbors) {
+        int removeFlags = notifyNeighbors ? 3 : 2;
+
         Block block = existing.getBlock();
         int meta = existing.getBlockMeta();
 
@@ -156,7 +169,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
                 BlockCaptureDrops.captureDrops(world);
                 // Because GT uses this to call MTE.onRemoval() :doom:
                 block.getDrops(world, x, y, z, meta, 0);
-                world.setBlockToAir(x, y, z);
+                world.setBlock(x, y, z, Blocks.air, 0, removeFlags);
             } finally {
                 BlockCaptureDrops.stopCapturingDrops(world);
             }
@@ -204,7 +217,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
         try {
             BlockCaptureDrops.captureDrops(world);
 
-            world.setBlockToAir(x, y, z);
+            world.setBlock(x, y, z, Blocks.air, 0, removeFlags);
         } finally {
             givePlayerItems(BlockCaptureDrops.stopCapturingDrops(world).toArray(new ItemStack[0]));
         }
@@ -438,11 +451,13 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
     protected boolean isEditable(World world, int x, int y, int z, boolean isPlacement) {
         boolean isBlocked;
         if (isPlacement) {
-            isBlocked = ForgeEventFactory.onPlayerBlockPlace(
+            BooleanSupplier postPlaceEvent = () -> ForgeEventFactory.onPlayerBlockPlace(
                 player,
                 new BlockSnapshot(world, x, y, z, world.getBlock(x, y, z), world.getBlockMetadata(x, y, z)),
                 ForgeDirection.UNKNOWN
             ).isCanceled();
+
+            isBlocked = Mods.GregTech.isModLoaded() ? MMUtils.withoutOffhand(player, postPlaceEvent) : postPlaceEvent.getAsBoolean();
         } else {
             isBlocked = MinecraftForge.EVENT_BUS
                 .post(new BlockEvent.BreakEvent(x, y, z, world, world.getBlock(x, y, z), world.getBlockMetadata(x, y, z), player));
