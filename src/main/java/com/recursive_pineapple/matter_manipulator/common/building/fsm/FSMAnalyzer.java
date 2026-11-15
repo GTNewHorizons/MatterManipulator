@@ -50,10 +50,10 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     public final List<PendingBlock> blocks = new ArrayList<>();
 
     protected ISchedulable analyzer;
-    protected Exception analyzerError;
+    protected Throwable analyzerError;
     protected Iterator<PendingBlock> blockIterator;
 
-    private final BiPredicate<ISchedulable, Exception> childErrorHandler = this::handleChildError;
+    private final BiPredicate<ISchedulable, Throwable> childErrorHandler = this::handleChildError;
 
     public FSMAnalyzer(EntityPlayer player, MMState state, World world, ItemMatterManipulator.ManipulatorTier tier) {
         super(State.INIT_ANALYZER, State.FINISH);
@@ -64,7 +64,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         this.tier = tier;
     }
 
-    protected boolean handleChildError(ISchedulable schedulable, Exception e) {
+    protected boolean handleChildError(ISchedulable schedulable, Throwable e) {
         if (schedulable == analyzer) {
             analyzerError = e;
             return true;
@@ -93,7 +93,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     }
 
     @FSM.Event(State.NAMES.WAIT_FOR_ANALYZER)
-    protected boolean propagateAnalyzerError() throws Exception {
+    protected boolean propagateAnalyzerError() throws Throwable {
         if (analyzerError != null) throw analyzerError;
         return false;
     }

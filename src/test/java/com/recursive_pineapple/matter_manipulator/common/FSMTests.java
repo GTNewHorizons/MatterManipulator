@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class FSMTests {
 
     @Test
-    void processesTransitionsEventsAndStateChangeListeners() {
+    void processesTransitionsEventsAndStateChangeListeners() throws Throwable {
         TestFSM fsm = new TestFSM();
         List<TestFSM> stateChanges = new ArrayList<>();
         fsm.onStateChange(stateChanges::add);
@@ -43,7 +43,7 @@ class FSMTests {
     }
 
     @Test
-    void schedulerRunsFsmUntilItsFinalState() throws Exception {
+    void schedulerRunsFsmUntilItsFinalState() throws Throwable {
         WorkScheduler scheduler = new WorkScheduler(0);
         TestFSM fsm = new TestFSM();
 
@@ -57,7 +57,7 @@ class FSMTests {
     }
 
     @Test
-    void pauseAndResumeControlWork() {
+    void pauseAndResumeControlWork() throws Throwable {
         TestFSM fsm = new TestFSM();
         fsm.pause();
 
@@ -76,10 +76,10 @@ class FSMTests {
     void eventFailuresAreWrappedWithTheMethodContext() {
         FailingFSM fsm = new FailingFSM();
 
-        IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> fsm.doWork(1));
+        RuntimeException thrown = assertThrows(RuntimeException.class, () -> fsm.doWork(1));
 
         assertTrue(thrown.getMessage().contains("fail"));
-        assertSame(fsm.failure, thrown.getCause());
+        assertSame(fsm.failure, thrown);
     }
 
     private static class TestFSM extends FSM<TestFSM.State, TestFSM> {

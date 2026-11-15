@@ -80,9 +80,9 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     protected List<PendingBlock> baseBlocks;
     protected List<PendingBlock> blocksSpan;
     protected Vector3i spanOffset;
-    protected Exception childError;
+    protected Throwable childError;
 
-    private final BiPredicate<ISchedulable, Exception> childErrorHandler = this::handleChildError;
+    private final BiPredicate<ISchedulable, Throwable> childErrorHandler = this::handleChildError;
 
     public FSMAnalysisAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
         super(State.CHECK_VALIDITY, State.FINISH);
@@ -92,7 +92,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         this.blocks = blocks;
     }
 
-    protected boolean handleChildError(ISchedulable schedulable, Exception e) {
+    protected boolean handleChildError(ISchedulable schedulable, Throwable e) {
         if (schedulable == regionAnalyzer || schedulable == smartCopyApplyAnalyzer || schedulable == smartCopyPostAnalyzer) {
             childError = e;
             return true;
@@ -101,7 +101,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         return false;
     }
 
-    protected boolean propagateChildError() throws Exception {
+    protected boolean propagateChildError() throws Throwable {
         if (childError != null) throw childError;
         return false;
     }
@@ -131,7 +131,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     }
 
     @FSM.Event(State.NAMES.WAIT_REGION)
-    protected boolean propagateRegionError() throws Exception {
+    protected boolean propagateRegionError() throws Throwable {
         return propagateChildError();
     }
 
@@ -190,7 +190,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     }
 
     @FSM.Event(State.NAMES.WAIT_SMART_COPY)
-    protected boolean propagateSmartCopyError() throws Exception {
+    protected boolean propagateSmartCopyError() throws Throwable {
         return propagateChildError();
     }
 
@@ -247,7 +247,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     }
 
     @FSM.Event(State.NAMES.WAIT_BASE_POST)
-    protected boolean propagateBasePostError() throws Exception {
+    protected boolean propagateBasePostError() throws Throwable {
         return propagateChildError();
     }
 
@@ -344,7 +344,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
     }
 
     @FSM.Event(State.NAMES.WAIT_SPAN_POST)
-    protected boolean propagateSpanPostError() throws Exception {
+    protected boolean propagateSpanPostError() throws Throwable {
         return propagateChildError();
     }
 

@@ -157,7 +157,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             .register(handler);
     }
 
-    private static final BiPredicate<ISchedulable, Exception> schedulerErrorHandler = ItemMatterManipulator::handleSchedulerError;
+    private static final BiPredicate<ISchedulable, Throwable> schedulerErrorHandler = ItemMatterManipulator::handleSchedulerError;
     private static int counter = 0;
     public static final int CONNECTS_TO_AE = 0b1 << counter++;
     public static final int CONNECTS_TO_UPLINK = 0b1 << counter++;
@@ -1246,7 +1246,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         try {
             WorkScheduler.INSTANCE.tryDoWork(MinecraftServer.getServer().getTickCounter());
-        } catch (Exception e) {
+        } catch (Throwable e) {
             MMMod.LOG.error("Unhandled worker exception", e);
         }
 
@@ -1493,7 +1493,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
     }
 
-    private static boolean handleSchedulerError(ISchedulable schedulable, Exception e) {
+    private static boolean handleSchedulerError(ISchedulable schedulable, Throwable e) {
         if (schedulable instanceof FSMBuild build) {
             MMMod.LOG.error("Could not place blocks", e);
             sendErrorToPlayer(build.player, "mm.info.error.could_not_place_blocks");

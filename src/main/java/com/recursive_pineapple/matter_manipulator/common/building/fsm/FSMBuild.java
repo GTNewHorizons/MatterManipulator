@@ -115,7 +115,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
     protected AbstractBuildable buildable;
     protected FSMAnalyzer analyzer;
-    protected Exception analyzerError;
+    protected Throwable analyzerError;
     protected Deque<PendingBlock> pendingBlocks;
     protected WirelessLinkFixer wirelessLinkFixer;
     protected BlockSpec pooled;
@@ -133,7 +133,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     private final LongList warnings = new LongArrayList();
     private final List<PendingBlock> appliedP2POutputs = new ArrayList<>();
     private final Set<Pair<Long, ForgeDirection>> convertedSources = new HashSet<>();
-    private final BiPredicate<ISchedulable, Exception> childErrorHandler = this::handleChildError;
+    private final BiPredicate<ISchedulable, Throwable> childErrorHandler = this::handleChildError;
 
     public FSMBuild(MMState state, EntityPlayer player, ItemStack stack, ItemMatterManipulator.ManipulatorTier tier) {
         super(State.INIT_ANALYZER, State.FINISH);
@@ -154,7 +154,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         if (analyzer != null && analyzer.hasWork()) scheduler.scheduleWork(analyzer);
     }
 
-    protected boolean handleChildError(ISchedulable schedulable, Exception e) {
+    protected boolean handleChildError(ISchedulable schedulable, Throwable e) {
         if (schedulable == analyzer) {
             analyzerError = e;
             return true;
@@ -227,7 +227,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     }
 
     @FSM.Event(State.NAMES.WAIT_FOR_ANALYZER)
-    protected boolean propagateAnalyzerError() throws Exception {
+    protected boolean propagateAnalyzerError() throws Throwable {
         if (analyzerError != null) throw analyzerError;
         return false;
     }

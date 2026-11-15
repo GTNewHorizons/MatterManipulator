@@ -9,10 +9,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntReferenceImmutablePair;
 
 /**
@@ -32,10 +30,10 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
     private final S initialState;
     private final S finalState;
 
-    protected final S[] stateValues;
-    protected final Int2ObjectOpenHashMap<List<BooleanSupplier>> stateEvents;
-    protected final Int2ObjectOpenHashMap<List<IntReferenceImmutablePair<BooleanSupplier>>> stateTransitions;
     protected final List<Consumer<T>> stateChangeListeners;
+    protected final S[] stateValues;
+    protected final List<MethodHandle>[] stateEvents;
+    protected final List<IntReferenceImmutablePair<MethodHandle>>[] stateTransitions;
 
     protected FSM(S initialState, S finalState) {
         this.initialState = initialState;
@@ -43,11 +41,11 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
 
         this.currentState = initialState;
 
-        this.stateEvents = new Int2ObjectOpenHashMap<>();
-        this.stateTransitions = new Int2ObjectOpenHashMap<>();
         this.stateChangeListeners = new ArrayList<>();
 
-        stateValues = initialState.getDeclaringClass().getEnumConstants();
+        this.stateValues = initialState.getDeclaringClass().getEnumConstants();
+        this.stateEvents = (List<MethodHandle>[]) new List<?>[stateValues.length];
+        this.stateTransitions = (List<IntReferenceImmutablePair<MethodHandle>>[]) new List<?>[stateValues.length];
 
         discoverStateMethods();
     }
@@ -115,7 +113,7 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
     }
 
     @Override
-    public boolean doWork(long tick) {
+    public boolean doWork(long tick) throws Throwable {
         if (!hasWork()) return false;
         if (isPaused()) return false;
 
@@ -124,36 +122,46 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
 
         processStateTransitions();
 
+        if (previousState != currentState) notifyStateChangeListeners();
+
         // State Change listeners may pause the FSM
         if (isPaused()) return false;
 
         return processStateEvents();
     }
 
-    protected void processStateTransitions() {
-        List<IntReferenceImmutablePair<BooleanSupplier>> transitions = stateTransitions.get(currentState.ordinal());
+    protected void processStateTransitions() throws Throwable {
+        List<IntReferenceImmutablePair<MethodHandle>> transitions = stateTransitions[currentState.ordinal()];
 
         if (transitions == null) return;
 
-        IntReferenceImmutablePair<BooleanSupplier> transition = transitions.stream()
-            .filter(t -> t.right().getAsBoolean())
-            .findFirst()
-            .orElse(null);
+        for (IntReferenceImmutablePair<MethodHandle> transition : transitions) {
+            try {
+                boolean enabled = (boolean) transition.right().invokeExact();
 
-        if (transition == null) return;
-
-        currentState = stateValues[transition.leftInt()];
-        notifyStateChangeListeners();
+                if (enabled) {
+                    currentState = stateValues[transition.leftInt()];
+                    return;
+                }
+            } catch (Throwable e) {
+                throw new IllegalStateException("Failed to invoke FSM method: " + transition.right(), e);
+            }
+        }
     }
 
-    protected boolean processStateEvents() {
-        List<BooleanSupplier> events = stateEvents.get(currentState.ordinal());
+    protected boolean processStateEvents() throws Throwable {
+        List<MethodHandle> events = stateEvents[currentState.ordinal()];
 
         if (events == null || events.isEmpty()) return false;
 
-        return events.stream()
-            .map(BooleanSupplier::getAsBoolean)
-            .reduce(false, (a, b) -> a || b);
+        boolean keep = false;
+
+        for (MethodHandle event : events) {
+            boolean keepThis = (boolean) event.invokeExact();
+            keep |= keepThis;
+        }
+
+        return keep;
     }
 
     public void onStateChange(Consumer<T> listener) {
@@ -185,25 +193,19 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
                 try {
                     method.setAccessible(true);
 
-                    MethodHandle methodHandle = lookup.unreflect(method)
-                        .bindTo(this);
-
-                    BooleanSupplier action = () -> {
-                        try {
-                            return (boolean) methodHandle.invokeExact();
-                        } catch (Throwable e) {
-                            throw new IllegalStateException("Failed to invoke FSM method: " + method, e);
-                        }
-                    };
+                    MethodHandle methodHandle = lookup.unreflect(method).bindTo(this);
 
                     if (event != null) {
                         int state = stateOrdinal(event.value());
-                        stateEvents.computeIfAbsent(state, k -> new ArrayList<>()).add(action);
+
+                        if (stateEvents[state] == null) stateEvents[state] = new ArrayList<>();
+                        stateEvents[state].add(methodHandle);
                     } else {
                         int fromState = stateOrdinal(transition.from());
                         int toState = stateOrdinal(transition.to());
-                        stateTransitions.computeIfAbsent(fromState, k -> new ArrayList<>())
-                            .add(IntReferenceImmutablePair.of(toState, action));
+
+                        if (stateTransitions[fromState] == null) stateTransitions[fromState] = new ArrayList<>();
+                        stateTransitions[fromState].add(IntReferenceImmutablePair.of(toState, methodHandle));
                     }
                 } catch (Throwable t) {
                     if (t instanceof IllegalArgumentException argumentException) throw argumentException;

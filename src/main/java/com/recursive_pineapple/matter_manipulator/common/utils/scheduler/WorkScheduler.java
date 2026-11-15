@@ -22,7 +22,7 @@ public class WorkScheduler {
     private long elapsedThisTick;
 
     private final Set<ISchedulable> workers = new LinkedHashSet<>();
-    private final Set<BiPredicate<ISchedulable, Exception>> errorHandlers = new HashSet<>();
+    private final Set<BiPredicate<ISchedulable, Throwable>> errorHandlers = new HashSet<>();
 
     public WorkScheduler(long budgetMicros) {
         this.budgetMicros = budgetMicros;
@@ -78,7 +78,7 @@ public class WorkScheduler {
      * @param tick the current tick
      * @return {@code true} if the scheduler ran; {@code false} if the budget is spent
      */
-    public boolean tryDoWork(long tick) throws Exception {
+    public boolean tryDoWork(long tick) throws Throwable {
         if (!canDoWork(tick)) return false;
 
         doWork();
@@ -90,15 +90,15 @@ public class WorkScheduler {
         return Collections.unmodifiableSet(new LinkedHashSet<>(workers)).iterator();
     }
 
-    public boolean addErrorHandler(BiPredicate<ISchedulable, Exception> handler) {
+    public boolean addErrorHandler(BiPredicate<ISchedulable, Throwable> handler) {
         return errorHandlers.add(handler);
     }
 
-    public boolean removeErrorHandler(BiPredicate<ISchedulable, Exception> handler) {
+    public boolean removeErrorHandler(BiPredicate<ISchedulable, Throwable> handler) {
         return errorHandlers.remove(handler);
     }
 
-    protected void doWork() throws Exception {
+    protected void doWork() throws Throwable {
         long start = System.nanoTime();
         long now = start;
 
@@ -121,7 +121,7 @@ public class WorkScheduler {
 
                 try {
                     keep = worker.doWork(lastTick);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     removeWork(worker);
                     onError(worker, e);
                     break;
@@ -144,13 +144,13 @@ public class WorkScheduler {
         if (budgetMicros != 0) elapsedThisTick += (now - start) / 1000;
     }
 
-    protected void onError(ISchedulable worker, Exception exception) throws Exception {
+    protected void onError(ISchedulable worker, Throwable throwable) throws Throwable {
         boolean handled = false;
 
-        for (BiPredicate<ISchedulable, Exception> handler : errorHandlers) {
-            handled = handler.test(worker, exception) || handled;
+        for (BiPredicate<ISchedulable, Throwable> handler : errorHandlers) {
+            handled = handler.test(worker, throwable) || handled;
         }
 
-        if (!handled) throw exception;
+        if (!handled) throw throwable;
     }
 }

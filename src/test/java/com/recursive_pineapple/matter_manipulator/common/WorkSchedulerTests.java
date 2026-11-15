@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class WorkSchedulerTests {
 
     @Test
-    void runsWorkerUntilItYieldsAndRemovesCompletedWorkers() throws Exception {
+    void runsWorkerUntilItYieldsAndRemovesCompletedWorkers() throws Throwable {
         WorkScheduler scheduler = new WorkScheduler(0);
         TestWorker worker = new TestWorker(3, true);
 
@@ -31,7 +31,7 @@ class WorkSchedulerTests {
     }
 
     @Test
-    void runsOtherWorkersWhenAWorkerYields() throws Exception {
+    void runsOtherWorkersWhenAWorkerYields() throws Throwable {
         WorkScheduler scheduler = new WorkScheduler(0);
         TestWorker yieldingWorker = new TestWorker(2, false);
         TestWorker completingWorker = new TestWorker(1, true);
@@ -64,12 +64,12 @@ class WorkSchedulerTests {
     }
 
     @Test
-    void handlesWorkerExceptionsAndRemovesTheWorker() throws Exception {
+    void handlesWorkerExceptionsAndRemovesTheWorker() throws Throwable {
         WorkScheduler scheduler = new WorkScheduler(0);
         Exception failure = new Exception("worker failed");
         FailingWorker worker = new FailingWorker(failure);
         ISchedulable[] failedWorker = new ISchedulable[1];
-        Exception[] handledFailure = new Exception[1];
+        Throwable[] handledFailure = new Throwable[1];
         scheduler.addErrorHandler((failed, exception) -> {
             failedWorker[0] = failed;
             handledFailure[0] = exception;
