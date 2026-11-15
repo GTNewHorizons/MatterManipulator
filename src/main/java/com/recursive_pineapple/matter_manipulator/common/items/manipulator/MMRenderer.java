@@ -35,9 +35,11 @@ import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.RenderingConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.rendering.BoxRenderer;
+import com.recursive_pineapple.matter_manipulator.common.building.BlockAnalyzer.RegionAnalysis;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PendingAction;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.Shape;
 import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
@@ -47,6 +49,7 @@ import org.joml.Vector3f;
 import org.joml.Vector3i;
 import org.lwjgl.opengl.GL11;
 
+import it.unimi.dsi.fastutil.longs.Long2BooleanOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
@@ -66,6 +69,7 @@ public class MMRenderer {
     private static boolean wasValid = false;
 
     private static final long ANALYSIS_INTERVAL_MS = 10_000;
+    private static final long CHUNK_CHECK_INTERVAL_MS = 1_000;
 
     private static long lastExceptionPrint = 0;
 
@@ -76,6 +80,73 @@ public class MMRenderer {
     private static long statusExpiration = 0;
 
     private static boolean wasInUse = false;
+
+    private static boolean sourceWasAvailable = false;
+    private static boolean copyChunksLoaded = false;
+    private static long nextSourceCheckMS = 0;
+
+    // Keep the source relative to Copy A; the rendered blocks depend on Paste.
+    private static RegionAnalysis cachedCopySource;
+    private static MMConfig cachedCopyConfig;
+    private static World cachedCopyWorld;
+    private static boolean cachedSmartCopy;
+
+    private static World lastRenderWorld;
+
+    private static boolean copySnapshotEnabled;
+    private static boolean copySelectionInProgress;
+
+    private static long nextPasteChunkCheckMS;
+    private static int lastPasteChunkX = Integer.MIN_VALUE;
+    private static int lastPasteChunkZ = Integer.MIN_VALUE;
+    private static boolean lastPasteChunkLoaded;
+
+    private static void clearCopySnapshot() {
+        cachedCopySource = null;
+        cachedCopyConfig = null;
+        cachedCopyWorld = null;
+    }
+
+    private static boolean hasCopySnapshot(MMState state, World world) {
+        if (!copySnapshotEnabled || cachedCopySource == null || cachedCopyConfig == null || cachedCopyWorld != world) return false;
+
+        MMConfig config = state.config;
+        return config.placeMode == PlaceMode.COPYING && Objects.equals(cachedCopyConfig.coordA, config.coordA) &&
+            Objects.equals(cachedCopyConfig.coordB, config.coordB) &&
+            cachedCopyConfig.replaceCribsWithProxies == config.replaceCribsWithProxies &&
+            cachedCopyConfig.interfaceCopyMode == config.interfaceCopyMode &&
+            cachedCopyConfig.p2pInterfaceCopyMode == config.p2pInterfaceCopyMode &&
+            cachedSmartCopy == state.hasCap(ItemMatterManipulator.ALLOW_SMART_COPY);
+    }
+
+    private static void rememberCopySource(MMState state, World world) {
+        RegionAnalysis source = state.getCopySource(world);
+        if (source == null) return;
+
+        cachedCopySource = source;
+        cachedCopyConfig = state.clone().config;
+        cachedCopyWorld = world;
+        cachedSmartCopy = state.hasCap(ItemMatterManipulator.ALLOW_SMART_COPY);
+    }
+
+    private static void resetOnWorldChange(EntityPlayer player, World world) {
+        if (lastRenderWorld == world) return;
+
+        lastRenderWorld = world;
+        clear(player);
+        lastDrawer = null;
+        wasValid = false;
+        clearCopySnapshot();
+        // Coordinates survive reconnects in item NBT, but the client snapshot does not.
+        copySnapshotEnabled = false;
+        copySelectionInProgress = false;
+        sourceWasAvailable = false;
+        copyChunksLoaded = false;
+        nextSourceCheckMS = 0;
+        errors = null;
+        warnings = null;
+        statusExpiration = 0;
+    }
 
     private MMRenderer() {}
 
@@ -107,6 +178,23 @@ public class MMRenderer {
         }
     }
 
+    private static boolean isChunkLoaded(World world, int chunkX, int chunkZ) {
+        return !world.getChunkFromChunkCoords(chunkX, chunkZ).isEmpty();
+    }
+
+    private static boolean areCopyChunksLoaded(World world, Location a, Location b) {
+        if (a == null || b == null || !a.isInWorld(world) || !b.isInWorld(world)) return false;
+
+        int minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
+        int minZ = Math.min(a.z, b.z), maxZ = Math.max(a.z, b.z);
+        for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
+            for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
+                if (!isChunkLoaded(world, cx, cz)) return false;
+            }
+        }
+        return true;
+    }
+
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void renderSelection(RenderWorldLastEvent event) {
         try {
@@ -132,6 +220,9 @@ public class MMRenderer {
      */
     private static void renderSelectionImpl(RenderWorldLastEvent event) {
         EntityPlayer player = Minecraft.getMinecraft().thePlayer;
+        if (player == null || player.worldObj == null) return;
+
+        resetOnWorldChange(player, player.worldObj);
         ItemStack held = player.getHeldItem();
 
         if (held != null && held.getItem() instanceof ItemMatterManipulator manipulator) {
@@ -161,8 +252,13 @@ public class MMRenderer {
     private static void clear(EntityPlayer player) {
         lastAnalysisMS = 0;
         lastAnalyzedConfig = null;
-        lastPlayerPosition = null;
         analysisCache = null;
+        lastPlayerPosition = null;
+        nextSourceCheckMS = 0;
+        nextPasteChunkCheckMS = 0;
+        lastPasteChunkX = Integer.MIN_VALUE;
+        lastPasteChunkZ = Integer.MIN_VALUE;
+        lastPasteChunkLoaded = false;
 
         needsHintDraw = false;
         needsAnalysis = false;
@@ -355,6 +451,22 @@ public class MMRenderer {
     }
 
     private static void renderRegions(RenderWorldLastEvent event, EntityPlayer player, MMState state, ItemMatterManipulator manipulator) {
+        boolean markingCopy = state.config.placeMode == PlaceMode.COPYING &&
+            (state.config.action == PendingAction.MARK_COPY_A || state.config.action == PendingAction.MARK_COPY_B);
+
+        if (markingCopy && !copySelectionInProgress) {
+            copySnapshotEnabled = true;
+            clearCopySnapshot();
+            analysisCache = null;
+            lastAnalyzedConfig = null;
+            sourceWasAvailable = false;
+            copyChunksLoaded = false;
+            nextSourceCheckMS = 0;
+            needsAnalysis = true;
+            RenderHints.INSTANCE.reset();
+        }
+        copySelectionInProgress = markingCopy;
+
         Location sourceA = state.config.coordA;
         Location sourceB = state.config.coordB;
         Location paste = state.config.coordC;
@@ -403,6 +515,11 @@ public class MMRenderer {
         state.config.coordB = sourceB;
         state.config.coordC = paste;
 
+        // getPendingBlocks() creates the default transform lazily.
+        if (state.config.placeMode == PlaceMode.COPYING) {
+            state.getTransform();
+        }
+
         boolean isSourceAValid = sourceA != null && sourceA.isInWorld(player.worldObj);
         boolean isSourceBValid = sourceB != null && sourceB.isInWorld(player.worldObj);
         boolean isPasteValid = paste != null && paste.isInWorld(player.worldObj);
@@ -434,6 +551,25 @@ public class MMRenderer {
 
             VoxelAABB pasteDeltas = null;
 
+            long now = System.currentTimeMillis();
+            boolean copyMode = state.config.placeMode == PlaceMode.COPYING;
+            boolean snapshotMode = copyMode && copySnapshotEnabled;
+
+            if (copyMode && !markingCopy && now >= nextSourceCheckMS) {
+                copyChunksLoaded = areCopyChunksLoaded(player.worldObj, sourceA, sourceB);
+                nextSourceCheckMS = now + CHUNK_CHECK_INTERVAL_MS;
+            }
+
+            boolean sourceAvailable = !copyMode || (copyChunksLoaded && !markingCopy);
+            boolean sourceReturned = copyMode && sourceAvailable && !sourceWasAvailable;
+
+            if (snapshotMode && sourceAvailable && (sourceReturned || !hasCopySnapshot(state, player.worldObj) || (needsAnalysis && isPasteValid))) {
+                rememberCopySource(state, player.worldObj);
+            }
+            sourceWasAvailable = sourceAvailable;
+
+            boolean snapshotAvailable = snapshotMode && hasCopySnapshot(state, player.worldObj);
+
             if (isPasteValid) {
                 Objects.requireNonNull(paste);
 
@@ -452,24 +588,69 @@ public class MMRenderer {
                     MathHelper.floor_double(player.posZ)
                 );
 
-                long now = System.currentTimeMillis();
+                boolean viewChanged = lastDrawer != manipulator;
+                boolean selectionChanged = !Objects.equals(lastAnalyzedConfig, state.config);
+                boolean positionChanged = lastPlayerPosition == null || (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
 
-                needsAnalysis = needsAnalysis ||
-                    (now - lastAnalysisMS) >= ANALYSIS_INTERVAL_MS ||
-                    lastDrawer != manipulator ||
-                    !Objects.equals(lastAnalyzedConfig, state.config);
+                if (now >= nextPasteChunkCheckMS) {
+                    int cx = playerLocation.x >> 4;
+                    int cz = playerLocation.z >> 4;
+                    boolean loaded = isChunkLoaded(player.worldObj, cx, cz);
+                    if (cx != lastPasteChunkX || cz != lastPasteChunkZ || loaded != lastPasteChunkLoaded) {
+                        needsHintDraw = true;
+                    }
+                    lastPasteChunkX = cx;
+                    lastPasteChunkZ = cz;
+                    lastPasteChunkLoaded = loaded;
+                    nextPasteChunkCheckMS = now + CHUNK_CHECK_INTERVAL_MS;
+                }
 
-                needsHintDraw = needsHintDraw ||
-                    needsAnalysis ||
-                    (lastPlayerPosition.distanceTo(playerLocation) > 2 && manipulator.tier.maxRange != -1);
+                boolean refreshDue = (now - lastAnalysisMS) >= ANALYSIS_INTERVAL_MS;
+                boolean canAnalyze = sourceAvailable || snapshotAvailable;
+                boolean reanalyze = needsAnalysis || selectionChanged ||
+                    viewChanged ||
+                    sourceReturned ||
+                    (analysisCache == null && canAnalyze) ||
+                    (!snapshotAvailable && refreshDue && sourceAvailable);
 
-                if (needsAnalysis) {
-                    lastAnalysisMS = now;
-                    lastAnalyzedConfig = state.config;
-                    analysisCache = state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
-                    analysisCache.removeIf(Objects::isNull);
-                    analysisCache.sort(Comparator.comparingInt((PendingBlock b) -> b.renderOrder));
+                if (reanalyze) {
+                    if (!canAnalyze) {
+                        analysisCache = null;
+                        RenderHints.INSTANCE.reset();
+                    } else {
+                        List<PendingBlock> fresh = snapshotAvailable ?
+                            state.getCopyPreview(cachedCopySource) :
+                            state.getPendingBlocks(manipulator.tier, player.getEntityWorld());
+                        if (fresh != null) {
+                            fresh.removeIf(Objects::isNull);
+                            fresh.sort(Comparator.comparingInt((PendingBlock block) -> block.renderOrder));
+                            analysisCache = fresh;
+                        }
+                        lastAnalysisMS = now;
+                    }
+                    lastAnalyzedConfig = state.clone().config;
                     needsAnalysis = false;
+                    needsHintDraw = true;
+                }
+
+                if (copyMode && !canAnalyze && analysisCache != null) {
+                    analysisCache = null;
+                    RenderHints.INSTANCE.reset();
+                    needsHintDraw = false;
+                }
+
+                // Destination blocks can change while the Copy snapshot stays valid.
+                if (refreshDue) {
+                    lastAnalysisMS = now;
+                    needsHintDraw = true;
+                }
+
+                needsHintDraw = needsHintDraw || positionChanged;
+                if (analysisCache == null) {
+                    RenderHints.INSTANCE.reset();
+                    needsHintDraw = false;
+                    lastDrawer = manipulator;
+                    lastPlayerPosition = playerLocation;
                 }
 
                 if (needsHintDraw) {
@@ -520,6 +701,8 @@ public class MMRenderer {
         LongOpenHashSet warnings = MMRenderer.warnings == null ? null : new LongOpenHashSet(MMRenderer.warnings);
 
         World world = player.worldObj;
+        // Check each destination chunk only once per redraw.
+        Long2BooleanOpenHashMap loadedPasteChunks = new Long2BooleanOpenHashMap();
 
         RenderHints.INSTANCE.start();
         RenderHints.INSTANCE.setDepthTest(!RenderingConfig.hintsOnTop && state.config.placeMode != PlaceMode.EXCHANGING);
@@ -532,6 +715,14 @@ public class MMRenderer {
 
                 if (dist2 > buildable) continue;
             }
+
+            int chunkX = pendingBlock.x >> 4;
+            int chunkZ = pendingBlock.z >> 4;
+            long chunkKey = (((long) chunkX) << 32) | (chunkZ & 0xffffffffL);
+            if (!loadedPasteChunks.containsKey(chunkKey)) {
+                loadedPasteChunks.put(chunkKey, isChunkLoaded(world, chunkX, chunkZ));
+            }
+            if (!loadedPasteChunks.get(chunkKey)) continue;
 
             if (pendingBlock.spec.isAir() && world.isAirBlock(pendingBlock.x, pendingBlock.y, pendingBlock.z)) continue;
 
