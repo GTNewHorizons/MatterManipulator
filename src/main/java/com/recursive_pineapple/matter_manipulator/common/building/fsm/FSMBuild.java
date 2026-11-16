@@ -43,6 +43,7 @@ import appeng.parts.p2p.PartP2PTunnel;
 import appeng.util.SettingsFrom;
 
 import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentItemName;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentNumber;
 import com.gtnewhorizon.gtnhlib.util.CoordinatePacker;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.asm.Optional;
@@ -392,12 +393,12 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             if (extracted == null || extracted.stackSize < perBlock.stackSize) {
                 if (extracted != null) buildable.givePlayerItems(extracted.toStacks().toArray(new ItemStack[0]));
 
-                sendWarningToPlayer(player, "mm.info.warning.could_not_find", 1);
+                sendWarningToPlayer(player, "mm.info.warning.could_not_find", new ChatComponentNumber(1));
                 sendWarningToPlayer(
                     player,
                     "mm.info.warning.of_item",
                     pending.getDisplayNameChat(),
-                    perBlock.stackSize
+                    new ChatComponentNumber(perBlock.stackSize)
                 );
 
                 pendingBlocks.addFirst(pending);

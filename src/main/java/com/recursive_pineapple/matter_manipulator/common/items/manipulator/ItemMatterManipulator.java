@@ -66,6 +66,7 @@ import appeng.api.features.INetworkEncodable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapMaker;
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentNumber;
 import com.gtnewhorizons.modularui.api.UIInfos;
 import com.gtnewhorizons.modularui.api.drawable.AdaptableUITexture;
 import com.gtnewhorizons.modularui.api.drawable.IDrawable;
@@ -1308,7 +1309,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             build.resume();
 
             if (prevState == FSMBuild.State.WAIT_FOR_ANALYZER) {
-                sendInfoToPlayer(player, "mm.info.analyzed", build.getAnalyzedAmount());
+                sendInfoToPlayer(player, "mm.info.analyzed", new ChatComponentNumber(build.getAnalyzedAmount()));
                 return;
             }
 
@@ -1317,8 +1318,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     sendInfoToPlayer(
                         player,
                         "mm.info.placed_remaining",
-                        build.getPlacedAmount(),
-                        build.getRemainingAmount()
+                        new ChatComponentNumber(build.getPlacedAmount()),
+                        new ChatComponentNumber(build.getRemainingAmount())
                     );
                     build.playSounds();
                 }
@@ -1327,7 +1328,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     sendErrorToPlayer(
                         player,
                         "mm.info.error.could_not_place",
-                        build.getRemainingAmount()
+                        new ChatComponentNumber(build.getRemainingAmount())
                     );
                 }
 
@@ -1344,7 +1345,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
 
             if (currentState == FSMBuild.State.WAIT_FOR_ANALYZER) {
-                sendInfoToPlayer(player, "mm.info.analyzed", build.getAnalyzedAmount());
+                sendInfoToPlayer(player, "mm.info.analyzed", new ChatComponentNumber(build.getAnalyzedAmount()));
                 return;
             }
 
@@ -1353,14 +1354,14 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     sendErrorToPlayer(
                         player,
                         "mm.info.error.could_not_place",
-                        build.getRemainingAmount()
+                        new ChatComponentNumber(build.getRemainingAmount())
                     );
                 } else {
                     sendInfoToPlayer(
                         player,
                         "mm.info.placed_remaining",
-                        build.getPlacedAmount(),
-                        build.getRemainingAmount()
+                        new ChatComponentNumber(build.getPlacedAmount()),
+                        new ChatComponentNumber(build.getRemainingAmount())
                     );
                 }
 
@@ -1394,7 +1395,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             move.resume();
 
             if (prevState == FSMMove.State.INIT_MOVES) {
-                sendInfoToPlayer(player, "mm.info.analyzed", move.getRemainingAmount());
+                sendInfoToPlayer(player, "mm.info.analyzed", new ChatComponentNumber(move.getRemainingAmount()));
                 return;
             }
 
@@ -1403,8 +1404,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     sendInfoToPlayer(
                         player,
                         "mm.info.process_move",
-                        move.getMovedAmount(),
-                        move.getRemainingAmount()
+                        new ChatComponentNumber(move.getMovedAmount()),
+                        new ChatComponentNumber(move.getRemainingAmount())
                     );
                     move.playSounds();
                 }
@@ -1425,8 +1426,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 sendInfoToPlayer(
                     player,
                     "mm.info.process_move",
-                    move.getMovedAmount(),
-                    move.getRemainingAmount()
+                    new ChatComponentNumber(move.getMovedAmount()),
+                    new ChatComponentNumber(move.getRemainingAmount())
                 );
                 move.playSounds();
                 move.resetBudget();
