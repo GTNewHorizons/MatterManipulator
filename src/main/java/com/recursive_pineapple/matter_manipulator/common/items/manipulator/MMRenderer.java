@@ -37,6 +37,7 @@ import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.client.rendering.BoxRenderer;
 import com.recursive_pineapple.matter_manipulator.client.rendering.MultipartPreview;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
+import com.recursive_pineapple.matter_manipulator.common.building.MultipartAnalysisResult;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState.PlaceMode;
@@ -553,7 +554,10 @@ public class MMRenderer {
             BlockSpec.fromBlock(pooled, world, pendingBlock.x, pendingBlock.y, pendingBlock.z);
 
             if (pendingBlock.mp != null) {
-                if (pooled.getBlock() == pendingBlock.getBlock()) continue;
+                if (
+                    pooled.getBlock() == pendingBlock.getBlock() &&
+                        pendingBlock.mp.equals(MultipartAnalysisResult.analyze(world.getTileEntity(pendingBlock.x, pendingBlock.y, pendingBlock.z)))
+                ) continue;
             } else {
                 if (pooled.isEquivalent(pendingBlock.spec)) continue;
             }
