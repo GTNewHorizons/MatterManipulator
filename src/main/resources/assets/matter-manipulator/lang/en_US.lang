@@ -258,6 +258,7 @@ key.mm-cut=Mark Cut
 key.mm-copy=Mark Copy
 key.mm-paste=Mark Paste
 key.mm-reset=Reset Coords
+key.mm-add-whitelist-modifier=Add to Whitelist
 
 # Config
 interaction=Interaction
