@@ -6,6 +6,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.se
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
@@ -40,6 +41,22 @@ public class BlockAnalyzer {
      * The calling code must add another location (for example coord C) to get the real positions.
      */
     public static RegionAnalysis analyzeRegion(World world, Location a, Location b, boolean checkTiles) {
+        return analyzeRegion(world, a, b, checkTiles, null, null, null);
+    }
+
+    /**
+     * @param clipMin Optional, with clipMax: only this part of the region is looped over (world positions, inclusive)
+     * @param keep Optional: only the source blocks it accepts (by world position) are read. Others are skipped.
+     */
+    public static RegionAnalysis analyzeRegion(
+        World world,
+        Location a,
+        Location b,
+        boolean checkTiles,
+        Vector3i clipMin,
+        Vector3i clipMax,
+        Predicate<Vector3i> keep
+    ) {
         if (a == null || b == null || world.provider.dimensionId != a.worldId || a.worldId != b.worldId) return null;
 
         long pre = System.nanoTime();
@@ -51,7 +68,19 @@ public class BlockAnalyzer {
 
         analysis.blocks = new ArrayList<>();
 
-        for (Vector3i voxel : MMUtils.getBlocksInBB(a, deltas)) {
+        List<Vector3i> voxels;
+
+        if (clipMin == null) {
+            voxels = MMUtils.getBlocksInBB(a, deltas);
+        } else if (clipMin.x > clipMax.x || clipMin.y > clipMax.y || clipMin.z > clipMax.z) {
+            voxels = new ArrayList<>();
+        } else {
+            voxels = MMUtils.getBlocksInBB(new Location(a.worldId, clipMin.x, clipMin.y, clipMin.z), new Vector3i(clipMax).sub(clipMin));
+        }
+
+        for (Vector3i voxel : voxels) {
+            if (keep != null && !keep.test(voxel)) continue;
+
             BlockSpec spec = BlockSpec.fromBlock(null, world, voxel.x, voxel.y, voxel.z);
 
             if (spec.skipWhenCopying()) {

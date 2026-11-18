@@ -2,10 +2,11 @@ package com.recursive_pineapple.matter_manipulator.common.items.manipulator;
 
 import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
 
-import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -34,9 +35,11 @@ import com.recursive_pineapple.matter_manipulator.MMMod;
 
 import org.joml.Vector3d;
 import org.joml.Vector3i;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL30;
+
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 
 public class RenderHints {
 
@@ -44,14 +47,19 @@ public class RenderHints {
 
     private static final VertexFormat VBO_FORMAT = DefaultVertexFormat.POSITION_TEXTURE_COLOR;
 
+    private static final int HINT_ALPHA = 166;
+
     private static class RenderState {
 
-        public final ArrayList<Hint> hints;
+        public final ArrayList<Hint> hints = new ArrayList<>();
+        /// The icons of the 6 faces of each block + meta, indexed by [Hint#material]
+        public final ArrayList<IIcon[]> materials = new ArrayList<>();
+        public final Long2IntOpenHashMap materialIds = new Long2IntOpenHashMap();
         public long expiration;
         public boolean depthTest = false;
 
-        public RenderState(ArrayList<Hint> hints) {
-            this.hints = hints;
+        public RenderState() {
+            materialIds.defaultReturnValue(-1);
         }
     }
 
@@ -60,11 +68,14 @@ public class RenderHints {
         public Vector3i vboOffset;
         public long dataPtr;
         public int dataSize;
+        /// Only for instanced hints
+        public FloatBuffer materials;
 
-        public TessellationResult(Vector3i vboOffset, long dataPtr, int dataSize) {
+        public TessellationResult(Vector3i vboOffset, long dataPtr, int dataSize, FloatBuffer materials) {
             this.vboOffset = vboOffset;
             this.dataPtr = dataPtr;
             this.dataSize = dataSize;
+            this.materials = materials;
         }
     }
 
@@ -96,7 +107,7 @@ public class RenderHints {
     }
 
     public void start() {
-        pending = new RenderState(new ArrayList<>());
+        pending = new RenderState();
     }
 
     public void setDepthTest(boolean depthTest) {
@@ -114,6 +125,11 @@ public class RenderHints {
         vboNeedsRebuild = true;
     }
 
+    /** True while the worker thread is sorting/building the vertex data; new hints given now would wait for it anyway */
+    public boolean isBuilding() {
+        return buildTask != null;
+    }
+
     public void reset() {
         if (buildTask != null) {
             buildTask.cancel(true);
@@ -128,20 +144,33 @@ public class RenderHints {
         if (vbo != null) {
             vbo.orphan();
         }
+
+        InstancedHints.clear();
     }
 
     public void addHint(int x, int y, int z, Block block, int meta, short[] tint) {
+        long key = ((long) Block.getIdFromBlock(block) << 32) | (meta & 0xFFFFFFFFL);
+        int material = pending.materialIds.get(key);
+
+        if (material == -1) {
+            IIcon[] icons = new IIcon[6];
+
+            for (int i = 0; i < 6; i++) {
+                icons[i] = block.getIcon(i, meta);
+            }
+
+            material = pending.materials.size();
+            pending.materials.add(icons);
+            pending.materialIds.put(key, material);
+        }
+
         Hint hint = new Hint();
 
         hint.x = x;
         hint.y = y;
         hint.z = z;
-        hint.icons = new IIcon[6];
+        hint.material = material;
         hint.tint = tint;
-
-        for (int i = 0; i < 6; i++) {
-            hint.icons[i] = block.getIcon(i, meta);
-        }
 
         pending.hints.add(hint);
     }
@@ -153,8 +182,12 @@ public class RenderHints {
         }
     }
 
-    private TessellationResult buildVBO(ArrayList<Hint> hints, Vector3d eyes, Vector3i worldPos) {
+    private TessellationResult buildVBO(RenderState state, Vector3d eyes, Vector3i worldPos, boolean instanced) {
+        ArrayList<Hint> hints = state.hints;
+
         hints.sort(Comparator.comparingDouble(info -> -eyes.distanceSquared(info.x, info.y, info.z)));
+
+        if (instanced) return buildInstances(state, worldPos);
 
         final VertexFormat format = VBO_FORMAT;
         final int vertexSize = format.getVertexSize();
@@ -172,7 +205,7 @@ public class RenderHints {
         long endPtr = writePtr + capacity;
 
         for (int i = 0; i < hintCount; i++) {
-            hints.get(i).draw(tes, eyes.x, eyes.y, eyes.z, worldPos.x, worldPos.y, worldPos.z);
+            hints.get(i).draw(tes, state.materials, worldPos.x, worldPos.y, worldPos.z);
 
             if (writePtr + quadSize > endPtr) {
                 capacity = Math.max(capacity + quadSize, (int) (capacity * 1.5));
@@ -192,7 +225,41 @@ public class RenderHints {
 
         final int dataSize = (int) (writePtr - basePtr);
 
-        return new TessellationResult(new Vector3i(worldPos), basePtr, dataSize);
+        return new TessellationResult(new Vector3i(worldPos), basePtr, dataSize, null);
+    }
+
+    private static TessellationResult buildInstances(RenderState state, Vector3i worldPos) {
+        final int dataSize = state.hints.size() * InstancedHints.STRIDE;
+        final long basePtr = nmemAllocChecked(dataSize);
+        long ptr = basePtr;
+
+        for (Hint hint : state.hints) {
+            memPutFloat(ptr, hint.x - worldPos.x);
+            memPutFloat(ptr + 4, hint.y - worldPos.y);
+            memPutFloat(ptr + 8, hint.z - worldPos.z);
+            memPutInt(ptr + 12, hint.material);
+            memPutByte(ptr + 16, (byte) hint.tint[0]);
+            memPutByte(ptr + 17, (byte) hint.tint[1]);
+            memPutByte(ptr + 18, (byte) hint.tint[2]);
+            memPutByte(ptr + 19, (byte) HINT_ALPHA);
+            ptr += InstancedHints.STRIDE;
+        }
+
+        FloatBuffer materials = BufferUtils.createFloatBuffer(state.materials.size() * 6 * 4);
+
+        for (IIcon[] icons : state.materials) {
+            for (IIcon icon : icons) {
+                if (icon == null) {
+                    materials.put(0).put(0).put(0).put(0);
+                } else {
+                    materials.put(icon.getMinU()).put(icon.getMinV()).put(icon.getMaxU()).put(icon.getMaxV());
+                }
+            }
+        }
+
+        materials.flip();
+
+        return new TessellationResult(new Vector3i(worldPos), basePtr, dataSize, materials);
     }
 
     @SubscribeEvent
@@ -221,22 +288,25 @@ public class RenderHints {
             vbo = new StreamingVertexBuffer(VBO_FORMAT, GL11.GL_QUADS);
         }
 
-        if (vbo.getVertexCount() > 0) {
+        final boolean instanced = InstancedHints.isSupported();
+
+        if (instanced ? InstancedHints.count() > 0 : vbo.getVertexCount() > 0) {
             p.startSection("Draw MM Hints");
 
             GL11.glPushMatrix();
-            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT);
+            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_POLYGON_BIT);
 
             Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.locationBlocksTexture);
 
             // vboOffset is the integer player pos at build time; translate by how much the player has drifted since
             GL11.glTranslated(lastResult.vboOffset.x - xd, lastResult.vboOffset.y - yd, lastResult.vboOffset.z - zd);
 
-            // we need the back facing rendered because the thing is transparent
-            GL11.glDisable(GL11.GL_CULL_FACE);
+            GL11.glEnable(GL11.GL_CULL_FACE);
+            GL11.glCullFace(GL11.GL_BACK);
+            GL11.glFrontFace(GL11.GL_CCW);
             GL11.glDisable(GL11.GL_ALPHA_TEST);
             GL11.glEnable(GL11.GL_BLEND); // enable blend so it is transparent
-            GL11.glBlendFunc(GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_SRC_ALPHA);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
             if (!hints.depthTest) {
                 GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -244,7 +314,11 @@ public class RenderHints {
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
             }
 
-            vbo.render();
+            if (instanced) {
+                InstancedHints.draw();
+            } else {
+                vbo.render();
+            }
 
             GL11.glPopAttrib();
             GL11.glPopMatrix();
@@ -264,29 +338,27 @@ public class RenderHints {
             buildTask = null;
 
             if (lastResult != null) {
-                final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
-                vbo.allocate(vertexCount, GL15.GL_DYNAMIC_DRAW);
-                final ByteBuffer buffer = vbo.map(GL30.GL_MAP_WRITE_BIT | GL30.GL_MAP_INVALIDATE_BUFFER_BIT);
+                p.startSection("MM Upload");
 
-                if (buffer == null) {
-                    MMMod.LOG.error(
-                        "Could not upload hint VBO: glMapBufferRange returned null (vertexCount={})",
-                        vertexCount
-                    );
+                if (lastResult.materials != null) {
+                    InstancedHints.upload(lastResult.dataPtr, lastResult.dataSize, lastResult.materials);
                 } else {
-                    memCopy(lastResult.dataPtr, memAddress0(buffer), lastResult.dataSize);
-                    vbo.unmap();
+                    final int vertexCount = lastResult.dataSize / VBO_FORMAT.getVertexSize();
+
+                    vbo.upload(GL15.GL_DYNAMIC_DRAW, memByteBuffer(lastResult.dataPtr, lastResult.dataSize), vertexCount);
                 }
 
                 nmemFree(lastResult.dataPtr);
-            }
-        }
 
-        if (buildTask == null && (vboNeedsRebuild || worldPos.distance(lastPlayerPosition) > 1.0)) {
+                p.endSection();
+            }
+        } else if (buildTask == null && (vboNeedsRebuild || worldPos.distance(lastPlayerPosition) > 1.0)) {
             lastPlayerPosition.set(worldPos);
             vboNeedsRebuild = false;
 
-            buildTask = workerThread.submit(() -> buildVBO(this.hints.hints, eyes, worldPos));
+            final RenderState state = hints;
+
+            buildTask = workerThread.submit(() -> buildVBO(state, eyes, worldPos, instanced));
         }
 
         p.endSection();
@@ -295,28 +367,18 @@ public class RenderHints {
     private static class Hint {
 
         public int x, y, z;
-        public IIcon[] icons;
+        public int material;
         public short[] tint;
 
-        public void draw(
-            Tessellator tes,
-            double eyeX,
-            double eyeY,
-            double eyeZ,
-            int eyeXint,
-            int eyeYint,
-            int eyeZint
-        ) {
+        public void draw(Tessellator tes, List<IIcon[]> materials, int originX, int originY, int originZ) {
             double size = 0.5;
+            IIcon[] icons = materials.get(material);
 
-            tes.setColorRGBA(tint[0], tint[1], tint[2], 150);
+            tes.setColorRGBA(tint[0], tint[1], tint[2], HINT_ALPHA);
 
-            double X = (x - eyeXint) + 0.25;
-            double Y = (y - eyeYint) + 0.25;
-            double Z = (z - eyeZint) + 0.25;
-            double worldX = x + 0.25;
-            double worldY = y + 0.25;
-            double worldZ = z + 0.25;
+            double X = (x - originX) + 0.25;
+            double Y = (y - originY) + 0.25;
+            double Z = (z - originZ) + 0.25;
 
             // this rendering code is independently written by glee8e on July 10th, 2023
             // and is released as part of StructureLib under LGPL terms, just like everything else in this project
@@ -325,60 +387,50 @@ public class RenderHints {
             // here we do a 2 pass render.
             // first pass we draw obstructed faces (i.e. faces that are further away from player)
             // second pass we draw unobstructed faces
-            for (int j = 0; j < 2; j++) {
-                boolean unobstructedPass = j == 1;
-                for (int i = 0; i < 6; i++) {
-                    if (icons[i] == null) continue;
+            for (int i = 0; i < 6; i++) {
+                if (icons[i] == null) continue;
 
-                    double u = icons[i].getMinU();
-                    double U = icons[i].getMaxU();
-                    double v = icons[i].getMinV();
-                    double V = icons[i].getMaxV();
+                double u = icons[i].getMinU();
+                double U = icons[i].getMaxU();
+                double v = icons[i].getMinV();
+                double V = icons[i].getMaxV();
 
-                    switch (i) { // {DOWN, UP, NORTH, SOUTH, WEST, EAST}
-                        case 0 -> {
-                            // all these ifs is in form if ((is face unobstructed) != (is in unobstructred pass))
-                            if ((worldY >= eyeY) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y, Z, u, v);
-                            tes.addVertexWithUV(X + size, Y, Z, U, v);
-                            tes.addVertexWithUV(X + size, Y, Z + size, U, V);
-                            tes.addVertexWithUV(X, Y, Z + size, u, V);
-                        }
-                        case 1 -> {
-                            if ((worldY + size <= eyeY) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y + size, Z, u, v);
-                            tes.addVertexWithUV(X, Y + size, Z + size, u, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z + size, U, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z, U, v);
-                        }
-                        case 2 -> {
-                            if ((worldZ >= eyeZ) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y, Z, U, V);
-                            tes.addVertexWithUV(X, Y + size, Z, U, v);
-                            tes.addVertexWithUV(X + size, Y + size, Z, u, v);
-                            tes.addVertexWithUV(X + size, Y, Z, u, V);
-                        }
-                        case 3 -> {
-                            if ((worldZ + size <= eyeZ) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X + size, Y, Z + size, U, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z + size, U, v);
-                            tes.addVertexWithUV(X, Y + size, Z + size, u, v);
-                            tes.addVertexWithUV(X, Y, Z + size, u, V);
-                        }
-                        case 4 -> {
-                            if ((worldX >= eyeX) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X, Y, Z + size, U, V);
-                            tes.addVertexWithUV(X, Y + size, Z + size, U, v);
-                            tes.addVertexWithUV(X, Y + size, Z, u, v);
-                            tes.addVertexWithUV(X, Y, Z, u, V);
-                        }
-                        case 5 -> {
-                            if ((worldX + size <= eyeX) != unobstructedPass) continue;
-                            tes.addVertexWithUV(X + size, Y, Z, U, V);
-                            tes.addVertexWithUV(X + size, Y + size, Z, U, v);
-                            tes.addVertexWithUV(X + size, Y + size, Z + size, u, v);
-                            tes.addVertexWithUV(X + size, Y, Z + size, u, V);
-                        }
+                switch (i) { // {DOWN, UP, NORTH, SOUTH, WEST, EAST}
+                    case 0 -> {
+                        tes.addVertexWithUV(X, Y, Z, u, v);
+                        tes.addVertexWithUV(X + size, Y, Z, U, v);
+                        tes.addVertexWithUV(X + size, Y, Z + size, U, V);
+                        tes.addVertexWithUV(X, Y, Z + size, u, V);
+                    }
+                    case 1 -> {
+                        tes.addVertexWithUV(X, Y + size, Z, u, v);
+                        tes.addVertexWithUV(X, Y + size, Z + size, u, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z + size, U, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z, U, v);
+                    }
+                    case 2 -> {
+                        tes.addVertexWithUV(X, Y, Z, U, V);
+                        tes.addVertexWithUV(X, Y + size, Z, U, v);
+                        tes.addVertexWithUV(X + size, Y + size, Z, u, v);
+                        tes.addVertexWithUV(X + size, Y, Z, u, V);
+                    }
+                    case 3 -> {
+                        tes.addVertexWithUV(X + size, Y, Z + size, U, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z + size, U, v);
+                        tes.addVertexWithUV(X, Y + size, Z + size, u, v);
+                        tes.addVertexWithUV(X, Y, Z + size, u, V);
+                    }
+                    case 4 -> {
+                        tes.addVertexWithUV(X, Y, Z + size, U, V);
+                        tes.addVertexWithUV(X, Y + size, Z + size, U, v);
+                        tes.addVertexWithUV(X, Y + size, Z, u, v);
+                        tes.addVertexWithUV(X, Y, Z, u, V);
+                    }
+                    case 5 -> {
+                        tes.addVertexWithUV(X + size, Y, Z, U, V);
+                        tes.addVertexWithUV(X + size, Y + size, Z, U, v);
+                        tes.addVertexWithUV(X + size, Y + size, Z + size, u, v);
+                        tes.addVertexWithUV(X + size, Y, Z + size, u, V);
                     }
                 }
             }

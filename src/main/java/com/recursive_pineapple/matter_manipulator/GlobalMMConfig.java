@@ -29,6 +29,12 @@ public class GlobalMMConfig {
         @Config.Name("Max Hints Shown")
         public static int maxHints;
 
+        @Config.Comment("Blocks further than this from the player are not shown in the preview. Client only. Set to 0 for no limit.")
+        @Config.DefaultInt(64)
+        @Config.RangeInt(min = 0, max = 30_000)
+        @Config.Name("Max Hint Distance")
+        public static int maxHintDistance;
+
         @Config.Comment("Controls the duration of the build status warning/error hints (seconds). Client only. Set to 0 to never clear hints.")
         @Config.DefaultInt(60)
         @Config.Name("Build Status Timeout")
