@@ -1,6 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.building.movers;
 
 import net.minecraft.block.Block;
+import net.minecraft.init.Blocks;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
@@ -30,7 +31,8 @@ public class StandardBlockMover implements BlockMover<StandardBlock> {
         }
 
         world.removeTileEntity(x, y, z);
-        world.setBlockToAir(x, y, z);
+        // PendingMove notifies the neighbours, so that attached blocks which are moved later don't pop off
+        world.setBlock(x, y, z, Blocks.air, 0, 2);
 
         return new StandardBlock(block, meta, tag);
     }
