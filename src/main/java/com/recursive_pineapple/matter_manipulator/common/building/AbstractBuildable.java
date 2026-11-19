@@ -78,7 +78,7 @@ import it.unimi.dsi.fastutil.Pair;
 /**
  * Handles all generic manipulator building logic.
  */
-public abstract class AbstractBuildable extends MMInventory implements IBuildable {
+public class AbstractBuildable extends MMInventory {
 
     private static final double[] SQUARE_ROOTS = new double[1000];
 
@@ -134,7 +134,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
      * Removes a block and stores its items in this object. Items & fluids must delivered by calling
      * {@link #actuallyGivePlayerStuff()} or they will be deleted.
      */
-    protected void removeBlock(World world, int x, int y, int z, ImmutableBlockSpec existing) {
+    public void removeBlock(World world, int x, int y, int z, ImmutableBlockSpec existing) {
         removeBlock(world, x, y, z, existing, true);
     }
 
@@ -143,7 +143,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
      *        is placed here right after (which notifies them), so things attached to this block (torches,
      *        wires, ...) don't pop off in between. The caller must notify them if nothing gets placed.
      */
-    protected void removeBlock(World world, int x, int y, int z, ImmutableBlockSpec existing, boolean notifyNeighbors) {
+    public void removeBlock(World world, int x, int y, int z, ImmutableBlockSpec existing, boolean notifyNeighbors) {
         int removeFlags = notifyNeighbors ? 3 : 2;
 
         Block block = existing.getBlock();
@@ -421,7 +421,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
      * This mechanism finds the centre point for all played sounds of the same type and makes a single sound event so
      * that several aren't played in the same tick.
      */
-    protected void playSound(World world, int x, int y, int z, SoundResource sound) {
+    public void playSound(World world, int x, int y, int z, SoundResource sound) {
         Pair<SoundResource, World> pair = Pair.of(sound, world);
 
         SoundInfo info = pendingSounds.computeIfAbsent(pair, ignored -> new SoundInfo());
@@ -432,7 +432,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
         info.sumZ += z;
     }
 
-    protected void playSounds() {
+    public void playSounds() {
         pendingSounds.forEach((pair, info) -> {
             int avgX = (int) (info.sumX / info.eventCount);
             int avgY = (int) (info.sumY / info.eventCount);
@@ -448,7 +448,7 @@ public abstract class AbstractBuildable extends MMInventory implements IBuildabl
     /**
      * Checks if a block can be edited.
      */
-    protected boolean isEditable(World world, int x, int y, int z, boolean isPlacement) {
+    public boolean isEditable(World world, int x, int y, int z, boolean isPlacement) {
         boolean isBlocked;
         if (isPlacement) {
             BooleanSupplier postPlaceEvent = () -> ForgeEventFactory.onPlayerBlockPlace(
