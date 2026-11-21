@@ -2838,6 +2838,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
         }
 
+        @SideOnly(Side.CLIENT)
         private boolean isMouseBinding(MouseEvent event, KeyBinding keyBinding) {
             int keyCode = keyBinding.getKeyCode();
             return keyCode < 0 && event.button == keyCode + 100;
