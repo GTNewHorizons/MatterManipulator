@@ -29,6 +29,12 @@ public class GlobalMMConfig {
         @Config.Name("Max Hints Shown")
         public static int maxHints;
 
+        @Config.Comment("Blocks further than this from the player are not shown in the preview. Client only. Set to 0 for no limit.")
+        @Config.DefaultInt(64)
+        @Config.RangeInt(min = 0, max = 30_000)
+        @Config.Name("Max Hint Distance")
+        public static int maxHintDistance;
+
         @Config.Comment("Controls the duration of the build status warning/error hints (seconds). Client only. Set to 0 to never clear hints.")
         @Config.DefaultInt(60)
         @Config.Name("Build Status Timeout")
@@ -50,6 +56,16 @@ public class GlobalMMConfig {
 
     @Config(modid = Names.MATTER_MANIPULATOR, category = "building")
     public static class BuildingConfig {
+
+        @Config.Comment({
+            "Time budget in microseconds per pass for removing air-to-air build candidates or empty move sources. Server only.",
+            "Applies to geometry, copying, exchanging, cables and moving. 0 disables filtering.",
+            "Applied when starting a new operation. Skipped positions are not revisited."
+        })
+        @Config.DefaultInt(1_000)
+        @Config.RangeInt(min = 0, max = 10_000)
+        @Config.Name("Air Filter Budget (us)")
+        public static int airFilterBudgetMicros;
 
         @Config.Comment("Empty ME Output Hatches/Busses when they're removed. Server only.")
         @Config.DefaultBoolean(true)

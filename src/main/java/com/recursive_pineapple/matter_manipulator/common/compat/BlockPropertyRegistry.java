@@ -58,6 +58,7 @@ import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.common.blocks.ItemMachines;
+import gregtech.common.tileentities.machines.multi.MTEIndustrialMacerator;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputBusME;
 import gregtech.common.tileentities.machines.outputme.MTEHatchOutputME;
 
@@ -1156,6 +1157,7 @@ public class BlockPropertyRegistry {
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCapacityProperty<>(MTEHatchOutputBusME.class));
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MEHatchCapacityProperty<>(MTEHatchOutputME.class));
         registerIntrinsicProperty(GregTechAPI.sBlockMachines, new CALImprintProperty());
+        registerIntrinsicProperty(GregTechAPI.sBlockMachines, new MacerationStackTierProperty());
     }
 
     // #endregion
@@ -1743,6 +1745,53 @@ public class BlockPropertyRegistry {
                     imprint == null ? "mm.chat.item.details.imprint" : new ChatComponentItemName(imprint.imprint.get(1))
                 )
             );
+        }
+    }
+
+    private static class MacerationStackTierProperty extends IntrinsicMTEProperty<MTEIndustrialMacerator> {
+
+        public MacerationStackTierProperty() {
+            super(MTEIndustrialMacerator.class);
+        }
+
+        @Override
+        public String getName() {
+            return "tier";
+        }
+
+        @Override
+        public JsonElement getValue(MTEIndustrialMacerator mte) {
+            NBTTagCompound tag = new NBTTagCompound();
+            mte.setItemNBT(tag);
+            return getValue(tag);
+        }
+
+        @Override
+        public void setValue(MTEIndustrialMacerator mte, JsonElement value) {
+            throw new UnsupportedOperationException("controller tier is fixed and cannot be changed");
+        }
+
+        @Override
+        public JsonElement getValue(NBTTagCompound itemTag) {
+            if (itemTag == null || !itemTag.hasKey(MTEIndustrialMacerator.TIER)) return null;
+
+            return new JsonPrimitive(itemTag.getByte(MTEIndustrialMacerator.TIER));
+        }
+
+        @Override
+        public void setValue(NBTTagCompound itemTag, JsonElement value) {
+            if (value == null) {
+                itemTag.removeTag(MTEIndustrialMacerator.TIER);
+            } else if (value instanceof JsonPrimitive tier) {
+                itemTag.setByte(MTEIndustrialMacerator.TIER, tier.getAsByte());
+            }
+        }
+
+        @Override
+        public void getItemDetailsChat(List<IChatComponent> details, JsonElement value) {
+            int tier = value instanceof JsonPrimitive primitive ? primitive.getAsByte() : 1;
+
+            details.add(new ChatComponentTranslation("mm.chat.item.details.tier", tier));
         }
     }
 

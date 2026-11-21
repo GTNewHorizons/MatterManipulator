@@ -1607,6 +1607,19 @@ public class MMUtils {
 
     private static final XSTR RNG = new XSTR();
 
+    /** The cross product of two directions, or UNKNOWN when they are on the same axis. */
+    public static ForgeDirection cross(ForgeDirection a, ForgeDirection b) {
+        int x = a.offsetY * b.offsetZ - a.offsetZ * b.offsetY;
+        int y = a.offsetZ * b.offsetX - a.offsetX * b.offsetZ;
+        int z = a.offsetX * b.offsetY - a.offsetY * b.offsetX;
+
+        for (ForgeDirection dir : ForgeDirection.VALID_DIRECTIONS) {
+            if (dir.offsetX == x && dir.offsetY == y && dir.offsetZ == z) return dir;
+        }
+
+        return ForgeDirection.UNKNOWN;
+    }
+
     public static Item getItemFromBlock(Block block, int metadata) {
         if (block == null) block = Blocks.air;
 
