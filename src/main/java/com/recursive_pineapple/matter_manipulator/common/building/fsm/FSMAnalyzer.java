@@ -29,6 +29,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         WAIT_FOR_ANALYZER,
         INIT_BLOCK_ITERATOR,
         PROCESS_BLOCK,
+        FILTER_BLOCKS,
         COMPLETE,
         FINISH;
 
@@ -38,6 +39,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
             public static final String WAIT_FOR_ANALYZER = "WAIT_FOR_ANALYZER";
             public static final String INIT_BLOCK_ITERATOR = "INIT_BLOCK_ITERATOR";
             public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
+            public static final String FILTER_BLOCKS = "FILTER_BLOCKS";
             public static final String COMPLETE = "COMPLETE";
             public static final String FINISH = "FINISH";
         }
@@ -52,6 +54,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     protected ISchedulable analyzer;
     protected Throwable analyzerError;
     protected Iterator<PendingBlock> blockIterator;
+    protected int totalBlocks;
 
     private final BiPredicate<ISchedulable, Throwable> childErrorHandler = this::handleChildError;
 
@@ -119,10 +122,9 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         if (!blockIterator.hasNext()) return true;
 
         PendingBlock block = blockIterator.next();
-        if (isOutOfRange(block)) {
-            blockIterator.remove();
-            return true;
-        }
+        if (isOutOfRange(block)) return true;
+
+        totalBlocks++;
 
         block.generateSortKey();
         return true;
@@ -142,9 +144,32 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         return block.distanceTo2(playerLocation) > maxRange * maxRange;
     }
 
-    @FSM.Transition(from = State.NAMES.PROCESS_BLOCK, to = State.NAMES.COMPLETE)
+    @FSM.Transition(from = State.NAMES.PROCESS_BLOCK, to = State.NAMES.FILTER_BLOCKS)
     protected boolean blocksProcessed() {
         return !blockIterator.hasNext();
+    }
+
+    @FSM.Event(State.NAMES.FILTER_BLOCKS)
+    protected boolean filterBlocks() {
+        if (totalBlocks == blocks.size()) return true;
+
+        int maxRange = tier.maxRange;
+
+        Location playerLocation = new Location(
+            player.getEntityWorld(),
+            MathHelper.floor_double(player.posX),
+            MathHelper.floor_double(player.posY),
+            MathHelper.floor_double(player.posZ)
+        );
+
+        blocks.removeIf(block -> block.distanceTo2(playerLocation) > maxRange * maxRange);
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.FILTER_BLOCKS, to = State.NAMES.COMPLETE)
+    protected boolean blocksFiltered() {
+        return totalBlocks == blocks.size();
     }
 
     @FSM.Event(State.NAMES.COMPLETE)
