@@ -31,7 +31,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
 
 import org.joml.Vector3i;
 
-import it.unimi.dsi.fastutil.objects.Object2ByteOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
 public class FSMCableAnalyzer extends FSM<FSMCableAnalyzer.State, FSMCableAnalyzer> {
 
@@ -64,7 +64,7 @@ public class FSMCableAnalyzer extends FSM<FSMCableAnalyzer.State, FSMCableAnalyz
 
     protected List<Vector3i> path;
     protected Iterator<Vector3i> voxelIterator;
-    protected Object2ByteOpenHashMap<Vector3i> connections;
+    protected Object2IntOpenHashMap<Vector3i> connections;
 
     public FSMCableAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
         super(State.CHECK_VALIDITY, State.FINISH);
@@ -109,11 +109,11 @@ public class FSMCableAnalyzer extends FSM<FSMCableAnalyzer.State, FSMCableAnalyz
 
     @FSM.Event(State.NAMES.BUILD_CONNECTIONS)
     protected boolean buildConnections() {
-        connections = new Object2ByteOpenHashMap<>();
+        connections = new Object2IntOpenHashMap<>();
 
         for (int i = 0; i < path.size(); i++) {
             Vector3i voxel = path.get(i);
-            byte flags = connections.getOrDefault(voxel, (byte) 0);
+            int flags = connections.getOrDefault(voxel, 0);
 
             for (int j = i - 1; j <= i + 1; j += 2) {
                 if (j < 0 || j >= path.size()) continue;
@@ -123,6 +123,11 @@ public class FSMCableAnalyzer extends FSM<FSMCableAnalyzer.State, FSMCableAnalyz
             }
 
             connections.put(voxel, flags);
+        }
+
+        if (MMState.isLaserPipe(state.config.cables)) {
+            state.addCableHatch(world, path.get(0), state.config.cableHatchA, connections, blocks);
+            state.addCableHatch(world, path.get(path.size() - 1), state.config.cableHatchB, connections, blocks);
         }
 
         return true;
@@ -172,7 +177,7 @@ public class FSMCableAnalyzer extends FSM<FSMCableAnalyzer.State, FSMCableAnalyz
         } else if (Mods.OpenComputers.isModLoaded() && isOCCable(block)) {
             blocks.add(getOCCable(voxel, world, state.config.cables));
         } else if (Mods.GregTech.isModLoaded() && isGTCable(block)) {
-            byte mConnections = connections.getByte(voxel);
+            byte mConnections = (byte) connections.getInt(voxel);
 
             PendingBlock cable = getGTCable(voxel, mConnections, state.config.cableColour, world, state.config.cables);
             blocks.add(cable);
