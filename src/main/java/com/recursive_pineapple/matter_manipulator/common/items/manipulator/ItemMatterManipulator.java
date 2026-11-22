@@ -57,6 +57,7 @@ import cpw.mods.fml.common.Optional.Interface;
 import cpw.mods.fml.common.Optional.InterfaceList;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.gameevent.TickEvent.PlayerTickEvent;
 import cpw.mods.fml.common.registry.GameRegistry;
 import cpw.mods.fml.relauncher.Side;
@@ -1181,7 +1182,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         return Integer.MAX_VALUE;
     }
 
-    private void stopBuildable(EntityPlayer player) {
+    private static void stopBuildable(EntityPlayer player) {
         if (!player.worldObj.isRemote) {
             IBuildable buildable = PENDING_BUILDS.remove(player);
 
@@ -1189,7 +1190,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
     }
 
-    private void stopSchedulable(EntityPlayer player) {
+    private static void stopSchedulable(EntityPlayer player) {
         if (!player.worldObj.isRemote) {
             FSMBuild build = SCHEDULED_BUILDS.remove(player);
 
@@ -1292,6 +1293,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             FSMBuild build = new FSMBuild(state, player, stack, tier);
             build.onStateChange(FSM::pause);
 
+            stopSchedulable(player);
             SCHEDULED_BUILDS.put(player, build);
             WorkScheduler.INSTANCE.scheduleWork(build);
 
@@ -1378,6 +1380,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             FSMMove move = new FSMMove(state, player, stack, tier);
             move.onStateChange(FSM::pause);
 
+            stopSchedulable(player);
             SCHEDULED_MOVES.put(player, move);
             WorkScheduler.INSTANCE.scheduleWork(move);
 
@@ -1498,12 +1501,14 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         if (schedulable instanceof FSMBuild build) {
             MMMod.LOG.error("Could not place blocks", e);
             sendErrorToPlayer(build.player, "mm.info.error.could_not_place_blocks");
+            stopSchedulable(build.player);
             return true;
         }
 
         if (schedulable instanceof FSMMove move) {
             MMMod.LOG.error("Could not move blocks", e);
             sendErrorToPlayer(move.player, "mm.info.error.could_not_place_blocks");
+            stopSchedulable(move.player);
             return true;
         }
 
@@ -3124,6 +3129,18 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                     Messages.AddCableCorner.sendToServer(corner);
                 }
             }
+        }
+
+        @SubscribeEvent
+        public void onPlayerUpdate(TickEvent.PlayerTickEvent event) {
+            EntityPlayer player = event.player;
+            ItemStack currentStack = player.inventory.getCurrentItem();
+
+            FSMBuild build = SCHEDULED_BUILDS.get(player);
+            if (build != null && !build.stack.equals(currentStack)) stopSchedulable(player);
+
+            FSMMove move = SCHEDULED_MOVES.get(player);
+            if (move != null && !move.stack.equals(currentStack)) stopSchedulable(player);
         }
 
         @SubscribeEvent

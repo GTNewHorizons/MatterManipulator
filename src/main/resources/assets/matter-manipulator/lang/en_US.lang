@@ -188,7 +188,7 @@ mm.info.error.cannot_extract_while_qc_on=Cannot extract or insert items from/int
 mm.info.error.too_many_upgrades=Tried to install too many upgrades: voiding the rest (this is a bug, please report it)
 mm.info.error.could_not_place_blocks=Could not place blocks due to a crash. Check the logs for more info.
 mm.info.missing=%s%s: %s%s%s (%s%s%s missing)
-mm.info.work_pending=Pending
+mm.info.work_pending=Waiting for other builds
 
 mm.direction.down=Down
 mm.direction.east=East
