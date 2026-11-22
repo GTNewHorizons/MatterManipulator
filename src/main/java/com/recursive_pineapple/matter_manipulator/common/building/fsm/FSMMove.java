@@ -185,9 +185,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         if (firstPass) firstPassRemaining--;
 
-        if (world.isAirBlock(s.x, s.y, s.z)) {
-            return true;
-        }
+        if (world.isAirBlock(s.x, s.y, s.z)) { return true; }
 
         // torches, wires and the like go last, so that their support is already in place at the destination
         if (firstPass && PendingMove.isAttached(world, s.x, s.y, s.z)) {
@@ -211,9 +209,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         BlockSpec.fromBlock(source, world, s.x, s.y, s.z);
 
-        if (source.isAir()) {
-            return true;
-        }
+        if (source.isAir()) { return true; }
 
         if (source.getBlock().getBlockHardness(world, s.x, s.y, s.z) < 0) {
             sendErrorToPlayer(
