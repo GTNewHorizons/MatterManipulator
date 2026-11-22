@@ -92,7 +92,11 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         WAIT_FOR_ANALYZER,
         INIT_BUILD,
         INIT_WIRELESS_FIXER,
+        INIT_TO_PLACE,
+        GET_TO_PLACE,
+        EXTRACT_ITEMS,
         PLACE_BLOCK,
+        POST_PLACE,
         COMPLETE,
         FINISH;
 
@@ -102,7 +106,11 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             public static final String WAIT_FOR_ANALYZER = "WAIT_FOR_ANALYZER";
             public static final String INIT_BUILD = "INIT_BUILD";
             public static final String INIT_WIRELESS_FIXER = "INIT_WIRELESS_FIXER";
+            public static final String INIT_TO_PLACE = "INIT_TO_PLACE";
+            public static final String GET_TO_PLACE = "GET_TO_PLACE";
+            public static final String EXTRACT_ITEMS = "EXTRACT_ITEMS";
             public static final String PLACE_BLOCK = "PLACE_BLOCK";
+            public static final String POST_PLACE = "POST_PLACE";
             public static final String COMPLETE = "COMPLETE";
             public static final String FINISH = "FINISH";
         }
@@ -127,8 +135,18 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     protected int placedAmount;
     protected int shuffledWithoutProgress;
 
+    protected Deque<PendingBlock> toPlace;
+    protected int toPlaceAmount;
+    protected int placeOperation;
+
+    protected int lastChunkX;
+    protected int lastChunkZ;
+    protected boolean placeUnsupported;
+    protected boolean itemsExtracted;
+    protected ItemStack perBlock;
+    protected BigItemStack extracted;
+
     private boolean finished;
-    private long lastPlaceTick;
     private final Set<Long> visited = new HashSet<>();
     private final LongList errors = new LongArrayList();
     private final LongList warnings = new LongArrayList();
@@ -173,13 +191,6 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
     public void resetBudget() {
         placeBudget = tier.placeSpeed;
-        placedAmount = 0;
-    }
-
-    public boolean isStalled() {
-        if (pendingBlocks == null) return false;
-        if (pendingBlocks.isEmpty()) return false;
-        return shuffledWithoutProgress >= pendingBlocks.size();
     }
 
     public int getAnalyzedAmount() {
@@ -191,8 +202,13 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     }
 
     public int getRemainingAmount() {
-        if (pendingBlocks != null) return pendingBlocks.size();
-        return analyzer == null ? 0 : analyzer.blocks.size();
+        if (pendingBlocks != null) {
+            int blocksAmount = pendingBlocks.size();
+            int toPlaceAmount = toPlace != null ? toPlace.size() : 0;
+            return blocksAmount + toPlaceAmount;
+        }
+
+        return getAnalyzedAmount();
     }
 
     public void finishBuild() {
@@ -208,11 +224,6 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         Messages.BuildStatus.sendToPlayer((EntityPlayerMP) player, Pair.of(errors, warnings));
 
         finished = true;
-    }
-
-    public void playSounds() {
-        if (buildable == null) return;
-        buildable.playSounds();
     }
 
     @FSM.Event(State.NAMES.INIT_ANALYZER)
@@ -263,70 +274,116 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.INIT_WIRELESS_FIXER, to = State.NAMES.PLACE_BLOCK)
+    @FSM.Transition(from = State.NAMES.INIT_WIRELESS_FIXER, to = State.NAMES.INIT_TO_PLACE)
     protected boolean wirelessFixerInitialized() {
         return wirelessLinkFixer != null;
     }
 
-    @FSM.Event(State.NAMES.PLACE_BLOCK)
-    protected boolean placeBlock() {
+    @FSM.Event(State.NAMES.INIT_TO_PLACE)
+    protected boolean initToPlace() {
+        if (toPlace == null) toPlace = new ArrayDeque<>();
+
+        placedAmount = 0;
+        toPlaceAmount = toPlace.size();
+        placeOperation = 0;
+        shuffledWithoutProgress = 0;
+        perBlock = null;
+        extracted = null;
+        itemsExtracted = false;
+
+        buildable.refillPower(stack);
+        buildable.resetWarnings();
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.INIT_TO_PLACE, to = State.NAMES.GET_TO_PLACE)
+    protected boolean toPlaceInitialized() {
+        return toPlace != null && toPlace.size() == toPlaceAmount && placeOperation == 0;
+    }
+
+    @Event(State.NAMES.GET_TO_PLACE)
+    protected boolean getToPlace() {
+        if (placeBudget == 0) return true;
         if (pendingBlocks.isEmpty()) return true;
-        if (placeBudget <= 0) return false;
 
-        if (getLastWorkingTick() != lastPlaceTick) {
-            buildable.resetWarnings();
-            buildable.refillPower(stack);
-            buildable.actuallyGivePlayerStuff();
-        }
+        PendingBlock block = pendingBlocks.removeFirst();
 
-        lastPlaceTick = getLastWorkingTick();
-
-        PendingBlock next = pendingBlocks.getFirst();
-        int x = next.x, y = next.y, z = next.z;
+        int x = block.x, y = block.y, z = block.z;
 
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
 
-        if (!world.getChunkProvider().chunkExists(chunkX, chunkZ)) {
-            takePendingBlock();
+        // if this block's chunk isn't loaded, ignore it completely
+        if (chunkX != lastChunkX || chunkZ != lastChunkZ) {
+            if (!world.getChunkProvider().chunkExists(chunkX, chunkZ)) {
+                shuffledWithoutProgress = 0;
+                return true;
+            } else {
+                lastChunkX = chunkX;
+                lastChunkZ = chunkZ;
+            }
+        }
+
+        // is there a better non-hardcoded way?
+        if (y < 0 || y > 255) {
+            shuffledWithoutProgress = 0;
             return true;
         }
 
-        if (y < 0 || y > 255 || (next.spec.isAir() && world.isAirBlock(x, y, z))) {
-            takePendingBlock();
+        if (block.spec.isAir() && world.isAirBlock(x, y, z)) {
+            shuffledWithoutProgress = 0;
             return true;
         }
 
+        // if this block is different from the last one, stop checking blocks
+        // since the pending blocks are sorted by their contained block, this is usually true
+        if (!toPlace.isEmpty() && !block.spec.isEquivalent(toPlace.getFirst().spec)) {
+            placeBudget = 0;
+            return true;
+        }
+
+        // if this block is protected, ignore it completely and print a warning
         if (!buildable.isEditable(world, x, y, z, true)) {
-            takePendingBlock();
+            shuffledWithoutProgress = 0;
+            placeBudget--;
             return true;
         }
 
-        if (next.mp != null && !isStalled() && !((MultipartAnalysisResult) next.mp).hasSupport(world, x, y, z)) { return rotatePendingBlock(); }
+        // wires and gates drop themselves without their support, which may be a multipart that's placed later
+        if (block.mp != null && !placeUnsupported && !((MultipartAnalysisResult) block.mp).hasSupport(world, x, y, z)) {
+            pendingBlocks.addLast(block);
+            shuffledWithoutProgress++;
+            return true;
+        }
 
         PendingBlock existing = PendingBlock.fromBlock(world, x, y, z);
-        if (next.spec.isAir() && existing.getBlock().isAir(world, x, y, z)) {
-            takePendingBlock();
+
+        if (block.spec.isAir() && existing.getBlock().isAir(world, x, y, z)) {
+            shuffledWithoutProgress = 0;
             return true;
         }
 
-        existing.analyze(world.getTileEntity(x, y, z), PendingBlock.ANALYZE_ARCH);
-        if (PendingBlock.areEquivalent(existing, next)) {
-            PendingBlock block = takePendingBlock();
-
+        // if the existing block is the same as the one we're trying to place, just apply its tile data
+        if (PendingBlock.areEquivalent(existing, block)) {
             if (supportsConfiguring()) {
                 applyContext.pendingBlock = block;
-                block.apply(applyContext, world);
+                boolean didSomething = block.apply(applyContext, world);
                 rememberP2POutputs(block);
-                buildable.playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
+
+                if (didSomething) {
+                    buildable.playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
+                    placeBudget--;
+                }
             }
 
             wirelessLinkFixer.tryApply(world, x, y, z);
-            if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
+            shuffledWithoutProgress = 0;
 
             return true;
         }
 
+        // checks if the existing block is removable
         boolean canPlace = switch (state.config.removeMode) {
             case NONE -> existing.getBlock().isAir(world, x, y, z);
             case REPLACEABLE -> existing.getBlock().isReplaceable(world, x, y, z);
@@ -334,17 +391,21 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         };
 
         canPlace &= existing.getBlock().getBlockHardness(world, x, y, z) >= 0;
-        if (!canPlace) return rotatePendingBlock();
 
+        // we don't want to remove these even though they'll never be placed because we want to see how many blocks
+        // couldn't be placed
+        if (!canPlace) {
+            pendingBlocks.addLast(block);
+            shuffledWithoutProgress++;
+            placeBudget--;
+            return true;
+        }
+
+        // if there's an existing block then remove it if possible
         if (!existing.getBlock().isAir(world, x, y, z)) {
             if (!state.hasCap(ItemMatterManipulator.ALLOW_REMOVING)) {
-                takePendingBlock();
+                shuffledWithoutProgress = 0;
                 return true;
-            }
-
-            if (!buildable.tryConsumePower(stack, world, x, y, z, existing.spec)) {
-                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-                return false;
             }
         }
 
@@ -352,27 +413,118 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         proxiedWorld.airY = y;
         proxiedWorld.airZ = z;
 
-        if (!next.getBlock().canPlaceBlockAt(proxiedWorld, x, y, z)) return rotatePendingBlock();
-
-        if (!buildable.tryConsumePower(stack, world, x, y, z, next.spec)) {
-            sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-            return false;
-        }
-
-        long coord = CoordinatePacker.pack(x, y, z);
-        if (!visited.add(coord)) {
-            MMMod.LOG.warn("Tried to place block twice! " + next);
-            takePendingBlock();
+        // check block dependencies for things like levers
+        // if we can't place this block, shuffle it to the back of the list
+        if (!block.getBlock().canPlaceBlockAt(proxiedWorld, x, y, z)) {
+            pendingBlocks.addLast(block);
+            shuffledWithoutProgress++;
             return true;
         }
 
-        PendingBlock pending = takePendingBlock();
+        long coord = CoordinatePacker.pack(x, y, z);
+
+        if (!visited.add(coord)) {
+            MMMod.LOG.warn("Tried to place block twice! " + block);
+            shuffledWithoutProgress = 0;
+            return true;
+        }
+
+        placeBudget--;
+        shuffledWithoutProgress = 0;
+
+        toPlaceAmount++;
+        toPlace.add(block);
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.GET_TO_PLACE, to = State.NAMES.EXTRACT_ITEMS)
+    protected boolean timeToExtract() {
+        if (placeBudget == 0 || pendingBlocks.isEmpty() || shuffledWithoutProgress >= pendingBlocks.size()) {
+            placeBudget = 0;
+            return true;
+        }
+        return false;
+    }
+
+    @FSM.Event(State.NAMES.EXTRACT_ITEMS)
+    protected boolean extractItems() {
+        if (itemsExtracted) return true;
+
+        itemsExtracted = true;
+
+        if (toPlace.isEmpty()) {
+            if (!pendingBlocks.isEmpty() && shuffledWithoutProgress >= pendingBlocks.size()) {
+                shuffledWithoutProgress = 0;
+                placeUnsupported = true;
+                sendErrorToPlayer(
+                    player,
+                    "mm.info.error.could_not_place",
+                    new ChatComponentNumber(pendingBlocks.size())
+                );
+            }
+
+            return true;
+        }
+
+        shuffledWithoutProgress = 0;
+        PendingBlock first = toPlace.getFirst();
+        if (first.mp == null) placeUnsupported = false;
+
+        perBlock = first.getStack();
+
+        // if the block we're placing isn't free (ae cable busses) we need to consume it
+        if (!first.isFree()) {
+            long total = toPlace.size() * (long) perBlock.stackSize;
+            extracted = MMItemConsumer.consume(applyContext, BigItemStack.create(perBlock).setStackSize(total));
+
+            if (extracted == null) {
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.could_not_find",
+                    new ChatComponentNumber(toPlace.size())
+                );
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.of_item",
+                    first.getDisplayNameChat(),
+                    new ChatComponentNumber(total)
+                );
+
+                placeOperation = toPlaceAmount;
+            }
+        }
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.EXTRACT_ITEMS, to = State.NAMES.PLACE_BLOCK)
+    protected boolean itemsExtracted() {
+        return itemsExtracted;
+    }
+
+    @FSM.Event(State.NAMES.PLACE_BLOCK)
+    protected boolean placeBlock() {
+        if (toPlace.isEmpty()) return true;
+        if (placeOperation == toPlaceAmount) return false;
+
+        placeOperation++;
+
+        PendingBlock pending = toPlace.removeFirst();
+
+        int x = pending.x;
+        int y = pending.y;
+        int z = pending.z;
+
         buildable.playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
 
         int metadata = pending.spec.getBlockMeta();
-        BlockSpec existingSpec = BlockSpec.fromBlock(pooled, world, x, y, z);
 
-        if (existingSpec.equals(pending.spec)) {
+        BlockSpec existing = BlockSpec.fromBlock(pooled, world, x, y, z);
+
+        if (existing.equals(pending.spec)) {
+            // somehow the block already exists, despite us checking to make sure that this shouldn't happen
+            // just to be safe, we only consume the item when we actually place something
             if (supportsConfiguring()) {
                 applyContext.pendingBlock = pending;
                 pending.apply(applyContext, world);
@@ -381,46 +533,46 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
             wirelessLinkFixer.tryApply(world, x, y, z);
             world.notifyBlockOfNeighborChange(x, y, z, Blocks.air);
-            finishPlaceBlock();
 
             return true;
         }
 
-        if (!pending.isFree()) {
-            ItemStack perBlock = pending.getStack();
-            BigItemStack extracted = MMItemConsumer.consume(applyContext, BigItemStack.create(perBlock));
-
-            if (extracted == null || extracted.stackSize < perBlock.stackSize) {
-                if (extracted != null) buildable.givePlayerItems(extracted.toStacks().toArray(new ItemStack[0]));
-
-                sendWarningToPlayer(player, "mm.info.warning.could_not_find", new ChatComponentNumber(1));
-                sendWarningToPlayer(
-                    player,
-                    "mm.info.warning.of_item",
-                    pending.getDisplayNameChat(),
-                    new ChatComponentNumber(perBlock.stackSize)
-                );
-
-                pendingBlocks.addFirst(pending);
-                visited.remove(coord);
-
-                return false;
-            }
+        if (extracted != null && extracted.stackSize < perBlock.stackSize) {
+            toPlace.addFirst(pending);
+            placeOperation = toPlaceAmount;
+            return false;
         }
 
-        boolean replacing = !existingSpec.isAir() && !pending.spec.isAir();
-        if (!existingSpec.isAir()) {
-            buildable.removeBlock(world, x, y, z, existingSpec, !replacing);
+        // When swapping blocks, only notify the neighbours once the new block is in place, so that things
+        // attached to the old block (torches, wires, ...) don't pop off because they briefly see air
+        boolean replacing = !existing.isAir() && !pending.spec.isAir();
+
+        if (!existing.isAir()) {
+            if (!buildable.tryConsumePower(stack, world, x, y, z, existing)) {
+                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+                toPlace.addFirst(pending);
+                placeOperation = toPlaceAmount;
+                return false;
+            }
+
+            buildable.removeBlock(world, x, y, z, existing, !replacing);
         }
 
         if (!pending.spec.isAir()) {
+            if (!buildable.tryConsumePower(stack, world, x, y, z, pending.spec)) {
+                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+                toPlace.addFirst(pending);
+                placeOperation = toPlaceAmount;
+                return false;
+            }
+
             Block block = pending.getBlock();
 
             if (pending.getItem() instanceof ItemBlock itemBlock && Block.getBlockFromItem(itemBlock) == block) {
                 boolean placed = itemBlock.placeBlockAt(
-                    pending.getStack(),
+                    perBlock,
                     player,
-                    world,
+                    player.worldObj,
                     x,
                     y,
                     z,
@@ -431,11 +583,15 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                     metadata
                 );
 
-                if (!placed && replacing) world.notifyBlocksOfNeighborChange(x, y, z, existingSpec.getBlock());
+                if (!placed && replacing) {
+                    world.notifyBlocksOfNeighborChange(x, y, z, existing.getBlock());
+                }
             } else {
                 if (!world.setBlock(x, y, z, block, metadata, 3)) {
-                    if (replacing) world.notifyBlocksOfNeighborChange(x, y, z, existingSpec.getBlock());
-                    if (!pending.isFree()) buildable.givePlayerItems(pending.getStack());
+                    if (replacing) {
+                        world.notifyBlocksOfNeighborChange(x, y, z, existing.getBlock());
+                    }
+
                     return true;
                 }
 
@@ -446,20 +602,82 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             }
         }
 
+        if (extracted != null) {
+            extracted.stackSize -= perBlock.stackSize;
+        }
+
         applyContext.pendingBlock = pending;
         pending.apply(applyContext, world);
         rememberP2POutputs(pending);
-
         wirelessLinkFixer.tryApply(world, x, y, z);
 
-        finishPlaceBlock();
+        placedAmount++;
 
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.PLACE_BLOCK, to = State.NAMES.COMPLETE)
+    @FSM.Transition(from = State.NAMES.PLACE_BLOCK, to = State.NAMES.POST_PLACE)
     protected boolean blocksPlaced() {
-        return pendingBlocks.isEmpty();
+        return toPlace.isEmpty() || placeBudget != 0;
+    }
+
+    @FSM.Event(State.NAMES.POST_PLACE)
+    protected boolean postPlace() {
+        if (placeOperation == -1) return false;
+
+        if (extracted != null && !toPlace.isEmpty()) {
+            long missing = toPlace.size() * (long) perBlock.stackSize - extracted.stackSize;
+
+            if (missing > 0) {
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.could_not_find",
+                    new ChatComponentNumber(missing / toPlace.size())
+                );
+                sendWarningToPlayer(
+                    player,
+                    "mm.info.warning.of_item",
+                    toPlace.getFirst().getDisplayNameChat(),
+                    new ChatComponentNumber(missing)
+                );
+            }
+        }
+
+        placeOperation = -1;
+
+        sendInfoToPlayer(
+            player,
+            "mm.info.placed_remaining",
+            new ChatComponentNumber(placedAmount),
+            new ChatComponentNumber(getRemainingAmount())
+        );
+
+        if (extracted != null && extracted.stackSize >= perBlock.stackSize) {
+            // extra stuff left over somehow
+            long total = toPlaceAmount * (long) perBlock.stackSize;
+            MMMod.LOG.error(
+                "Didn't consume enough items! " + perBlock
+                    .getDisplayName() + "; expected to consume " + total + ", but consumed " + (total - extracted.stackSize)
+            );
+            buildable.givePlayerItems(extracted.toStacks().toArray(new ItemStack[0]));
+        }
+
+        if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
+
+        buildable.actuallyGivePlayerStuff();
+        buildable.playSounds();
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.POST_PLACE, to = State.NAMES.INIT_TO_PLACE)
+    protected boolean placeAgain() {
+        return placeOperation == -1 && getRemainingAmount() > 0 && placeBudget != 0;
+    }
+
+    @FSM.Transition(from = State.NAMES.POST_PLACE, to = State.NAMES.COMPLETE)
+    protected boolean placeComplete() {
+        return placeOperation == -1 && getRemainingAmount() == 0;
     }
 
     @FSM.Event(State.NAMES.COMPLETE)
@@ -472,24 +690,6 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     @FSM.Transition(from = State.NAMES.COMPLETE, to = State.NAMES.FINISH)
     protected boolean buildComplete() {
         return finished;
-    }
-
-    private boolean rotatePendingBlock() {
-        pendingBlocks.addLast(pendingBlocks.removeFirst());
-        shuffledWithoutProgress++;
-        return !isStalled();
-    }
-
-    private void finishPlaceBlock() {
-        if (Mods.AppliedEnergistics2.isModLoaded()) convertSourceInterfaces(world);
-
-        placeBudget--;
-        placedAmount++;
-    }
-
-    private PendingBlock takePendingBlock() {
-        shuffledWithoutProgress = 0;
-        return pendingBlocks.removeFirst();
     }
 
     private void rememberP2POutputs(PendingBlock applied) {

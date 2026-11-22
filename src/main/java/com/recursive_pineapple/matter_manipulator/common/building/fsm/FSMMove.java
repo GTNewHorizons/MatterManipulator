@@ -3,10 +3,14 @@ package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendErrorToPlayer;
 import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.sendInfoToPlayer;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
 
+import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentNumber;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
@@ -28,7 +32,10 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         INIT_PENDING_MOVE,
         INIT_MOVES,
         PREPARE_FOR_MOVE,
+        INIT_TO_MOVE,
+        GET_TO_MOVE,
         MOVE_BLOCK,
+        POST_MOVE,
         COMPLETE,
         FINISH;
 
@@ -37,7 +44,10 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
             public static final String INIT_PENDING_MOVE = "INIT_PENDING_MOVE";
             public static final String INIT_MOVES = "INIT_MOVES";
             public static final String PREPARE_FOR_MOVE = "PREPARE_FOR_MOVE";
+            public static final String INIT_TO_MOVE = "INIT_TO_MOVE";
+            public static final String GET_TO_MOVE = "GET_TO_MOVE";
             public static final String MOVE_BLOCK = "MOVE_BLOCK";
+            public static final String POST_MOVE = "POST_MOVE";
             public static final String COMPLETE = "COMPLETE";
             public static final String FINISH = "FINISH";
         }
@@ -56,13 +66,17 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
      * instead of a standalone ctx
      */
     protected PendingMove pendingMove;
+    protected boolean firstPass = true;
     protected int firstPassRemaining;
     protected BlockSpec source;
     protected BlockSpec target;
     protected int movesBudget;
     protected int movedAmount;
-    protected long lastMoveTick;
     protected boolean finished;
+
+    protected Deque<Pair<Location, Location>> toMove;
+    protected int toMoveAmount;
+    protected int moveOperation = -1;
 
     public FSMMove(MMState state, EntityPlayer player, ItemStack stack, ItemMatterManipulator.ManipulatorTier tier) {
         super(State.INIT_PENDING_MOVE, State.FINISH);
@@ -76,7 +90,6 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
     public void resetBudget() {
         movesBudget = tier.placeSpeed;
-        movedAmount = 0;
     }
 
     public int getMovedAmount() {
@@ -85,7 +98,9 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
     public int getRemainingAmount() {
         if (pendingMove == null) return 0;
-        return pendingMove.moves != null ? pendingMove.moves.size() : 0;
+        int moveAmount = pendingMove.moves != null ? pendingMove.moves.size() : 0;
+        int toMoveAmount = toMove != null ? toMove.size() : 0;
+        return moveAmount + toMoveAmount;
     }
 
     public void finishMove() {
@@ -97,11 +112,6 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
             }
         }
         finished = true;
-    }
-
-    public void playSounds() {
-        if (pendingMove == null) return;
-        pendingMove.playSounds();
     }
 
     @FSM.Event(State.NAMES.INIT_PENDING_MOVE)
@@ -138,40 +148,50 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.PREPARE_FOR_MOVE, to = State.NAMES.MOVE_BLOCK)
+    @FSM.Transition(from = State.NAMES.PREPARE_FOR_MOVE, to = State.NAMES.INIT_TO_MOVE)
     protected boolean preparedForMove() {
         return source != null;
     }
 
-    @FSM.Event(State.NAMES.MOVE_BLOCK)
-    protected boolean moveBlock() {
-        if (movesBudget <= 0) return false;
+    @FSM.Event(State.NAMES.INIT_TO_MOVE)
+    protected boolean initToMove() {
+        if (toMove == null) toMove = new ArrayDeque<>();
+
+        movedAmount = 0;
+        toMoveAmount = toMove.size();
+        moveOperation = 0;
+        firstPass = firstPassRemaining > 0;
+
+        pendingMove.refillPower(stack);
+        pendingMove.resetWarnings();
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.INIT_TO_MOVE, to = State.NAMES.GET_TO_MOVE)
+    protected boolean toMoveInitialized() {
+        return toMove != null && toMove.size() == toMoveAmount && moveOperation == 0;
+    }
+
+    @FSM.Event(State.NAMES.GET_TO_MOVE)
+    protected boolean getToMove() {
+        if (movesBudget == 0) return true;
         if (pendingMove.moves.isEmpty()) return true;
 
-        if (getLastWorkingTick() != lastMoveTick) {
-            pendingMove.resetWarnings();
-            pendingMove.refillPower(stack);
-            pendingMove.actuallyGivePlayerStuff();
-        }
-
-        lastMoveTick = getLastWorkingTick();
-
-        Pair<Location, Location> move = pendingMove.moves.getLast();
+        Pair<Location, Location> move = pendingMove.moves.removeLast();
 
         Location s = move.left();
         Location d = move.right();
 
-        boolean firstPass = firstPassRemaining > 0;
         if (firstPass) firstPassRemaining--;
 
         if (world.isAirBlock(s.x, s.y, s.z)) {
-            pendingMove.moves.removeLast();
             return true;
         }
 
         // torches, wires and the like go last, so that their support is already in place at the destination
         if (firstPass && PendingMove.isAttached(world, s.x, s.y, s.z)) {
-            pendingMove.moves.addFirst(pendingMove.moves.removeLast());
+            pendingMove.moves.addFirst(move);
             return true;
         }
 
@@ -185,14 +205,13 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
                 s.z,
                 source.getChatComponent()
             );
-            pendingMove.moves.removeLast();
+            movesBudget--;
             return true;
         }
 
         BlockSpec.fromBlock(source, world, s.x, s.y, s.z);
 
         if (source.isAir()) {
-            pendingMove.moves.removeLast();
             return true;
         }
 
@@ -205,7 +224,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
                 s.z,
                 source.getChatComponent()
             );
-            pendingMove.moves.removeLast();
+            movesBudget--;
             return true;
         }
 
@@ -229,15 +248,48 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
                 d.z,
                 source.getChatComponent()
             );
-            pendingMove.moves.removeLast();
+            movesBudget--;
             return true;
         }
+
+        movesBudget--;
+        toMove.addFirst(move);
+        toMoveAmount++;
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.GET_TO_MOVE, to = State.NAMES.MOVE_BLOCK)
+    protected boolean timeToMove() {
+        if (movesBudget == 0 || pendingMove.moves.isEmpty() || (firstPass && firstPassRemaining == 0)) {
+            movesBudget = 0;
+            return true;
+        }
+        return false;
+    }
+
+    @FSM.Event(State.NAMES.MOVE_BLOCK)
+    protected boolean moveBlock() {
+        if (toMove.isEmpty()) return true;
+        if (moveOperation == toMoveAmount) return false;
+
+        moveOperation++;
+
+        Pair<Location, Location> move = toMove.removeLast();
+
+        Location s = move.left();
+        Location d = move.right();
+
+        BlockSpec.fromBlock(source, world, s.x, s.y, s.z);
+
+        BlockSpec.fromBlock(target, world, d.x, d.y, d.z);
 
         // remove the existing block if needed
         if (!target.getBlock().isAir(world, d.x, d.y, d.z)) {
             if (!pendingMove.tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
                 sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-                if (firstPass) firstPassRemaining++;
+                toMove.addLast(move);
+                moveOperation = toMoveAmount;
                 return false;
             }
 
@@ -246,13 +298,14 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         // if we can't move the source block then skip it for now
         if (!PendingMove.canStayAt(world, s, d, source.getBlock()) || !PendingMove.hasMultipartSupport(world, s, d)) {
-            pendingMove.moves.addFirst(pendingMove.moves.removeLast());
+            toMove.addFirst(move);
             return true;
         }
 
         if (!pendingMove.tryConsumePower(stack, world, s.x, s.y, s.z, source)) {
             sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-            if (firstPass) firstPassRemaining++;
+            toMove.addLast(move);
+            moveOperation = toMoveAmount;
             return false;
         }
 
@@ -275,8 +328,6 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         pendingMove.playSound(world, s.x, s.y, s.z, SoundResource.MOB_ENDERMEN_PORTAL);
         pendingMove.playSound(world, d.x, d.y, d.z, SoundResource.MOB_ENDERMEN_PORTAL);
 
-        pendingMove.moves.removeLast();
-
         // one half breaks on the next block update without the other, so the other one follows right away
         if (moved && otherHalf != null) {
             int ox = s.x + otherHalf[0], oy = s.y + otherHalf[1], oz = s.z + otherHalf[2];
@@ -291,15 +342,45 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
             }
         }
 
-        movesBudget--;
         movedAmount++;
 
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.MOVE_BLOCK, to = State.NAMES.COMPLETE)
+    @FSM.Transition(from = State.NAMES.MOVE_BLOCK, to = State.NAMES.POST_MOVE)
     protected boolean blocksMoved() {
-        return pendingMove.moves.isEmpty();
+        return toMove.isEmpty() || movesBudget != 0;
+    }
+
+    @FSM.Event(State.NAMES.POST_MOVE)
+    protected boolean postMove() {
+        if (moveOperation == -1) return false;
+
+        if (firstPass) firstPassRemaining += toMove.size();
+
+        moveOperation = -1;
+
+        sendInfoToPlayer(
+            player,
+            "mm.info.process_move",
+            new ChatComponentNumber(movedAmount),
+            new ChatComponentNumber(getRemainingAmount())
+        );
+
+        pendingMove.actuallyGivePlayerStuff();
+        pendingMove.playSounds();
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.POST_MOVE, to = State.NAMES.INIT_TO_MOVE)
+    protected boolean moveAgain() {
+        return moveOperation == -1 && getRemainingAmount() > 0 && movesBudget != 0;
+    }
+
+    @FSM.Transition(from = State.NAMES.POST_MOVE, to = State.NAMES.COMPLETE)
+    protected boolean moveComplete() {
+        return moveOperation == -1 && getRemainingAmount() == 0;
     }
 
     @FSM.Event(State.NAMES.COMPLETE)

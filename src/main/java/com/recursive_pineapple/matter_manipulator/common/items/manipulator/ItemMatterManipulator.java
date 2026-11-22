@@ -1291,7 +1291,15 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             }
 
             FSMBuild build = new FSMBuild(state, player, stack, tier);
-            build.onStateChange(FSM::pause);
+            build.onStateChange(b -> {
+                if (b.getPreviousState() == FSMBuild.State.WAIT_FOR_ANALYZER) {
+                    sendInfoToPlayer(b.player, "mm.info.analyzed", new ChatComponentNumber(b.getRemainingAmount()));
+                }
+
+                if (b.getCurrentState() == FSMBuild.State.FINISH) {
+                    SCHEDULED_BUILDS.remove(player);
+                }
+            });
 
             stopSchedulable(player);
             SCHEDULED_BUILDS.put(player, build);
@@ -1304,73 +1312,18 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         if (build == null) return;
 
-        FSMBuild.State prevState = build.getPreviousState();
-        FSMBuild.State currentState = build.getCurrentState();
-
-        if (prevState != currentState) {
-            build.resume();
-
-            if (prevState == FSMBuild.State.WAIT_FOR_ANALYZER) {
-                sendInfoToPlayer(player, "mm.info.analyzed", new ChatComponentNumber(build.getAnalyzedAmount()));
-                return;
-            }
-
-            if (prevState == FSMBuild.State.PLACE_BLOCK) {
-                if (build.getPlacedAmount() > 0) {
-                    sendInfoToPlayer(
-                        player,
-                        "mm.info.placed_remaining",
-                        new ChatComponentNumber(build.getPlacedAmount()),
-                        new ChatComponentNumber(build.getRemainingAmount())
-                    );
-                    build.playSounds();
-                }
-
-                if (build.isStalled()) {
-                    sendErrorToPlayer(
-                        player,
-                        "mm.info.error.could_not_place",
-                        new ChatComponentNumber(build.getRemainingAmount())
-                    );
-                }
-
-                return;
-            }
-
-            return;
-        }
-
         if (ticksUsed % placeTicks == 0) {
             if (WorkScheduler.INSTANCE.getLastTick() - build.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }
 
-            if (currentState == FSMBuild.State.WAIT_FOR_ANALYZER) {
+            if (build.getCurrentState() == FSMBuild.State.WAIT_FOR_ANALYZER) {
                 sendInfoToPlayer(player, "mm.info.analyzed", new ChatComponentNumber(build.getAnalyzedAmount()));
                 return;
             }
 
-            if (currentState == FSMBuild.State.PLACE_BLOCK) {
-                if (build.isStalled()) {
-                    sendErrorToPlayer(
-                        player,
-                        "mm.info.error.could_not_place",
-                        new ChatComponentNumber(build.getRemainingAmount())
-                    );
-                } else {
-                    sendInfoToPlayer(
-                        player,
-                        "mm.info.placed_remaining",
-                        new ChatComponentNumber(build.getPlacedAmount()),
-                        new ChatComponentNumber(build.getRemainingAmount())
-                    );
-                }
-
-                build.playSounds();
-                build.resetBudget();
-                return;
-            }
+            build.resetBudget();
         }
     }
 
@@ -1378,7 +1331,15 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         if (ticksUsed < placeTicks) return;
         if (ticksUsed == placeTicks) {
             FSMMove move = new FSMMove(state, player, stack, tier);
-            move.onStateChange(FSM::pause);
+            move.onStateChange(m -> {
+                if (m.getPreviousState() == FSMMove.State.INIT_MOVES) {
+                    sendInfoToPlayer(m.player, "mm.info.analyzed", new ChatComponentNumber(m.getRemainingAmount()));
+                }
+
+                if (m.getCurrentState() == FSMMove.State.FINISH) {
+                    SCHEDULED_MOVES.remove(player);
+                }
+            });
 
             stopSchedulable(player);
             SCHEDULED_MOVES.put(player, move);
@@ -1391,51 +1352,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
         if (move == null) return;
 
-        FSMMove.State prevState = move.getPreviousState();
-        FSMMove.State currentState = move.getCurrentState();
-
-        if (prevState != currentState) {
-            move.resume();
-
-            if (prevState == FSMMove.State.INIT_MOVES) {
-                sendInfoToPlayer(player, "mm.info.analyzed", new ChatComponentNumber(move.getRemainingAmount()));
-                return;
-            }
-
-            if (prevState == FSMMove.State.MOVE_BLOCK) {
-                if (move.getMovedAmount() > 0) {
-                    sendInfoToPlayer(
-                        player,
-                        "mm.info.process_move",
-                        new ChatComponentNumber(move.getMovedAmount()),
-                        new ChatComponentNumber(move.getRemainingAmount())
-                    );
-                    move.playSounds();
-                }
-
-                return;
-            }
-
-            return;
-        }
-
         if (ticksUsed % placeTicks == 0) {
             if (WorkScheduler.INSTANCE.getLastTick() - move.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }
 
-            if (currentState == FSMMove.State.MOVE_BLOCK) {
-                sendInfoToPlayer(
-                    player,
-                    "mm.info.process_move",
-                    new ChatComponentNumber(move.getMovedAmount()),
-                    new ChatComponentNumber(move.getRemainingAmount())
-                );
-                move.playSounds();
-                move.resetBudget();
-                return;
-            }
+            move.resetBudget();
         }
     }
 
