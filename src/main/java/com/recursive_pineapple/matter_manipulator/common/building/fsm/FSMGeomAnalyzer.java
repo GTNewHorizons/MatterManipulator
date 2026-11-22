@@ -27,6 +27,8 @@ public class FSMGeomAnalyzer extends FSM<FSMGeomAnalyzer.State, FSMGeomAnalyzer>
         INIT_RANDOM,
         INIT_VOXELS,
         PROCESS_VOXEL,
+        INIT_BLOCK_ITERATOR,
+        PROCESS_BLOCK,
         FINISH;
 
         public static class NAMES {
@@ -35,6 +37,8 @@ public class FSMGeomAnalyzer extends FSM<FSMGeomAnalyzer.State, FSMGeomAnalyzer>
             public static final String INIT_RANDOM = "INIT_RANDOM";
             public static final String INIT_VOXELS = "INIT_VOXELS";
             public static final String PROCESS_VOXEL = "PROCESS_VOXEL";
+            public static final String INIT_BLOCK_ITERATOR = "INIT_BLOCK_ITERATOR";
+            public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
             public static final String FINISH = "FINISH";
         }
     }
@@ -45,6 +49,7 @@ public class FSMGeomAnalyzer extends FSM<FSMGeomAnalyzer.State, FSMGeomAnalyzer>
 
     protected XSTR rng;
     protected Iterator<Vector3i> voxelIterator;
+    protected Iterator<PendingBlock> blockIterator;
 
     public FSMGeomAnalyzer(MMState state, World world, List<PendingBlock> blocks) {
         super(State.CHECK_VALIDITY, State.FINISH);
@@ -133,17 +138,12 @@ public class FSMGeomAnalyzer extends FSM<FSMGeomAnalyzer.State, FSMGeomAnalyzer>
             blocks.add(spec.instantiate(state.config.coordA.worldId, voxel.x, voxel.y, voxel.z).setOrders(insideCount, insideCount));
         } else if (voxelIterator instanceof SphereIterator sphere) {
             int order = sphere.getOrder(voxel);
-            ImmutableBlockSpec spec = order == 0 ? state.config.faces.get(rng) : state.config.volumes.get(rng);
+            ImmutableBlockSpec spec = state.config.volumes.get(rng);
 
             blocks.add(spec.instantiate(state.config.coordA.worldId, voxel.x, voxel.y, voxel.z).setOrders(order, order));
         } else if (voxelIterator instanceof CylinderIterator cylinder) {
             int order = cylinder.getOrder(voxel);
-            ImmutableBlockSpec spec = switch (order) {
-                case 0 -> state.config.faces.get(rng);
-                case 1 -> state.config.edges.get(rng);
-                case 2 -> state.config.volumes.get(rng);
-                default -> BlockSpec.AIR;
-            };
+            ImmutableBlockSpec spec = state.config.volumes.get(rng);
             int renderOrder = order == 2 ? 2 : order == 1 ? 1 : 0;
             int buildOrder = order == 2 ? 0 : order == 1 ? 1 : 2;
 
@@ -153,8 +153,52 @@ public class FSMGeomAnalyzer extends FSM<FSMGeomAnalyzer.State, FSMGeomAnalyzer>
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.PROCESS_VOXEL, to = State.NAMES.FINISH)
+    @FSM.Transition(from = State.NAMES.PROCESS_VOXEL, to = State.NAMES.INIT_BLOCK_ITERATOR)
     protected boolean voxelsComplete() {
         return !voxelIterator.hasNext();
+    }
+
+    @FSM.Event(State.NAMES.INIT_BLOCK_ITERATOR)
+    protected boolean initBlockIterator() {
+        blockIterator = blocks.iterator();
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.INIT_BLOCK_ITERATOR, to = State.NAMES.PROCESS_BLOCK)
+    protected boolean initializedBlockIterator() {
+        return blockIterator != null;
+    }
+
+    @FSM.Event(State.NAMES.PROCESS_BLOCK)
+    protected boolean processBlock() {
+        if (!blockIterator.hasNext()) return true;
+
+        PendingBlock block = blockIterator.next();
+        Vector3i voxel = new Vector3i(block.x, block.y, block.z);
+
+        if (voxelIterator instanceof SphereIterator sphere) {
+            int order = sphere.getOrder(voxel);
+            if (order == 0) {
+                block.spec = state.config.faces.get(rng);
+            }
+        } else if (voxelIterator instanceof CylinderIterator cylinder) {
+            int order = cylinder.getOrder(voxel);
+
+            ImmutableBlockSpec spec = switch (order) {
+                case 0 -> state.config.faces.get(rng);
+                case 1 -> state.config.edges.get(rng);
+                case 2 -> null;
+                default -> null;
+            };
+
+            if (spec != null) block.spec = spec;
+        }
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.PROCESS_BLOCK, to = State.NAMES.FINISH)
+    protected boolean blocksComplete() {
+        return !blockIterator.hasNext();
     }
 }
