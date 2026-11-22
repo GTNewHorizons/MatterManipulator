@@ -3,6 +3,7 @@ package com.recursive_pineapple.matter_manipulator.common.building.fsm;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.function.BiPredicate;
 
 import net.minecraft.world.World;
@@ -32,6 +33,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         WAIT_SMART_COPY,
         PROCESS_BLOCK,
         INIT_SPAN,
+        INIT_SPAN_BLOCKS,
         ADVANCE_SPAN,
         PROCESS_SPAN,
         INIT_BASE_POST,
@@ -54,6 +56,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
             public static final String WAIT_SMART_COPY = "WAIT_SMART_COPY";
             public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
             public static final String INIT_SPAN = "INIT_SPAN";
+            public static final String INIT_SPAN_BLOCKS = "INIT_SPAN_BLOCKS";
             public static final String ADVANCE_SPAN = "ADVANCE_SPAN";
             public static final String PROCESS_SPAN = "PROCESS_SPAN";
             public static final String INIT_BASE_POST = "INIT_BASE_POST";
@@ -76,7 +79,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
 
     protected Iterator<PendingBlock> blockIterator;
     protected Iterator<Vector3i> spanOffsetIterator;
-    protected Iterator<PendingBlock> spanBlockIterator;
+    protected ListIterator<PendingBlock> spanBlockIterator;
     protected List<PendingBlock> baseBlocks;
     protected List<PendingBlock> blocksSpan;
     protected Vector3i spanOffset;
@@ -274,7 +277,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.INIT_SPAN, to = State.NAMES.ADVANCE_SPAN)
+    @FSM.Transition(from = State.NAMES.INIT_SPAN, to = State.NAMES.INIT_SPAN_BLOCKS)
     protected boolean spanInitialized() {
         return spanOffsetIterator != null;
     }
@@ -284,7 +287,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         smartCopyPostAnalyzer = null;
         spanOffset = spanOffsetIterator.next();
 
-        spanBlockIterator = baseBlocks.iterator();
+        spanBlockIterator = baseBlocks.listIterator();
         blocksSpan = new ArrayList<>();
 
         if (spanOffset != null && state.config.transform != null) {
@@ -311,6 +314,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         PendingBlock original = spanBlockIterator.next();
 
         if (new Vector3i().equals(spanOffset)) {
+            spanBlockIterator.set(original.clone());
             blocksSpan.add(original);
             return true;
         }
