@@ -104,9 +104,9 @@ public class WorkScheduler {
 
         Iterator<ISchedulable> iterator = iterator();
 
-        boolean hasKeep = true;
+        boolean hasKeep = false;
 
-        while (!workers.isEmpty() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros)) {
+        while (!workers.isEmpty() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros - elapsedThisTick)) {
             if (!iterator.hasNext()) {
                 if (!hasKeep) break;
 
@@ -116,7 +116,7 @@ public class WorkScheduler {
 
             ISchedulable worker = iterator.next();
 
-            while (worker.hasWork() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros)) {
+            while (worker.hasWork() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros - elapsedThisTick)) {
                 boolean keep;
 
                 try {

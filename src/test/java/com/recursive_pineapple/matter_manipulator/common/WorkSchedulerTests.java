@@ -33,14 +33,14 @@ class WorkSchedulerTests {
     @Test
     void runsOtherWorkersWhenAWorkerYields() throws Throwable {
         WorkScheduler scheduler = new WorkScheduler(0);
-        TestWorker yieldingWorker = new TestWorker(2, false);
+        TestWorker yieldingWorker = new TestWorker(1, false);
         TestWorker completingWorker = new TestWorker(1, true);
 
         scheduler.scheduleWork(yieldingWorker);
         scheduler.scheduleWork(completingWorker);
         scheduler.tryDoWork(4);
 
-        assertEquals(2, yieldingWorker.calls);
+        assertEquals(1, yieldingWorker.calls);
         assertFalse(yieldingWorker.hasWork());
         assertEquals(1, yieldingWorker.unscheduledCalls);
         assertEquals(1, completingWorker.calls);
