@@ -56,7 +56,7 @@ public class FSMSmartCopyApplyAnalyzer extends FSM<FSMSmartCopyApplyAnalyzer.Sta
     public final MMState state;
     public final List<PendingBlock> blocks;
 
-    protected BlockSpec spec;
+    protected BlockSpec proxySpec;
     protected Iterator<PendingBlock> blockIterator;
 
     public FSMSmartCopyApplyAnalyzer(World world, MMState state, List<PendingBlock> blocks) {
@@ -69,13 +69,13 @@ public class FSMSmartCopyApplyAnalyzer extends FSM<FSMSmartCopyApplyAnalyzer.Sta
 
     @FSM.Event(State.NAMES.INIT_SPEC)
     protected boolean initSpec() {
-        spec = new BlockSpec();
+        proxySpec = new BlockSpec();
         return true;
     }
 
     @FSM.Transition(from = State.NAMES.INIT_SPEC, to = State.NAMES.INIT_BLOCK_ITERATOR)
     protected boolean specInitialized() {
-        return spec != null;
+        return proxySpec != null;
     }
 
     @FSM.Event(State.NAMES.INIT_BLOCK_ITERATOR)
@@ -96,7 +96,7 @@ public class FSMSmartCopyApplyAnalyzer extends FSM<FSMSmartCopyApplyAnalyzer.Sta
         PendingBlock block = blockIterator.next();
 
         if (Mods.GregTech.isModLoaded() && state.config.replaceCribsWithProxies && state.hasCap(ItemMatterManipulator.ALLOW_SMART_COPY)) {
-            applySmartCopyCrib(world, block, state.config.coordA, spec);
+            applySmartCopyCrib(world, block, state.config.coordA, proxySpec);
         }
 
         if (Mods.AppliedEnergistics2.isModLoaded() && block.ae instanceof AEAnalysisResult ae && ae.mAEParts != null) {
@@ -126,6 +126,8 @@ public class FSMSmartCopyApplyAnalyzer extends FSM<FSMSmartCopyApplyAnalyzer.Sta
             PROXY_STACK = ItemList.Hatch_CraftingInput_Bus_Slave.get(1L);
         }
 
+        if (PROXY_STACK == null) return;
+
         int srcX = coordA.x + block.x;
         int srcY = coordA.y + block.y;
         int srcZ = coordA.z + block.z;
@@ -135,6 +137,8 @@ public class FSMSmartCopyApplyAnalyzer extends FSM<FSMSmartCopyApplyAnalyzer.Sta
 
         IMetaTileEntity mte = igte.getMetaTileEntity();
         if (!(mte instanceof MTEHatchCraftingInputME)) return;
+
+        if (!spec.matches(PROXY_STACK)) spec.setObject(PROXY_STACK);
 
         block.spec = spec;
         SmartCopyIntegration sc = new SmartCopyIntegration();
