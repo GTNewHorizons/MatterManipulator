@@ -339,6 +339,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         // if this block is different from the last one, stop checking blocks
         // since the pending blocks are sorted by their contained block, this is usually true
         if (!toPlace.isEmpty() && !block.spec.isEquivalent(toPlace.getFirst().spec)) {
+            pendingBlocks.addFirst(block);
             placeBudget = 0;
             return true;
         }
@@ -492,6 +493,13 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                 );
 
                 placeOperation = toPlaceAmount;
+
+                while (!toPlace.isEmpty()) {
+                    PendingBlock pending = toPlace.removeFirst();
+                    pendingBlocks.add(pending);
+                    long coord = CoordinatePacker.pack(pending.x, pending.y, pending.z);
+                    visited.remove(coord);
+                }
             }
         }
 
@@ -629,10 +637,12 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             long missing = toPlace.size() * (long) perBlock.stackSize - extracted.stackSize;
 
             if (missing > 0) {
+                int missingBlock = (int) Math.ceil((double) missing / (double) perBlock.stackSize);
+
                 sendWarningToPlayer(
                     player,
                     "mm.info.warning.could_not_find",
-                    new ChatComponentNumber(missing / toPlace.size())
+                    new ChatComponentNumber(missingBlock)
                 );
                 sendWarningToPlayer(
                     player,
@@ -640,6 +650,13 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                     toPlace.getFirst().getDisplayNameChat(),
                     new ChatComponentNumber(missing)
                 );
+
+                for (int i = 0; i < missingBlock; i++) {
+                    PendingBlock pending = toPlace.removeFirst();
+                    pendingBlocks.add(pending);
+                    long coord = CoordinatePacker.pack(pending.x, pending.y, pending.z);
+                    visited.remove(coord);
+                }
             }
         }
 
