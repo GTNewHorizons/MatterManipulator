@@ -104,7 +104,7 @@ public class WorkScheduler {
 
         Iterator<ISchedulable> iterator = iterator();
         boolean hasKeep = false;
-        long sliceBudget = (budgetMicros - elapsedThisTick) / workers.size();
+        long sliceBudget = (budgetMicros - elapsedThisTick) / Math.max(1, workers.size());
 
         while (!workers.isEmpty() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros - elapsedThisTick)) {
             if (!iterator.hasNext()) {
@@ -112,7 +112,7 @@ public class WorkScheduler {
 
                 iterator = iterator();
                 hasKeep = false;
-                sliceBudget = (budgetMicros - elapsedThisTick - (now - start) / 1000) / workers.size();
+                sliceBudget = (budgetMicros - elapsedThisTick - (now - start) / 1000) / Math.max(1, workers.size());
             }
 
             ISchedulable worker = iterator.next();
