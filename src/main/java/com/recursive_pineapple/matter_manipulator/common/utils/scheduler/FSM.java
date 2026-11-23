@@ -6,18 +6,71 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import org.jetbrains.annotations.NotNull;
+
+import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.IntReferenceImmutablePair;
+import it.unimi.dsi.fastutil.objects.ReferenceReferenceImmutablePair;
 
 /**
  * A schedulable finite-state machine that runs state events and transitions
  * incrementally, with support for pausing and resuming.
  */
 public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISchedulable, IPausable {
+
+    private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
+
+    private static final ClassValue<Pair<List<Pair<String, MethodHandle>>, List<Pair<Pair<String, String>, MethodHandle>>>> EVENTS_AND_TRANSITIONS = new ClassValue<>() {
+
+        @Override
+        protected Pair<List<Pair<String, MethodHandle>>, List<Pair<Pair<String, String>, MethodHandle>>> computeValue(
+            @NotNull Class<?> type
+        ) {
+            List<Pair<String, MethodHandle>> events = new ArrayList<>();
+            List<Pair<Pair<String, String>, MethodHandle>> transitions = new ArrayList<>();
+
+            for (Method method : type.getDeclaredMethods()) {
+                Event event = method.getAnnotation(Event.class);
+                Transition transition = method.getAnnotation(Transition.class);
+
+                if (event == null && transition == null) continue;
+                if (event != null && transition != null) {
+                    throw new IllegalArgumentException("FSM method cannot be both an event and a transition: " + method);
+                }
+                if (method.getReturnType() != boolean.class || method.getParameterCount() != 0) {
+                    throw new IllegalArgumentException("FSM methods must take no arguments and return boolean: " + method);
+                }
+
+                try {
+                    method.setAccessible(true);
+
+                    MethodHandle methodHandle = LOOKUP.unreflect(method);
+                    methodHandle = methodHandle.asType(MethodType.methodType(boolean.class, FSM.class));
+
+                    if (event != null) {
+                        events.add(ReferenceReferenceImmutablePair.of(event.value(), methodHandle));
+                    } else {
+                        transitions.add(
+                            ReferenceReferenceImmutablePair.of(
+                                ReferenceReferenceImmutablePair.of(transition.from(), transition.to()),
+                                methodHandle
+                            )
+                        );
+                    }
+                } catch (Throwable t) {
+                    throw new ExceptionInInitializerError(t);
+                }
+            }
+
+            return ReferenceReferenceImmutablePair.of(events, transitions);
+        }
+    };
 
     private long lastWorkingTick;
 
@@ -136,7 +189,7 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
         if (transitions == null) return;
 
         for (IntReferenceImmutablePair<MethodHandle> transition : transitions) {
-            boolean enabled = (boolean) transition.right().invokeExact();
+            boolean enabled = (boolean) transition.right().invokeExact(this);
 
             if (enabled) {
                 currentState = stateValues[transition.leftInt()];
@@ -153,7 +206,7 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
         boolean keep = false;
 
         for (MethodHandle event : events) {
-            boolean keepThis = (boolean) event.invokeExact();
+            boolean keepThis = (boolean) event.invokeExact(this);
             keep |= keepThis;
         }
 
@@ -171,42 +224,24 @@ public abstract class FSM<S extends Enum<S>, T extends FSM<S, T>> implements ISc
     }
 
     protected void discoverStateMethods() {
-        MethodHandles.Lookup lookup = MethodHandles.lookup();
-
         for (Class<?> type = getClass(); type != FSM.class && type != null; type = type.getSuperclass()) {
-            for (Method method : type.getDeclaredMethods()) {
-                Event event = method.getAnnotation(Event.class);
-                Transition transition = method.getAnnotation(Transition.class);
+            var eventsAndTransitions = EVENTS_AND_TRANSITIONS.get(type);
+            var events = eventsAndTransitions.left();
+            var transitions = eventsAndTransitions.right();
 
-                if (event == null && transition == null) continue;
-                if (event != null && transition != null) {
-                    throw new IllegalArgumentException("FSM method cannot be both an event and a transition: " + method);
-                }
-                if (method.getReturnType() != boolean.class || method.getParameterCount() != 0) {
-                    throw new IllegalArgumentException("FSM methods must take no arguments and return boolean: " + method);
-                }
+            for (var event : events) {
+                int state = stateOrdinal(event.left());
 
-                try {
-                    method.setAccessible(true);
+                if (stateEvents[state] == null) stateEvents[state] = new ArrayList<>();
+                stateEvents[state].add(event.right());
+            }
 
-                    MethodHandle methodHandle = lookup.unreflect(method).bindTo(this);
+            for (var transition : transitions) {
+                int fromState = stateOrdinal(transition.left().left());
+                int toState = stateOrdinal(transition.left().right());
 
-                    if (event != null) {
-                        int state = stateOrdinal(event.value());
-
-                        if (stateEvents[state] == null) stateEvents[state] = new ArrayList<>();
-                        stateEvents[state].add(methodHandle);
-                    } else {
-                        int fromState = stateOrdinal(transition.from());
-                        int toState = stateOrdinal(transition.to());
-
-                        if (stateTransitions[fromState] == null) stateTransitions[fromState] = new ArrayList<>();
-                        stateTransitions[fromState].add(IntReferenceImmutablePair.of(toState, methodHandle));
-                    }
-                } catch (Throwable t) {
-                    if (t instanceof IllegalArgumentException argumentException) throw argumentException;
-                    throw new ExceptionInInitializerError(t);
-                }
+                if (stateTransitions[fromState] == null) stateTransitions[fromState] = new ArrayList<>();
+                stateTransitions[fromState].add(IntReferenceImmutablePair.of(toState, transition.right()));
             }
         }
     }
