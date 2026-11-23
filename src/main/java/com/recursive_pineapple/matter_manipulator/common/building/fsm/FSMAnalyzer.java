@@ -14,6 +14,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemM
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSMSort;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 
@@ -30,7 +31,8 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         INIT_BLOCK_ITERATOR,
         PROCESS_BLOCK,
         FILTER_BLOCKS,
-        COMPLETE,
+        INIT_SORT,
+        WAIT_FOR_SORT,
         FINISH;
 
         public static class NAMES {
@@ -40,7 +42,8 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
             public static final String INIT_BLOCK_ITERATOR = "INIT_BLOCK_ITERATOR";
             public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
             public static final String FILTER_BLOCKS = "FILTER_BLOCKS";
-            public static final String COMPLETE = "COMPLETE";
+            public static final String INIT_SORT = "INIT_SORT";
+            public static final String WAIT_FOR_SORT = "WAIT_FOR_SORT";
             public static final String FINISH = "FINISH";
         }
     }
@@ -52,7 +55,8 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     public final List<PendingBlock> blocks = new ArrayList<>();
 
     protected ISchedulable analyzer;
-    protected Throwable analyzerError;
+    protected Throwable childError;
+    protected ISchedulable sort;
     protected Iterator<PendingBlock> blockIterator;
     protected int totalBlocks;
 
@@ -68,8 +72,8 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     }
 
     protected boolean handleChildError(ISchedulable schedulable, Throwable e) {
-        if (schedulable == analyzer) {
-            analyzerError = e;
+        if (schedulable == analyzer || schedulable == sort) {
+            childError = e;
             return true;
         }
 
@@ -97,7 +101,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
 
     @FSM.Event(State.NAMES.WAIT_FOR_ANALYZER)
     protected boolean propagateAnalyzerError() throws Throwable {
-        if (analyzerError != null) throw analyzerError;
+        if (childError != null) throw childError;
         return false;
     }
 
@@ -167,20 +171,33 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.FILTER_BLOCKS, to = State.NAMES.COMPLETE)
+    @FSM.Transition(from = State.NAMES.FILTER_BLOCKS, to = State.NAMES.INIT_SORT)
     protected boolean blocksFiltered() {
         return totalBlocks == blocks.size();
     }
 
-    @FSM.Event(State.NAMES.COMPLETE)
-    protected boolean sortBlocks() {
-        blocks.sort((a, b) -> a.sortKey.compareTo(b.sortKey));
+    @FSM.Event(State.NAMES.INIT_SORT)
+    protected boolean initSort() {
+        sort = new FSMSort<>(blocks, (a, b) -> a.sortKey.compareTo(b.sortKey));
+        getScheduler().scheduleWork(sort);
+
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.COMPLETE, to = State.NAMES.FINISH)
-    protected boolean sortComplete() {
-        return true;
+    @FSM.Transition(from = State.NAMES.INIT_SORT, to = State.NAMES.WAIT_FOR_SORT)
+    protected boolean sortInitialized() {
+        return sort != null;
+    }
+
+    @FSM.Event(State.NAMES.WAIT_FOR_SORT)
+    protected boolean propagateSortError() throws Throwable {
+        if (childError != null) throw childError;
+        return false;
+    }
+
+    @FSM.Transition(from = State.NAMES.WAIT_FOR_SORT, to = State.NAMES.FINISH)
+    protected boolean finished() {
+        return !sort.hasWork();
     }
 
     @Override
