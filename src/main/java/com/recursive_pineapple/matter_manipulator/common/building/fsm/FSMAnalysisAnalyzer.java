@@ -33,7 +33,6 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         WAIT_SMART_COPY,
         PROCESS_BLOCK,
         INIT_SPAN,
-        INIT_SPAN_BLOCKS,
         ADVANCE_SPAN,
         PROCESS_SPAN,
         INIT_BASE_POST,
@@ -56,7 +55,6 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
             public static final String WAIT_SMART_COPY = "WAIT_SMART_COPY";
             public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
             public static final String INIT_SPAN = "INIT_SPAN";
-            public static final String INIT_SPAN_BLOCKS = "INIT_SPAN_BLOCKS";
             public static final String ADVANCE_SPAN = "ADVANCE_SPAN";
             public static final String PROCESS_SPAN = "PROCESS_SPAN";
             public static final String INIT_BASE_POST = "INIT_BASE_POST";
@@ -277,7 +275,7 @@ public class FSMAnalysisAnalyzer extends FSM<FSMAnalysisAnalyzer.State, FSMAnaly
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.INIT_SPAN, to = State.NAMES.INIT_SPAN_BLOCKS)
+    @FSM.Transition(from = State.NAMES.INIT_SPAN, to = State.NAMES.ADVANCE_SPAN)
     protected boolean spanInitialized() {
         return spanOffsetIterator != null;
     }
