@@ -629,7 +629,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         return toPlace.isEmpty() || placeBudget != 0;
     }
 
-    @FSM.Event(State.NAMES.POST_PLACE)
+    @Event(State.NAMES.POST_PLACE)
     protected boolean postPlace() {
         if (placeOperation == -1) return false;
 
@@ -669,13 +669,17 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
             new ChatComponentNumber(getRemainingAmount())
         );
 
-        if (extracted != null && extracted.stackSize >= perBlock.stackSize) {
-            // extra stuff left over somehow
-            long total = toPlaceAmount * (long) perBlock.stackSize;
-            MMMod.LOG.error(
-                "Didn't consume enough items! " + perBlock
-                    .getDisplayName() + "; expected to consume " + total + ", but consumed " + (total - extracted.stackSize)
-            );
+        if (extracted != null && extracted.stackSize > 0) {
+            long leftover = toPlace.size() * (long) perBlock.stackSize;
+            if (extracted.stackSize > leftover) {
+                long placed = placedAmount * (long) perBlock.stackSize;
+                long total = toPlaceAmount * (long) perBlock.stackSize;
+                // extra stuff left over somehow
+                MMMod.LOG.error(
+                    "Didn't consume enough items! " + perBlock
+                        .getDisplayName() + "; expected to consume " + placed + ", but consumed " + (total - extracted.stackSize)
+                );
+            }
             buildable.givePlayerItems(extracted.toStacks().toArray(new ItemStack[0]));
         }
 
