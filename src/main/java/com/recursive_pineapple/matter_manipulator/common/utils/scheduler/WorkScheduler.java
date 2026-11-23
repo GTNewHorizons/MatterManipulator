@@ -99,12 +99,12 @@ public class WorkScheduler {
     }
 
     protected void doWork() throws Throwable {
-        long start = System.nanoTime();
+        long start = budgetMicros == 0 ? 0 : System.nanoTime();
         long now = start;
 
         Iterator<ISchedulable> iterator = iterator();
-
         boolean hasKeep = false;
+        long sliceBudget = (budgetMicros - elapsedThisTick) / workers.size();
 
         while (!workers.isEmpty() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros - elapsedThisTick)) {
             if (!iterator.hasNext()) {
@@ -112,11 +112,19 @@ public class WorkScheduler {
 
                 iterator = iterator();
                 hasKeep = false;
+                sliceBudget = (budgetMicros - elapsedThisTick - (now - start) / 1000) / workers.size();
             }
 
             ISchedulable worker = iterator.next();
 
-            while (worker.hasWork() && (budgetMicros == 0 || (now - start) / 1000 < budgetMicros - elapsedThisTick)) {
+            long sliceStart = budgetMicros == 0 ? start : System.nanoTime();
+            now = sliceStart;
+
+            while (
+                worker.hasWork() && (budgetMicros == 0 ||
+                    ((now - sliceStart) / 1000 < sliceBudget &&
+                        (now - start) / 1000 < budgetMicros - elapsedThisTick))
+            ) {
                 boolean keep;
 
                 try {
