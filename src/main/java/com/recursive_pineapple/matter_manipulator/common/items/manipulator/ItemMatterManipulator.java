@@ -39,7 +39,6 @@ import net.minecraft.item.EnumRarity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.MathHelper;
@@ -106,6 +105,7 @@ import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
 import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMBuild;
 import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMMove;
 import com.recursive_pineapple.matter_manipulator.common.data.WeightedSpecList;
+import com.recursive_pineapple.matter_manipulator.common.hooks.MMTickHandler;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItemList;
 import com.recursive_pineapple.matter_manipulator.common.items.MMUpgrades;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig.VoxelAABB;
@@ -121,7 +121,6 @@ import com.recursive_pineapple.matter_manipulator.common.utils.MMUtils;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods;
 import com.recursive_pineapple.matter_manipulator.common.utils.Mods.Names;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
-import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3i;
@@ -1194,14 +1193,14 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             FSMBuild build = SCHEDULED_BUILDS.remove(player);
 
             if (build != null) {
-                WorkScheduler.INSTANCE.removeWork(build);
+                MMTickHandler.getScheduler().removeWork(build);
                 build.finishBuild();
             }
 
             FSMMove move = SCHEDULED_MOVES.remove(player);
 
             if (move != null) {
-                WorkScheduler.INSTANCE.removeWork(move);
+                MMTickHandler.getScheduler().removeWork(move);
                 move.finishMove();
             }
         }
@@ -1234,22 +1233,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             PENDING_BUILDS.clear();
         }
 
-        // In case when the scheduler's budget config is changed in-game
-        if (WorkScheduler.INSTANCE.budgetMicros != GlobalMMConfig.BuildingConfig.schedulerBudgetMicros) {
-            WorkScheduler newScheduler = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
-
-            WorkScheduler.INSTANCE.iterator()
-                .forEachRemaining(newScheduler::scheduleWork);
-            WorkScheduler.INSTANCE = newScheduler;
-        }
-
-        WorkScheduler.INSTANCE.addErrorHandler(ItemMatterManipulator.schedulerErrorHandler);
-
-        try {
-            WorkScheduler.INSTANCE.tryDoWork(MinecraftServer.getServer().getTickCounter());
-        } catch (Throwable e) {
-            MMMod.LOG.error("Unhandled worker exception", e);
-        }
+        MMTickHandler.getScheduler().addErrorHandler(ItemMatterManipulator.schedulerErrorHandler);
 
         int ticksUsed = Integer.MAX_VALUE - count;
 
@@ -1302,7 +1286,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
             stopSchedulable(player);
             SCHEDULED_BUILDS.put(player, build);
-            WorkScheduler.INSTANCE.scheduleWork(build);
+            MMTickHandler.getScheduler().scheduleWork(build);
 
             return;
         }
@@ -1312,7 +1296,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         if (build == null) return;
 
         if (ticksUsed % placeTicks == 0) {
-            if (WorkScheduler.INSTANCE.getLastTick() - build.getLastWorkingTick() > placeTicks) {
+            if (MMTickHandler.getScheduler().getLastTick() - build.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }
@@ -1342,7 +1326,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
 
             stopSchedulable(player);
             SCHEDULED_MOVES.put(player, move);
-            WorkScheduler.INSTANCE.scheduleWork(move);
+            MMTickHandler.getScheduler().scheduleWork(move);
 
             return;
         }
@@ -1352,7 +1336,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         if (move == null) return;
 
         if (ticksUsed % placeTicks == 0) {
-            if (WorkScheduler.INSTANCE.getLastTick() - move.getLastWorkingTick() > placeTicks) {
+            if (MMTickHandler.getScheduler().getLastTick() - move.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
             }
@@ -1374,8 +1358,9 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             SCHEDULED_BUILDS.clear();
             SCHEDULED_MOVES.clear();
 
-            WorkScheduler.INSTANCE.iterator()
-                .forEachRemaining(WorkScheduler.INSTANCE::removeWork);
+            MMTickHandler.getScheduler()
+                .iterator()
+                .forEachRemaining(MMTickHandler.getScheduler()::removeWork);
         }
 
         int ticksUsed = Integer.MAX_VALUE - count;

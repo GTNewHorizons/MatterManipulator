@@ -33,6 +33,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         FILTER_BLOCKS,
         INIT_SORT,
         WAIT_FOR_SORT,
+        COMPLETE,
         FINISH;
 
         public static class NAMES {
@@ -44,6 +45,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
             public static final String FILTER_BLOCKS = "FILTER_BLOCKS";
             public static final String INIT_SORT = "INIT_SORT";
             public static final String WAIT_FOR_SORT = "WAIT_FOR_SORT";
+            public static final String COMPLETE = "COMPLETE";
             public static final String FINISH = "FINISH";
         }
     }
@@ -195,9 +197,19 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         return false;
     }
 
-    @FSM.Transition(from = State.NAMES.WAIT_FOR_SORT, to = State.NAMES.FINISH)
-    protected boolean finished() {
+    @FSM.Transition(from = State.NAMES.WAIT_FOR_SORT, to = State.NAMES.COMPLETE)
+    protected boolean completed() {
         return !sort.hasWork();
+    }
+
+    @FSM.Event(State.NAMES.COMPLETE)
+    protected boolean complete() {
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.COMPLETE, to = State.NAMES.FINISH)
+    protected boolean finished() {
+        return true;
     }
 
     @Override
@@ -209,6 +221,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         scheduler.addErrorHandler(this.childErrorHandler);
 
         if (analyzer != null && analyzer.hasWork()) scheduler.scheduleWork(analyzer);
+        if (sort != null && sort.hasWork()) scheduler.scheduleWork(sort);
     }
 
     @Override
@@ -216,5 +229,6 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         WorkScheduler scheduler = getScheduler();
         if (scheduler != null) scheduler.removeErrorHandler(this.childErrorHandler);
         unscheduleChild(analyzer);
+        unscheduleChild(sort);
     }
 }

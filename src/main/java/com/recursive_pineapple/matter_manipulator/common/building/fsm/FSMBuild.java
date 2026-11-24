@@ -215,6 +215,10 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         if (finished) return;
         if (buildable == null) return;
 
+        if (extracted != null && extracted.stackSize > 0) {
+            buildable.givePlayerItems(extracted.toStacks().toArray(new ItemStack[0]));
+        }
+
         buildable.actuallyGivePlayerStuff();
 
         if (!buildable.pendingItems.isEmpty() || !buildable.pendingFluids.isEmpty()) {

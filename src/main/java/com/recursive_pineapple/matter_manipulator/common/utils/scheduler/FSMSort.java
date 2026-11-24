@@ -30,8 +30,8 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
         }
     }
 
-    public List<T> elements;
-    public Comparator<T> comparator;
+    public final List<T> elements;
+    public final Comparator<T> comparator;
 
     protected int totalPass = -1;
     protected int pass;

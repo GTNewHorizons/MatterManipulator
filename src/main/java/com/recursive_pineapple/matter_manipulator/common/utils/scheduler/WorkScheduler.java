@@ -7,14 +7,10 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
-import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
-
 /**
  * Runs scheduled workers incrementally, up to a per-tick time budget.
  */
 public class WorkScheduler {
-
-    public static WorkScheduler INSTANCE = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
 
     public final long budgetMicros;
 

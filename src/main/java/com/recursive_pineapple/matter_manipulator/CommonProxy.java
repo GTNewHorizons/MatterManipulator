@@ -6,9 +6,11 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.event.FMLServerStoppedEvent;
 
 import com.recursive_pineapple.matter_manipulator.common.compat.BlockPropertyRegistry;
 import com.recursive_pineapple.matter_manipulator.common.entities.EntityItemLarge;
+import com.recursive_pineapple.matter_manipulator.common.hooks.MMTickHandler;
 import com.recursive_pineapple.matter_manipulator.common.items.MMItems;
 import com.recursive_pineapple.matter_manipulator.common.items.RecipeInstallUpgrade;
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
@@ -41,6 +43,10 @@ public class CommonProxy {
 
     public void serverStarting(FMLServerStartingEvent event) {
         event.registerServerCommand(new BlockStateCommand());
+    }
+
+    public void serverStopped(FMLServerStoppedEvent event) {
+        MMTickHandler.resetScheduler();
     }
 
     public EntityPlayer getThePlayer() {
