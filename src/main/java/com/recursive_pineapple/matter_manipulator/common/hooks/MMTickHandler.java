@@ -36,6 +36,8 @@ public class MMTickHandler {
             WorkScheduler newScheduler = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
 
             SCHEDULER.iterator().forEachRemaining(newScheduler::scheduleWork);
+            SCHEDULER.errorHandlerIterator().forEachRemaining(newScheduler::addErrorHandler);
+
             SCHEDULER = newScheduler;
         }
 

@@ -86,6 +86,10 @@ public class WorkScheduler {
         return Collections.unmodifiableSet(new LinkedHashSet<>(workers)).iterator();
     }
 
+    public Iterator<BiPredicate<ISchedulable, Throwable>> errorHandlerIterator() {
+        return Collections.unmodifiableSet(new HashSet<>(errorHandlers)).iterator();
+    }
+
     public boolean addErrorHandler(BiPredicate<ISchedulable, Throwable> handler) {
         return errorHandlers.add(handler);
     }
