@@ -28,7 +28,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
 
         INIT_ANALYZER,
         WAIT_FOR_ANALYZER,
-        INIT_BLOCK_ITERATOR,
+        PREPARE_PROCESS,
         PROCESS_BLOCK,
         FILTER_BLOCKS,
         INIT_SORT,
@@ -40,7 +40,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
 
             public static final String INIT_ANALYZER = "INIT_ANALYZER";
             public static final String WAIT_FOR_ANALYZER = "WAIT_FOR_ANALYZER";
-            public static final String INIT_BLOCK_ITERATOR = "INIT_BLOCK_ITERATOR";
+            public static final String PREPARE_PROCESS = "PREPARE_PROCESS";
             public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
             public static final String FILTER_BLOCKS = "FILTER_BLOCKS";
             public static final String INIT_SORT = "INIT_SORT";
@@ -61,6 +61,7 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
     protected ISchedulable sort;
     protected Iterator<PendingBlock> blockIterator;
     protected int totalBlocks;
+    protected Location playerLocation;
 
     private final BiPredicate<ISchedulable, Throwable> childErrorHandler = this::handleChildError;
 
@@ -107,20 +108,26 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         return false;
     }
 
-    @FSM.Transition(from = State.NAMES.WAIT_FOR_ANALYZER, to = State.NAMES.INIT_BLOCK_ITERATOR)
+    @FSM.Transition(from = State.NAMES.WAIT_FOR_ANALYZER, to = State.NAMES.PREPARE_PROCESS)
     protected boolean analyzerComplete() {
         return !analyzer.hasWork();
     }
 
-    @FSM.Event(State.NAMES.INIT_BLOCK_ITERATOR)
-    protected boolean initBlockIterator() {
+    @FSM.Event(State.NAMES.PREPARE_PROCESS)
+    protected boolean prepareForProcess() {
         blockIterator = blocks.iterator();
+        playerLocation = new Location(
+            player.getEntityWorld(),
+            MathHelper.floor_double(player.posX),
+            MathHelper.floor_double(player.posY),
+            MathHelper.floor_double(player.posZ)
+        );
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.INIT_BLOCK_ITERATOR, to = State.NAMES.PROCESS_BLOCK)
-    protected boolean blockIteratorInitialized() {
-        return blockIterator != null;
+    @FSM.Transition(from = State.NAMES.PREPARE_PROCESS, to = State.NAMES.PROCESS_BLOCK)
+    protected boolean preparedForProcess() {
+        return blockIterator != null && playerLocation != null;
     }
 
     @FSM.Event(State.NAMES.PROCESS_BLOCK)
@@ -140,13 +147,6 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         int maxRange = tier.maxRange;
         if (maxRange == -1) return false;
 
-        Location playerLocation = new Location(
-            player.getEntityWorld(),
-            MathHelper.floor_double(player.posX),
-            MathHelper.floor_double(player.posY),
-            MathHelper.floor_double(player.posZ)
-        );
-
         return block.distanceTo2(playerLocation) > maxRange * maxRange;
     }
 
@@ -160,13 +160,6 @@ public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
         if (totalBlocks == blocks.size()) return true;
 
         int maxRange = tier.maxRange;
-
-        Location playerLocation = new Location(
-            player.getEntityWorld(),
-            MathHelper.floor_double(player.posX),
-            MathHelper.floor_double(player.posY),
-            MathHelper.floor_double(player.posZ)
-        );
 
         blocks.removeIf(block -> block.distanceTo2(playerLocation) > maxRange * maxRange);
 
