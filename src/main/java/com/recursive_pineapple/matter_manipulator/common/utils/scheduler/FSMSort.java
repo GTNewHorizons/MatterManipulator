@@ -14,7 +14,6 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
 
         INIT_SORT,
         INIT_PASS,
-        INIT_PARTITION,
         PROCESS_PASS,
         COMPLETE_PASS,
         FINISH;
@@ -23,12 +22,13 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
 
             public static final String INIT_SORT = "INIT_SORT";
             public static final String INIT_PASS = "INIT_PASS";
-            public static final String INIT_PARTITION = "INIT_PARTITION";
             public static final String PROCESS_PASS = "PROCESS_PASS";
             public static final String COMPLETE_PASS = "COMPLETE_PASS";
             public static final String FINISH = "FINISH";
         }
     }
+
+    public static final int BATCH_SIZE = 2_048;
 
     public final List<T> elements;
     public final Comparator<T> comparator;
@@ -37,8 +37,9 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
     protected int pass;
 
     protected List<T> buffer;
+    protected List<T> partition;
 
-    protected int partition;
+    protected int partitionSize;
     protected int partitionIndex;
 
     protected int index;
@@ -60,7 +61,7 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
         }
 
         totalPass = 32 - Integer.numberOfLeadingZeros(elements.size() - 1);
-        buffer = new ArrayList<>();
+        buffer = new ArrayList<>(elements.size());
         pass = 0;
 
         return true;
@@ -79,71 +80,67 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
     @FSM.Event(State.NAMES.INIT_PASS)
     protected boolean initPass() {
         index = 0;
-        partition = 1 << (pass + 1);
-        partitionIndex = 0;
-
-        return true;
-    }
-
-    @FSM.Transition(from = State.NAMES.INIT_PASS, to = State.NAMES.INIT_PARTITION)
-    protected boolean initializedPass() {
-        return index == 0 && partitionIndex == 0 && partition != 0;
-    }
-
-    @FSM.Event(State.NAMES.INIT_PARTITION)
-    protected boolean initPartition() {
-        buffer.clear();
-
-        int toIndex = Math.min(elements.size(), partition * (partitionIndex + 1));
-        buffer.addAll(elements.subList(partition * partitionIndex, toIndex));
-
         left = 0;
         right = 0;
 
-        partitionIndex++;
+        partition = null;
+        partitionSize = 1 << pass;
+        partitionIndex = 0;
+
+        buffer.clear();
+        buffer.addAll(elements);
 
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.INIT_PARTITION, to = State.NAMES.PROCESS_PASS)
-    protected boolean initializedPartition() {
-        return left == 0 && right == 0 && !buffer.isEmpty();
+    @FSM.Transition(from = State.NAMES.INIT_PASS, to = State.NAMES.PROCESS_PASS)
+    protected boolean initializedPass() {
+        return index == 0 && partitionIndex == 0 && partitionSize != 0;
     }
 
     @FSM.Event(State.NAMES.PROCESS_PASS)
     protected boolean processPass() {
-        if (index >= elements.size()) return true;
-        if (left + right >= buffer.size()) return true;
+        for (int i = 0; i < BATCH_SIZE; i++) {
+            if (index >= elements.size()) return true;
 
-        T leftElement = left < partition / 2 ? buffer.get(left) : null;
-        T rightElement = right + partition / 2 < buffer.size() ? buffer.get(right + partition / 2) : null;
+            if (partition == null || left + right >= partition.size()) {
+                int partitionStartIndex = partitionSize * 2 * partitionIndex;
+                int partitionEndIndex = partitionSize * 2 * (partitionIndex + 1);
+                partitionEndIndex = Math.min(partitionEndIndex, elements.size());
 
-        if (leftElement != null && rightElement != null) {
-            if (comparator.compare(leftElement, rightElement) > 0) {
-                right++;
-                elements.set(index, rightElement);
-            } else {
-                left++;
-                elements.set(index, leftElement);
+                partition = buffer.subList(partitionStartIndex, partitionEndIndex);
+                partitionIndex++;
+
+                left = 0;
+                right = 0;
             }
-        } else if (leftElement != null) {
-            left++;
-            elements.set(index, leftElement);
-        } else if (rightElement != null) {
-            right++;
-            elements.set(index, rightElement);
-        } else {
-            return true;
+
+            boolean hasLeft = left < partitionSize;
+            boolean hasRight = right + partitionSize < partition.size();
+
+            if (hasLeft && hasRight) {
+                T leftElement = partition.get(left);
+                T rightElement = partition.get(right + partitionSize);
+
+                if (comparator.compare(leftElement, rightElement) > 0) {
+                    elements.set(index, rightElement);
+                    right++;
+                } else {
+                    elements.set(index, leftElement);
+                    left++;
+                }
+            } else if (hasLeft) {
+                elements.set(index, partition.get(left));
+                left++;
+            } else if (hasRight) {
+                elements.set(index, partition.get(right + partitionSize));
+                right++;
+            }
+
+            index++;
         }
 
-        index++;
-
         return true;
-    }
-
-    @FSM.Transition(from = State.NAMES.PROCESS_PASS, to = State.NAMES.INIT_PARTITION)
-    protected boolean nextPartition() {
-        return index < elements.size() && left + right >= buffer.size();
     }
 
     @FSM.Transition(from = State.NAMES.PROCESS_PASS, to = State.NAMES.COMPLETE_PASS)
@@ -154,18 +151,18 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
     @FSM.Event(State.NAMES.COMPLETE_PASS)
     protected boolean completePass() {
         pass++;
-        partition = 0;
+        partitionSize = 0;
 
         return true;
     }
 
     @FSM.Transition(from = State.NAMES.COMPLETE_PASS, to = State.NAMES.INIT_PASS)
     protected boolean nextPass() {
-        return partition == 0 && pass < totalPass;
+        return partitionSize == 0 && pass < totalPass;
     }
 
     @FSM.Transition(from = State.NAMES.COMPLETE_PASS, to = State.NAMES.FINISH)
     protected boolean finished() {
-        return partition == 0 && pass == totalPass;
+        return partitionSize == 0 && pass == totalPass;
     }
 }
