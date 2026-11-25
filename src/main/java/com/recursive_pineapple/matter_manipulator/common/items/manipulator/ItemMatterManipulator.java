@@ -157,7 +157,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             .register(handler);
     }
 
-    private static final BiPredicate<ISchedulable, Throwable> schedulerErrorHandler = ItemMatterManipulator::handleSchedulerError;
+    public static final BiPredicate<ISchedulable, Throwable> SCHEDULER_ERROR_HANDLER = ItemMatterManipulator::handleSchedulerError;
     private static int counter = 0;
     public static final int CONNECTS_TO_AE = 0b1 << counter++;
     public static final int CONNECTS_TO_UPLINK = 0b1 << counter++;
@@ -1232,8 +1232,6 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 .forEachRemaining(IBuildable::onStopped);
             PENDING_BUILDS.clear();
         }
-
-        MMTickHandler.getScheduler().addErrorHandler(ItemMatterManipulator.schedulerErrorHandler);
 
         int ticksUsed = Integer.MAX_VALUE - count;
 

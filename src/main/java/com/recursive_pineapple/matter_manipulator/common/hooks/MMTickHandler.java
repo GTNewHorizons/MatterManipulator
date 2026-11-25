@@ -8,6 +8,7 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 import com.gtnewhorizon.gtnhlib.eventbus.EventBusSubscriber;
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
 
 @EventBusSubscriber
@@ -16,7 +17,11 @@ public class MMTickHandler {
     private static WorkScheduler SCHEDULER;
 
     public static WorkScheduler getScheduler() {
-        if (SCHEDULER == null) SCHEDULER = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
+        if (SCHEDULER == null) {
+            SCHEDULER = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
+            SCHEDULER.addErrorHandler(ItemMatterManipulator.SCHEDULER_ERROR_HANDLER);
+        }
+
         return SCHEDULER;
     }
 
@@ -35,8 +40,8 @@ public class MMTickHandler {
         if (SCHEDULER.budgetMicros != GlobalMMConfig.BuildingConfig.schedulerBudgetMicros) {
             WorkScheduler newScheduler = new WorkScheduler(GlobalMMConfig.BuildingConfig.schedulerBudgetMicros);
 
-            SCHEDULER.iterator().forEachRemaining(newScheduler::scheduleWork);
             SCHEDULER.errorHandlerIterator().forEachRemaining(newScheduler::addErrorHandler);
+            SCHEDULER.iterator().forEachRemaining(newScheduler::scheduleWork);
 
             SCHEDULER = newScheduler;
         }

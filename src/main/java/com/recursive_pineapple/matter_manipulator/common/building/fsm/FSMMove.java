@@ -280,22 +280,12 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         BlockSpec.fromBlock(target, world, d.x, d.y, d.z);
 
-        // remove the existing block if needed
-        if (!target.getBlock().isAir(world, d.x, d.y, d.z)) {
-            if (!pendingMove.tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
-                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-                toMove.addLast(move);
-                moveOperation = toMoveAmount;
-                return false;
-            }
-
-            pendingMove.removeBlock(world, d.x, d.y, d.z, target);
-        }
-
-        // if we can't move the source block then skip it for now
-        if (!PendingMove.canStayAt(world, s, d, source.getBlock()) || !PendingMove.hasMultipartSupport(world, s, d)) {
-            toMove.addFirst(move);
-            return true;
+        // consume eu first before doing anything
+        if (!target.getBlock().isAir(world, d.x, d.y, d.z) && !pendingMove.tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
+            sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+            toMove.addLast(move);
+            moveOperation = toMoveAmount;
+            return false;
         }
 
         if (!pendingMove.tryConsumePower(stack, world, s.x, s.y, s.z, source)) {
@@ -303,6 +293,17 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
             toMove.addLast(move);
             moveOperation = toMoveAmount;
             return false;
+        }
+
+        // remove the existing block if needed
+        if (!target.getBlock().isAir(world, d.x, d.y, d.z)) {
+            pendingMove.removeBlock(world, d.x, d.y, d.z, target);
+        }
+
+        // if we can't move the source block then skip it for now
+        if (!PendingMove.canStayAt(world, s, d, source.getBlock()) || !PendingMove.hasMultipartSupport(world, s, d)) {
+            toMove.addFirst(move);
+            return true;
         }
 
         int[] otherHalf = PendingMove.getOtherHalf(world, s.x, s.y, s.z);

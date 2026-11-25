@@ -373,13 +373,11 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         if (PendingBlock.areEquivalent(existing, block)) {
             if (supportsConfiguring()) {
                 applyContext.pendingBlock = block;
-                boolean didSomething = block.apply(applyContext, world);
+                block.apply(applyContext, world);
                 rememberP2POutputs(block);
 
-                if (didSomething) {
-                    buildable.playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
-                    placeBudget--;
-                }
+                buildable.playSound(world, x, y, z, SoundResource.MOB_ENDERMEN_PORTAL);
+                placeBudget--;
             }
 
             wirelessLinkFixer.tryApply(world, x, y, z);
@@ -559,25 +557,26 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         // attached to the old block (torches, wires, ...) don't pop off because they briefly see air
         boolean replacing = !existing.isAir() && !pending.spec.isAir();
 
-        if (!existing.isAir()) {
-            if (!buildable.tryConsumePower(stack, world, x, y, z, existing)) {
-                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-                toPlace.addFirst(pending);
-                placeOperation = toPlaceAmount;
-                return false;
-            }
+        // Consume eu first before doing anything
+        if (!existing.isAir() && !buildable.tryConsumePower(stack, world, x, y, z, existing)) {
+            sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+            toPlace.addFirst(pending);
+            placeOperation = toPlaceAmount;
+            return false;
+        }
 
+        if (!pending.spec.isAir() && !buildable.tryConsumePower(stack, world, x, y, z, pending.spec)) {
+            sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+            toPlace.addFirst(pending);
+            placeOperation = toPlaceAmount;
+            return false;
+        }
+
+        if (!existing.isAir()) {
             buildable.removeBlock(world, x, y, z, existing, !replacing);
         }
 
         if (!pending.spec.isAir()) {
-            if (!buildable.tryConsumePower(stack, world, x, y, z, pending.spec)) {
-                sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-                toPlace.addFirst(pending);
-                placeOperation = toPlaceAmount;
-                return false;
-            }
-
             Block block = pending.getBlock();
 
             if (pending.getItem() instanceof ItemBlock itemBlock && Block.getBlockFromItem(itemBlock) == block) {
