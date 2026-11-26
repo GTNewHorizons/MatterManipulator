@@ -158,7 +158,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         firstPassRemaining = pendingMove.moves.size();
         source = new BlockSpec();
         target = new BlockSpec();
-        lastPostMessageTick = getLastPostMessageTick();
+        lastPostMessageTick = getLastWorkingTick();
 
         resetBudget();
 
