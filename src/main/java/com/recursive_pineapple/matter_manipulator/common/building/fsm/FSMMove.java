@@ -6,6 +6,7 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.se
 import java.util.ArrayDeque;
 import java.util.Deque;
 
+import com.recursive_pineapple.matter_manipulator.common.building.ProxiedWorld;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
@@ -68,6 +69,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
     protected PendingMove pendingMove;
     protected boolean firstPass = true;
     protected int firstPassRemaining;
+    protected ProxiedWorld proxiedWorld;
     protected BlockSpec source;
     protected BlockSpec target;
     protected int movesBudget;
@@ -159,6 +161,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         source = new BlockSpec();
         target = new BlockSpec();
         lastPostMessageTick = getLastWorkingTick();
+        proxiedWorld = new ProxiedWorld(world);
 
         resetBudget();
 
@@ -309,6 +312,16 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
             return false;
         }
 
+        proxiedWorld.airX = d.x;
+        proxiedWorld.airY = d.y;
+        proxiedWorld.airZ = d.z;
+
+        // if we can't move the source block then skip it for now
+        if (!PendingMove.canStayAt(proxiedWorld, s, d, source.getBlock()) || !PendingMove.hasMultipartSupport(proxiedWorld, s, d)) {
+            toMove.addFirst(move);
+            return true;
+        }
+
         if (!pendingMove.tryConsumePower(stack, world, s.x, s.y, s.z, source)) {
             sendErrorToPlayer(player, "mm.info.error.out_of_eu");
             toMove.addLast(move);
@@ -319,12 +332,6 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         // remove the existing block if needed
         if (!target.getBlock().isAir(world, d.x, d.y, d.z)) {
             pendingMove.removeBlock(world, d.x, d.y, d.z, target);
-        }
-
-        // if we can't move the source block then skip it for now
-        if (!PendingMove.canStayAt(world, s, d, source.getBlock()) || !PendingMove.hasMultipartSupport(world, s, d)) {
-            toMove.addFirst(move);
-            return true;
         }
 
         int[] otherHalf = PendingMove.getOtherHalf(world, s.x, s.y, s.z);
