@@ -295,6 +295,10 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         BlockSpec.fromBlock(source, world, s.x, s.y, s.z);
 
+        if (source.isAir()) {
+            return true;
+        }
+
         BlockSpec.fromBlock(target, world, d.x, d.y, d.z);
 
         // consume eu first before doing anything
@@ -347,12 +351,13 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
             int ox = s.x + otherHalf[0], oy = s.y + otherHalf[1], oz = s.z + otherHalf[2];
 
             if (pendingMove.isInSourceRegion(ox, oy, oz) && world.getBlock(ox, oy, oz) == source.getBlock()) {
-                pendingMove.moves.addLast(
+                toMove.addLast(
                     Pair.of(
                         new Location(s.worldId, ox, oy, oz),
                         new Location(d.worldId, d.x + otherHalf[0], d.y + otherHalf[1], d.z + otherHalf[2])
                     )
                 );
+                toMoveAmount++;
             }
         }
 
