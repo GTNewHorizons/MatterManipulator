@@ -73,6 +73,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
     protected int movesBudget;
     protected int movedAmount;
     protected boolean finished;
+    protected long lastPostMessageTick;
 
     protected Deque<Pair<Location, Location>> toMove;
     protected int toMoveAmount;
@@ -114,6 +115,21 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         finished = true;
     }
 
+    public long getLastPostMessageTick() {
+        return lastPostMessageTick;
+    }
+
+    public void postMessage() {
+        sendInfoToPlayer(
+            player,
+            "mm.info.process_move",
+            new ChatComponentNumber(movedAmount),
+            new ChatComponentNumber(getRemainingAmount())
+        );
+        movedAmount = 0;
+        lastPostMessageTick = getLastWorkingTick();
+    }
+
     @FSM.Event(State.NAMES.INIT_PENDING_MOVE)
     protected boolean initPendingMove() {
         pendingMove = new PendingMove(player, state, tier);
@@ -142,6 +158,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         firstPassRemaining = pendingMove.moves.size();
         source = new BlockSpec();
         target = new BlockSpec();
+        lastPostMessageTick = getLastPostMessageTick();
 
         resetBudget();
 
@@ -355,15 +372,10 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         moveOperation = -1;
 
-        sendInfoToPlayer(
-            player,
-            "mm.info.process_move",
-            new ChatComponentNumber(movedAmount),
-            new ChatComponentNumber(getRemainingAmount())
-        );
-
         pendingMove.actuallyGivePlayerStuff();
         pendingMove.playSounds();
+
+        postMessage();
 
         return true;
     }

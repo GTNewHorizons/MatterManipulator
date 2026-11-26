@@ -1259,8 +1259,8 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
     }
 
     private void tickScheduledBuild(ItemStack stack, EntityPlayer player, int ticksUsed, MMState state, int placeTicks) {
-        if (ticksUsed < placeTicks) return;
-        if (ticksUsed == placeTicks) {
+        if (ticksUsed < 10) return;
+        if (ticksUsed == 10) {
             if (state.config.placeMode == PlaceMode.CABLES && Mods.GregTech.isModLoaded()) {
                 Byte sprayColour = MMUtils.getOffhandSprayColour(player);
 
@@ -1304,13 +1304,20 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
                 return;
             }
 
+            if (
+                build.getCurrentState() == FSMBuild.State.GET_TO_PLACE &&
+                    MMTickHandler.getScheduler().getLastTick() - build.getLastPostMessageTick() > placeTicks
+            ) {
+                build.postMessage();
+            }
+
             build.resetBudget();
         }
     }
 
     private void tickScheduledMove(ItemStack stack, EntityPlayer player, int ticksUsed, MMState state, int placeTicks) {
-        if (ticksUsed < placeTicks) return;
-        if (ticksUsed == placeTicks) {
+        if (ticksUsed < 10) return;
+        if (ticksUsed == 10) {
             FSMMove move = new FSMMove(state, player, stack, tier);
             move.onStateChange(m -> {
                 if (m.getPreviousState() == FSMMove.State.INIT_MOVES) {
@@ -1337,6 +1344,13 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             if (MMTickHandler.getScheduler().getLastTick() - move.getLastWorkingTick() > placeTicks) {
                 sendInfoToPlayer(player, "mm.info.work_pending");
                 return;
+            }
+
+            if (
+                move.getCurrentState() == FSMMove.State.GET_TO_MOVE &&
+                    MMTickHandler.getScheduler().getLastTick() - move.getLastPostMessageTick() > placeTicks
+            ) {
+                move.postMessage();
             }
 
             move.resetBudget();

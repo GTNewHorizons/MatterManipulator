@@ -138,6 +138,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     protected Deque<PendingBlock> toPlace;
     protected int toPlaceAmount;
     protected int placeOperation;
+    protected long lastPostMessageTick;
 
     protected int lastChunkX;
     protected int lastChunkZ;
@@ -197,6 +198,10 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         return analyzer == null ? 0 : analyzer.blocks.size();
     }
 
+    public long getLastPostMessageTick() {
+        return lastPostMessageTick;
+    }
+
     public int getPlacedAmount() {
         return placedAmount;
     }
@@ -228,6 +233,17 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
         Messages.BuildStatus.sendToPlayer((EntityPlayerMP) player, Pair.of(errors, warnings));
 
         finished = true;
+    }
+
+    public void postMessage() {
+        sendInfoToPlayer(
+            player,
+            "mm.info.placed_remaining",
+            new ChatComponentNumber(placedAmount),
+            new ChatComponentNumber(getRemainingAmount())
+        );
+        placedAmount = 0;
+        lastPostMessageTick = getLastWorkingTick();
     }
 
     @FSM.Event(State.NAMES.INIT_ANALYZER)
@@ -275,6 +291,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
     protected boolean initWirelessFixer() {
         wirelessLinkFixer = new WirelessLinkFixer(state);
         wirelessLinkFixer.tryInit(world);
+        lastPostMessageTick = getLastWorkingTick();
         return true;
     }
 
@@ -665,13 +682,6 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
         placeOperation = -1;
 
-        sendInfoToPlayer(
-            player,
-            "mm.info.placed_remaining",
-            new ChatComponentNumber(placedAmount),
-            new ChatComponentNumber(getRemainingAmount())
-        );
-
         if (extracted != null && extracted.stackSize > 0) {
             long leftover = toPlace.size() * (long) perBlock.stackSize;
             if (extracted.stackSize > leftover) {
@@ -690,6 +700,8 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
 
         buildable.actuallyGivePlayerStuff();
         buildable.playSounds();
+
+        postMessage();
 
         return true;
     }
