@@ -1,6 +1,7 @@
 package com.recursive_pineapple.matter_manipulator.common.utils.scheduler;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -13,22 +14,27 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
     public enum State {
 
         INIT_SORT,
+        SMALL_RUN,
         INIT_PASS,
         PROCESS_PASS,
         COMPLETE_PASS,
+        COMPLETE_SORT,
         FINISH;
 
         public static class NAMES {
 
             public static final String INIT_SORT = "INIT_SORT";
+            public static final String SMALL_RUN = "SMALL_RUN";
             public static final String INIT_PASS = "INIT_PASS";
             public static final String PROCESS_PASS = "PROCESS_PASS";
             public static final String COMPLETE_PASS = "COMPLETE_PASS";
+            public static final String COMPLETE_SORT = "COMPLETE_SORT";
             public static final String FINISH = "FINISH";
         }
     }
 
-    public static final int BATCH_SIZE = 2_048;
+    public static final int BATCH_SIZE = 16_384;
+    public static final int SMALL_RUN = 4;
 
     public final List<T> elements;
     public final Comparator<T> comparator;
@@ -36,13 +42,15 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
     protected int totalPass = -1;
     protected int pass;
 
-    protected List<T> buffer;
-    protected List<T> partition;
+    protected List<T> source;
+    protected List<T> dest;
 
+    protected int index;
     protected int partitionSize;
     protected int partitionIndex;
 
-    protected int index;
+    protected int actualPartitionSize;
+    protected int partitionOffset;
     protected int left;
     protected int right;
 
@@ -60,16 +68,21 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
             return true;
         }
 
-        totalPass = 32 - Integer.numberOfLeadingZeros(elements.size() - 1);
-        buffer = new ArrayList<>(elements.size());
+        totalPass = 32 - SMALL_RUN - Integer.numberOfLeadingZeros(elements.size() - 1);
+        totalPass = Math.max(0, totalPass);
         pass = 0;
+        index = 0;
+
+        // We'll swap them in initPass
+        source = totalPass > 0 ? new ArrayList<>(Collections.nCopies(elements.size(), null)) : null;
+        dest = elements;
 
         return true;
     }
 
-    @FSM.Transition(from = State.NAMES.INIT_SORT, to = State.NAMES.INIT_PASS)
+    @FSM.Transition(from = State.NAMES.INIT_SORT, to = State.NAMES.SMALL_RUN)
     protected boolean initializedSort() {
-        return totalPass > 0 && elements.size() > 1;
+        return totalPass >= 0 && elements.size() > 1;
     }
 
     @FSM.Transition(from = State.NAMES.INIT_SORT, to = State.NAMES.FINISH)
@@ -77,18 +90,58 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
         return totalPass == 0 && elements.size() <= 1;
     }
 
+    @FSM.Event(State.NAMES.SMALL_RUN)
+    protected boolean smallRun() {
+        int smallRunSize = (int) Math.pow(2, SMALL_RUN);
+
+        for (int i = 0; i < BATCH_SIZE; i += smallRunSize) {
+            if (index >= elements.size()) break;
+
+            int runEnd = Math.min(index + smallRunSize, elements.size());
+
+            // Does insertion sort for small runs
+            for (int j = index + 1; j < runEnd; j++) {
+                T element = elements.get(j);
+                int k = j - 1;
+
+                while (k >= index && comparator.compare(elements.get(k), element) > 0) {
+                    elements.set(k + 1, elements.get(k));
+                    k--;
+                }
+
+                elements.set(k + 1, element);
+            }
+
+            index = runEnd;
+        }
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.SMALL_RUN, to = State.NAMES.INIT_PASS)
+    protected boolean completedSmallRun() {
+        return index >= elements.size() && totalPass > 0;
+    }
+
+    @FSM.Transition(from = State.NAMES.SMALL_RUN, to = State.NAMES.FINISH)
+    protected boolean finishedSmallRun() {
+        return index >= elements.size() && totalPass == 0;
+    }
+
     @FSM.Event(State.NAMES.INIT_PASS)
     protected boolean initPass() {
         index = 0;
+        partitionSize = 1 << (pass + SMALL_RUN);
+        partitionIndex = 0;
+
+        actualPartitionSize = 0;
+        partitionOffset = 0;
         left = 0;
         right = 0;
 
-        partition = null;
-        partitionSize = 1 << pass;
-        partitionIndex = 0;
-
-        buffer.clear();
-        buffer.addAll(elements);
+        List<T> dest = this.dest;
+        this.dest = source;
+        source = dest;
 
         return true;
     }
@@ -103,37 +156,39 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
         for (int i = 0; i < BATCH_SIZE; i++) {
             if (index >= elements.size()) return true;
 
-            if (partition == null || left + right >= partition.size()) {
-                int partitionStartIndex = partitionSize * 2 * partitionIndex;
-                int partitionEndIndex = partitionSize * 2 * (partitionIndex + 1);
-                partitionEndIndex = Math.min(partitionEndIndex, elements.size());
+            if (left + right >= actualPartitionSize) {
+                partitionOffset = partitionSize * 2 * partitionIndex;
 
-                partition = buffer.subList(partitionStartIndex, partitionEndIndex);
-                partitionIndex++;
+                actualPartitionSize = partitionSize * 2 * (partitionIndex + 1);
+                actualPartitionSize = Math.min(actualPartitionSize, elements.size());
+                actualPartitionSize -= partitionOffset;
 
                 left = 0;
                 right = 0;
+
+                partitionIndex++;
+
             }
 
             boolean hasLeft = left < partitionSize;
-            boolean hasRight = right + partitionSize < partition.size();
+            boolean hasRight = right + partitionSize < actualPartitionSize;
 
             if (hasLeft && hasRight) {
-                T leftElement = partition.get(left);
-                T rightElement = partition.get(right + partitionSize);
+                T leftElement = source.get(left + partitionOffset);
+                T rightElement = source.get(right + partitionSize + partitionOffset);
 
                 if (comparator.compare(leftElement, rightElement) > 0) {
-                    elements.set(index, rightElement);
+                    dest.set(index, rightElement);
                     right++;
                 } else {
-                    elements.set(index, leftElement);
+                    dest.set(index, leftElement);
                     left++;
                 }
             } else if (hasLeft) {
-                elements.set(index, partition.get(left));
+                dest.set(index, source.get(left + partitionOffset));
                 left++;
             } else if (hasRight) {
-                elements.set(index, partition.get(right + partitionSize));
+                dest.set(index, source.get(right + partitionSize + partitionOffset));
                 right++;
             }
 
@@ -161,8 +216,22 @@ public class FSMSort<T> extends FSM<FSMSort.State, FSMSort<T>> {
         return partitionSize == 0 && pass < totalPass;
     }
 
-    @FSM.Transition(from = State.NAMES.COMPLETE_PASS, to = State.NAMES.FINISH)
-    protected boolean finished() {
+    @FSM.Transition(from = State.NAMES.COMPLETE_PASS, to = State.NAMES.COMPLETE_SORT)
+    protected boolean completed() {
         return partitionSize == 0 && pass == totalPass;
+    }
+
+    @FSM.Event(State.NAMES.COMPLETE_SORT)
+    protected boolean completeSort() {
+        if (elements != dest) {
+            Collections.copy(elements, dest);
+        }
+        dest = null;
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.COMPLETE_SORT, to = State.NAMES.FINISH)
+    protected boolean finished() {
+        return dest == null;
     }
 }

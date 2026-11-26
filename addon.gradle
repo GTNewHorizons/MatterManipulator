@@ -5,3 +5,22 @@ test {
         events "passed", "skipped", "failed"
     }
 }
+
+sourceSets {
+    jmh {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+dependencies {
+    jmhRuntimeOnly 'it.unimi.dsi:fastutil:8.5.18'
+    jmhAnnotationProcessor "net.bytebuddy:byte-buddy:1.15.11"
+}
+
+afterEvaluate {
+    configurations.jmhRuntimeClasspath.setExtendsFrom([
+        configurations.jmhImplementation,
+        configurations.jmhRuntimeOnly
+    ])
+}
