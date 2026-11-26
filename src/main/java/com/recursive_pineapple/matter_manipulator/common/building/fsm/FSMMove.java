@@ -6,7 +6,6 @@ import static com.recursive_pineapple.matter_manipulator.common.utils.MMUtils.se
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-import com.recursive_pineapple.matter_manipulator.common.building.ProxiedWorld;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
@@ -15,6 +14,7 @@ import com.gtnewhorizon.gtnhlib.chat.customcomponents.ChatComponentNumber;
 import com.recursive_pineapple.matter_manipulator.MMMod;
 import com.recursive_pineapple.matter_manipulator.common.building.BlockSpec;
 import com.recursive_pineapple.matter_manipulator.common.building.PendingMove;
+import com.recursive_pineapple.matter_manipulator.common.building.ProxiedWorld;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
@@ -298,9 +298,7 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         BlockSpec.fromBlock(source, world, s.x, s.y, s.z);
 
-        if (source.isAir()) {
-            return true;
-        }
+        if (source.isAir()) { return true; }
 
         BlockSpec.fromBlock(target, world, d.x, d.y, d.z);
 
