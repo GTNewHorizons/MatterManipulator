@@ -17,6 +17,7 @@ import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMSta
 import com.recursive_pineapple.matter_manipulator.common.networking.Messages;
 
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 @EventBusSubscriber
 public class MMKeyInputs {
@@ -26,6 +27,12 @@ public class MMKeyInputs {
     public static final KeyBinding COPY = new KeyBinding("key.mm-copy", Keyboard.KEY_C, "key.mm");
     public static final KeyBinding PASTE = new KeyBinding("key.mm-paste", Keyboard.KEY_V, "key.mm");
     public static final KeyBinding RESET = new KeyBinding("key.mm-reset", Keyboard.KEY_Z, "key.mm");
+    // Hold this configurable key while middle-clicking to ADD an Exchange whitelist entry.
+    public static final KeyBinding ADD_WHITELIST_MODIFIER = new KeyBinding(
+        "key.mm-add-whitelist-modifier",
+        Keyboard.KEY_NONE,
+        "key.mm"
+    );
 
     public static void init() {
         ClientRegistry.registerKeyBinding(CONTROL);
@@ -33,6 +40,20 @@ public class MMKeyInputs {
         ClientRegistry.registerKeyBinding(COPY);
         ClientRegistry.registerKeyBinding(PASTE);
         ClientRegistry.registerKeyBinding(RESET);
+        ClientRegistry.registerKeyBinding(ADD_WHITELIST_MODIFIER);
+    }
+
+    /**
+     * Vanilla 1.7.10 key bindings support a single remappable key rather than
+     * modifier chords. Read the bound key directly so this also works while
+     * an inventory GUI is open (where KeyBinding's pressed state can be stale).
+     */
+    public static boolean isAddWhitelistModifierDown() {
+        int keyCode = ADD_WHITELIST_MODIFIER.getKeyCode();
+        if (keyCode == Keyboard.KEY_NONE) return false; // Unbound by default.
+        if (keyCode > 0) return Keyboard.isKeyDown(keyCode);
+        if (keyCode >= -100) return Mouse.isButtonDown(keyCode + 100);
+        return false;
     }
 
     @SubscribeEvent
