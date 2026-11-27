@@ -1,0 +1,227 @@
+package com.recursive_pineapple.matter_manipulator.common.building.fsm;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.BiPredicate;
+
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.util.MathHelper;
+import net.minecraft.world.World;
+
+import com.recursive_pineapple.matter_manipulator.common.building.PendingBlock;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.ItemMatterManipulator;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
+import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSM;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.FSMSort;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedulable;
+import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.WorkScheduler;
+
+/**
+ * Gets the pending blocks for this manipulator incrementally.
+ * Note: moving uses a special algorithm, so its value returned here should only be used for drawing the hints.
+ */
+public class FSMAnalyzer extends FSM<FSMAnalyzer.State, FSMAnalyzer> {
+
+    public enum State {
+
+        INIT_ANALYZER,
+        WAIT_FOR_ANALYZER,
+        PREPARE_PROCESS,
+        PROCESS_BLOCK,
+        FILTER_BLOCKS,
+        INIT_SORT,
+        WAIT_FOR_SORT,
+        COMPLETE,
+        FINISH;
+
+        public static class NAMES {
+
+            public static final String INIT_ANALYZER = "INIT_ANALYZER";
+            public static final String WAIT_FOR_ANALYZER = "WAIT_FOR_ANALYZER";
+            public static final String PREPARE_PROCESS = "PREPARE_PROCESS";
+            public static final String PROCESS_BLOCK = "PROCESS_BLOCK";
+            public static final String FILTER_BLOCKS = "FILTER_BLOCKS";
+            public static final String INIT_SORT = "INIT_SORT";
+            public static final String WAIT_FOR_SORT = "WAIT_FOR_SORT";
+            public static final String COMPLETE = "COMPLETE";
+            public static final String FINISH = "FINISH";
+        }
+    }
+
+    public final MMState state;
+    public final EntityPlayer player;
+    public final World world;
+    public final ItemMatterManipulator.ManipulatorTier tier;
+    public final List<PendingBlock> blocks = new ArrayList<>();
+
+    protected ISchedulable analyzer;
+    protected Throwable childError;
+    protected ISchedulable sort;
+    protected Iterator<PendingBlock> blockIterator;
+    protected int totalBlocks;
+    protected Location playerLocation;
+
+    private final BiPredicate<ISchedulable, Throwable> childErrorHandler = this::handleChildError;
+
+    public FSMAnalyzer(EntityPlayer player, MMState state, World world, ItemMatterManipulator.ManipulatorTier tier) {
+        super(State.INIT_ANALYZER, State.FINISH);
+
+        this.state = state;
+        this.player = player;
+        this.world = world;
+        this.tier = tier;
+    }
+
+    protected boolean handleChildError(ISchedulable schedulable, Throwable e) {
+        if (schedulable == analyzer || schedulable == sort) {
+            childError = e;
+            return true;
+        }
+
+        return false;
+    }
+
+    @FSM.Event(State.NAMES.INIT_ANALYZER)
+    protected boolean initAnalyzer() {
+        analyzer = switch (state.config.placeMode) {
+            case COPYING, MOVING -> new FSMAnalysisAnalyzer(state, world, blocks);
+            case GEOMETRY -> new FSMGeomAnalyzer(state, world, blocks);
+            case EXCHANGING -> new FSMExchangeAnalyzer(state, world, blocks);
+            case CABLES -> new FSMCableAnalyzer(state, world, blocks);
+        };
+
+        getScheduler().scheduleWork(analyzer);
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.INIT_ANALYZER, to = State.NAMES.WAIT_FOR_ANALYZER)
+    protected boolean analyzerInitialized() {
+        return analyzer != null;
+    }
+
+    @FSM.Event(State.NAMES.WAIT_FOR_ANALYZER)
+    protected boolean propagateAnalyzerError() throws Throwable {
+        if (childError != null) throw childError;
+        return false;
+    }
+
+    @FSM.Transition(from = State.NAMES.WAIT_FOR_ANALYZER, to = State.NAMES.PREPARE_PROCESS)
+    protected boolean analyzerComplete() {
+        return !analyzer.hasWork();
+    }
+
+    @FSM.Event(State.NAMES.PREPARE_PROCESS)
+    protected boolean prepareForProcess() {
+        blockIterator = blocks.iterator();
+        playerLocation = new Location(
+            player.getEntityWorld(),
+            MathHelper.floor_double(player.posX),
+            MathHelper.floor_double(player.posY),
+            MathHelper.floor_double(player.posZ)
+        );
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.PREPARE_PROCESS, to = State.NAMES.PROCESS_BLOCK)
+    protected boolean preparedForProcess() {
+        return blockIterator != null && playerLocation != null;
+    }
+
+    @FSM.Event(State.NAMES.PROCESS_BLOCK)
+    protected boolean processBlock() {
+        if (!blockIterator.hasNext()) return true;
+
+        PendingBlock block = blockIterator.next();
+        if (isOutOfRange(block)) return true;
+
+        totalBlocks++;
+
+        block.generateSortKey();
+        return true;
+    }
+
+    protected boolean isOutOfRange(PendingBlock block) {
+        int maxRange = tier.maxRange;
+        if (maxRange == -1) return false;
+
+        return block.distanceTo2(playerLocation) > maxRange * maxRange;
+    }
+
+    @FSM.Transition(from = State.NAMES.PROCESS_BLOCK, to = State.NAMES.FILTER_BLOCKS)
+    protected boolean blocksProcessed() {
+        return !blockIterator.hasNext();
+    }
+
+    @FSM.Event(State.NAMES.FILTER_BLOCKS)
+    protected boolean filterBlocks() {
+        if (totalBlocks == blocks.size()) return true;
+
+        int maxRange = tier.maxRange;
+
+        blocks.removeIf(block -> block.distanceTo2(playerLocation) > maxRange * maxRange);
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.FILTER_BLOCKS, to = State.NAMES.INIT_SORT)
+    protected boolean blocksFiltered() {
+        return totalBlocks == blocks.size();
+    }
+
+    @FSM.Event(State.NAMES.INIT_SORT)
+    protected boolean initSort() {
+        sort = new FSMSort<>(blocks, (a, b) -> a.sortKey.compareTo(b.sortKey));
+        getScheduler().scheduleWork(sort);
+
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.INIT_SORT, to = State.NAMES.WAIT_FOR_SORT)
+    protected boolean sortInitialized() {
+        return sort != null;
+    }
+
+    @FSM.Event(State.NAMES.WAIT_FOR_SORT)
+    protected boolean propagateSortError() throws Throwable {
+        if (childError != null) throw childError;
+        return false;
+    }
+
+    @FSM.Transition(from = State.NAMES.WAIT_FOR_SORT, to = State.NAMES.COMPLETE)
+    protected boolean completed() {
+        return !sort.hasWork();
+    }
+
+    @FSM.Event(State.NAMES.COMPLETE)
+    protected boolean complete() {
+        return true;
+    }
+
+    @FSM.Transition(from = State.NAMES.COMPLETE, to = State.NAMES.FINISH)
+    protected boolean finished() {
+        return true;
+    }
+
+    @Override
+    public void onScheduled(WorkScheduler scheduler) {
+        super.onScheduled(scheduler);
+
+        if (scheduler == null || !hasWork()) return;
+
+        scheduler.addErrorHandler(this.childErrorHandler);
+
+        if (analyzer != null && analyzer.hasWork()) scheduler.scheduleWork(analyzer);
+        if (sort != null && sort.hasWork()) scheduler.scheduleWork(sort);
+    }
+
+    @Override
+    public void onUnscheduled() {
+        WorkScheduler scheduler = getScheduler();
+        if (scheduler != null) scheduler.removeErrorHandler(this.childErrorHandler);
+        unscheduleChild(analyzer);
+        unscheduleChild(sort);
+    }
+}

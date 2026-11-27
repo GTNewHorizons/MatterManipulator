@@ -17,6 +17,7 @@ import net.minecraft.world.World;
 
 import com.recursive_pineapple.matter_manipulator.GlobalMMConfig.DebugConfig;
 import com.recursive_pineapple.matter_manipulator.MMMod;
+import com.recursive_pineapple.matter_manipulator.common.building.fsm.FSMRegionAnalyzer;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.Location;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMConfig;
 import com.recursive_pineapple.matter_manipulator.common.items.manipulator.MMState;
@@ -39,6 +40,8 @@ public class BlockAnalyzer {
      * Analyzes a region.
      * The returned PendingBlocks are relative to zero.
      * The calling code must add another location (for example coord C) to get the real positions.
+     *
+     * @Deprecated See {@link FSMRegionAnalyzer}
      */
     public static RegionAnalysis analyzeRegion(World world, Location a, Location b, boolean checkTiles) {
         return analyzeRegion(world, a, b, checkTiles, null, null, null);
