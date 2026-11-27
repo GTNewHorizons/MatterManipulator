@@ -29,6 +29,7 @@ import java.util.function.IntSupplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
+import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
@@ -55,6 +56,7 @@ import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Optional.Interface;
 import cpw.mods.fml.common.Optional.InterfaceList;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.InputEvent.KeyInputEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.gameevent.TickEvent.PlayerTickEvent;
@@ -125,6 +127,7 @@ import com.recursive_pineapple.matter_manipulator.common.utils.scheduler.ISchedu
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3i;
 import org.joml.Vector3ic;
+import org.lwjgl.input.Keyboard;
 
 import ic2.api.item.IElectricItemManager;
 import ic2.api.item.ISpecialElectricItem;
@@ -3005,7 +3008,7 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
         }
 
         /**
-         * Used for detecting middle mouse button clicks.
+         * Used for detecting clicks bound to the vanilla pick-block and attack actions.
          */
         @SubscribeEvent
         @SideOnly(Side.CLIENT)
@@ -3017,36 +3020,84 @@ public class ItemMatterManipulator extends Item implements ISpecialElectricItem,
             final ItemStack heldItem = player.getHeldItem();
             if (heldItem == null) { return; }
 
-            if (event.button == 2 /* MMB */ && event.buttonstate && heldItem.getItem() == ItemMatterManipulator.this) {
+            if (
+                event.buttonstate &&
+                    isMouseBinding(event, Minecraft.getMinecraft().gameSettings.keyBindPickBlock) &&
+                    heldItem.getItem() == ItemMatterManipulator.this
+            ) {
                 event.setCanceled(true);
-
-                // call onMMBPressed on the client and the server
-                MMState state = getState(heldItem);
-                onMMBPressed(player, heldItem, state);
-                setState(heldItem, state);
-
-                Messages.MMBPressed.sendToServer();
+                handlePickBlock(player, heldItem);
             }
 
             if (
-                event.button == 0 /* LMB */ && event.buttonstate &&
+                isMouseBinding(event, Minecraft.getMinecraft().gameSettings.keyBindAttack) &&
+                    event.buttonstate &&
                     heldItem.getItem() == ItemMatterManipulator.this &&
                     Minecraft.getMinecraft().currentScreen == null
             ) {
                 MMState state = getState(heldItem);
 
-                if (!canAddCableCorner(state)) return;
-
-                // don't attack or break blocks, especially important in creative mode
-                event.setCanceled(true);
-
-                Vector3i corner = new Vector3i(MMUtils.getLookingAtLocation(player)).add(state.config.coordBOffset);
-
-                if (addCableCorner(state, corner)) {
-                    setState(heldItem, state);
-
-                    Messages.AddCableCorner.sendToServer(corner);
+                if (canAddCableCorner(state)) {
+                    // don't attack or break blocks, especially important in creative mode
+                    event.setCanceled(true);
+                    handleBendCable(player, heldItem, state);
                 }
+            }
+        }
+
+        @SideOnly(Side.CLIENT)
+        private boolean isMouseBinding(MouseEvent event, KeyBinding keyBinding) {
+            int keyCode = keyBinding.getKeyCode();
+            return keyCode < 0 && event.button == keyCode + 100;
+        }
+
+        @SubscribeEvent
+        @SideOnly(Side.CLIENT)
+        public void onKeyInputEvent(KeyInputEvent event) {
+            int keyCode = Keyboard.getEventKey();
+            if (keyCode == 0 || !Keyboard.getEventKeyState()) return;
+
+            final Minecraft minecraft = Minecraft.getMinecraft();
+            final EntityPlayer player = minecraft.thePlayer;
+            if (player == null || player.isDead) return;
+
+            final ItemStack heldItem = player.getHeldItem();
+            if (heldItem == null || heldItem.getItem() != ItemMatterManipulator.this) return;
+
+            if (keyCode == minecraft.gameSettings.keyBindPickBlock.getKeyCode()) {
+                minecraft.gameSettings.keyBindPickBlock.unpressKey();
+                handlePickBlock(player, heldItem);
+            }
+
+            if (
+                keyCode == minecraft.gameSettings.keyBindAttack.getKeyCode() &&
+                    minecraft.currentScreen == null
+            ) {
+                MMState state = getState(heldItem);
+
+                if (canAddCableCorner(state)) {
+                    minecraft.gameSettings.keyBindAttack.unpressKey();
+                    handleBendCable(player, heldItem, state);
+                }
+            }
+        }
+
+        private void handlePickBlock(EntityPlayer player, ItemStack heldItem) {
+            // call onMMBPressed on the client and the server
+            MMState state = getState(heldItem);
+            onMMBPressed(player, heldItem, state);
+            setState(heldItem, state);
+
+            Messages.MMBPressed.sendToServer();
+        }
+
+        private void handleBendCable(EntityPlayer player, ItemStack heldItem, MMState state) {
+            Vector3i corner = new Vector3i(MMUtils.getLookingAtLocation(player)).add(state.config.coordBOffset);
+
+            if (addCableCorner(state, corner)) {
+                setState(heldItem, state);
+
+                Messages.AddCableCorner.sendToServer(corner);
             }
         }
 
