@@ -302,14 +302,6 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
 
         BlockSpec.fromBlock(target, world, d.x, d.y, d.z);
 
-        // consume eu first before doing anything
-        if (!target.getBlock().isAir(world, d.x, d.y, d.z) && !pendingMove.tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
-            sendErrorToPlayer(player, "mm.info.error.out_of_eu");
-            toMove.addLast(move);
-            moveOperation = toMoveAmount;
-            return false;
-        }
-
         proxiedWorld.airX = d.x;
         proxiedWorld.airY = d.y;
         proxiedWorld.airZ = d.z;
@@ -318,6 +310,14 @@ public class FSMMove extends FSM<FSMMove.State, FSMMove> {
         if (!PendingMove.canStayAt(proxiedWorld, s, d, source.getBlock()) || !PendingMove.hasMultipartSupport(proxiedWorld, s, d)) {
             toMove.addFirst(move);
             return true;
+        }
+
+        // consume eu first before doing anything
+        if (!target.getBlock().isAir(world, d.x, d.y, d.z) && !pendingMove.tryConsumePower(stack, world, d.x, d.y, d.z, target)) {
+            sendErrorToPlayer(player, "mm.info.error.out_of_eu");
+            toMove.addLast(move);
+            moveOperation = toMoveAmount;
+            return false;
         }
 
         if (!pendingMove.tryConsumePower(stack, world, s.x, s.y, s.z, source)) {

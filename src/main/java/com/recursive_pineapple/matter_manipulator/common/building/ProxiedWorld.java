@@ -70,7 +70,7 @@ public class ProxiedWorld extends World {
             public File getWorldDirectory() {
                 return null;
             }
-        }, "DUMMY_DIMENSION", null, new WorldSettings(new WorldInfo(new NBTTagCompound())), new Profiler());
+        }, "DUMMY_DIMENSION", world.provider, new WorldSettings(new WorldInfo(new NBTTagCompound())), new Profiler());
 
         this.rand = new XSTR();
         this.world = world;
