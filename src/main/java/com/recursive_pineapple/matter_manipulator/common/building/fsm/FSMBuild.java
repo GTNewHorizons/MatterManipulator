@@ -22,7 +22,6 @@ import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
@@ -951,7 +950,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                         InteropConstants.AE_BLOCK_CABLE.toSpec().getChatComponent() :
                         spec.getChatComponent();
                 } else {
-                    blockNameComponent = new ChatComponentText(gtBlockNameKey);
+                    blockNameComponent = new ChatComponentTranslation(gtBlockNameKey);
                 }
             }
             if (blockNameComponent != null) {
@@ -981,7 +980,7 @@ public class FSMBuild extends FSM<FSMBuild.State, FSMBuild> {
                         InteropConstants.AE_BLOCK_CABLE.toSpec().getChatComponent() :
                         spec.getChatComponent();
                 } else {
-                    blockNameComponent = new ChatComponentText(gtBlockNameKey);
+                    blockNameComponent = new ChatComponentTranslation(gtBlockNameKey);
                 }
             }
             if (blockNameComponent != null) {
